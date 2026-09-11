@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>月度点检表 · 打印视图</title>
+<style>
+  :root{
+    --pink:#ff5fa2; --cyan:#1aa6c4; --ink:#222; --line:#000;
+    --glass:rgba(255,255,255,.55);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(135deg,#fde7f3 0%,#e6f6fb 100%);
+  }
+  .toolbar{
+    position:sticky; top:0; z-index:20; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    padding:12px 18px; margin:0 0 18px;
+    background:var(--glass); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(255,95,162,.3);
+    box-shadow:0 4px 18px rgba(255,95,162,.12);
+  }
+  .toolbar h1{font-size:16px; margin:0 8px 0 0; color:var(--pink); letter-spacing:.5px}
+  .toolbar label{font-size:13px; color:#555}
+  .toolbar select, .toolbar input[type=month]{
+    font-size:14px; padding:6px 10px; border-radius:10px; border:1px solid #e3c6d8;
+    background:#fff; color:#333; outline:none;
+  }
+  .btn{
+    cursor:pointer; border:none; border-radius:10px; padding:8px 16px; font-size:14px; font-weight:600;
+    color:#fff; background:linear-gradient(135deg,var(--pink),var(--cyan));
+    box-shadow:0 4px 12px rgba(255,95,162,.35); transition:.15s;
+  }
+  .btn:hover{transform:translateY(-1px); filter:brightness(1.05)}
+  .btn.ghost{background:#fff; color:var(--pink); border:1px solid var(--pink)}
+  .spacer{flex:1}
+  .hint{font-size:12px;color:#888}
+
+  #forms{display:flex; flex-direction:column; align-items:center; gap:18px; padding:0 12px 40px}
+
+  /* ===== 单张点检表（与 DEMO-QR-001 版式一致） ===== */
+  .form{
+    width:100%; max-width:1180px; background:#fff;
+    border:2px solid var(--line); border-radius:6px; overflow:hidden;
+    box-shadow:0 8px 24px rgba(0,0,0,.08);
+  }
+  .f-title{
+    text-align:center; font-size:20px; font-weight:800; padding:10px 6px 2px; letter-spacing:1px;
+  }
+  .f-title .en{font-size:11px; font-weight:500; color:#666; letter-spacing:.5px}
+  .f-head{position:relative; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px 26px; padding:8px 14px; font-size:13px}
+  .f-head .fh-code{position:absolute; right:8mm; top:5mm; font-size:8pt; color:#888; font-weight:600; letter-spacing:.5px; pointer-events:none;}
+  .f-head .yr, .f-head .mo{font-weight:700}
+  .f-meta{display:flex; flex-wrap:wrap; gap:4px 26px; align-items:center}
+  .f-meta b{font-weight:700; border-bottom:1px solid #999; padding:0 8px; min-width:40px; display:inline-block; text-align:center}
+  .f-meta .no{
+    font:inherit; font-weight:700; border:none; border-bottom:1px solid #999;
+    width:120px; text-align:center; outline:none; padding:0 4px;
+  }
+  table.grid{border-collapse:collapse; width:100%; font-size:12px; table-layout:fixed}
+  table.grid th, table.grid td{border:1px solid var(--line); padding:3px 2px; text-align:center; vertical-align:middle}
+  .c-sn{width:34px}
+  .c-content{width:150px; text-align:left !important; white-space:pre-line; line-height:1.15}
+  .c-freq{width:46px}
+  table.grid thead th{background:#f3f3f3; font-weight:700}
+  table.grid tbody td.cell{font-size:13px; font-weight:700}
+  td.ok{color:#0a8f3c}
+  td.ng{color:#d11; }
+  .f-foot{border-top:1px solid var(--line); font-size:12px; padding:6px 12px; display:flex; flex-direction:column; gap:3px}
+  .f-foot .row{display:flex; gap:8px}
+  .f-foot .lbl{font-weight:700; white-space:nowrap}
+  .f-foot .legend{color:#777; font-size:11px; border-top:1px dashed #ccc; padding-top:4px; margin-top:2px}
+  .empty{color:#999; font-style:italic}
+
+  /* ===== 打印样式 ===== */
+  @page{ size:A4 landscape; margin:5mm 6mm; }
+  @media print{
+    body{background:#fff}
+    .toolbar{display:none !important}
+    /* 文档编号放在每个 form 顶部最右（流式元素） */
+    .print-code{display:block; text-align:right; font-size:8pt; color:#333; font-weight:600; letter-spacing:.5px; margin-bottom:1pt; padding-right:1mm}
+    .f-head .fh-code{display:none !important}
+    #forms{gap:0; padding:0; margin:0}
+    .form{box-shadow:none; border:2px solid #000; max-width:none; width:100%;
+      page-break-inside:avoid; break-inside:avoid; page-break-after:always; border-radius:0; display:block}
+    .form:last-child{page-break-after:auto}
+    .f-title{padding:3pt 6pt 0 !important; font-size:12pt !important}
+    .f-title .en{font-size:7pt !important}
+    .f-head{padding:2pt 10pt !important; font-size:8.5pt !important; line-height:1.25 !important}
+    .f-head .yr, .f-head .mo{font-weight:700}
+    table.grid{ border-collapse:collapse; table-layout:fixed; font-size:6.5pt !important; page-break-inside:avoid; break-inside:avoid; }
+    table.grid thead th{ background:#eee !important; padding:.8pt 1pt !important; font-size:6pt !important; }
+    table.grid tbody td{ padding:.3pt 1pt !important; vertical-align:middle !important; height:18pt; box-sizing:border-box; overflow:hidden; }
+    table.grid .c-sn{ width:14pt !important; font-size:6pt; }
+    table.grid .c-content{ width:195pt !important; font-size:6pt !important; line-height:1.1 !important; }
+    table.grid .c-freq{ width:20pt !important; font-size:5.5pt !important; }
+    table.grid .cell{ font-weight:700 !important; font-size:7pt !important; }
+    .f-foot{border-top:1px solid #000; font-size:8pt; padding:3px 12px; gap:2px; line-height:1.3}
+    .f-foot .legend{font-size:8pt; border-top:1px dashed #000; padding-top:2px}
+    td.ok, td.ng{color:#000 !important}
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>📋 月度点检表 · 打印</h1>
+    <label>月份 <input type="month" id="month"></label>
+    <label>设备 <select id="dev"></select></label>
+    <button class="btn" id="go">生成预览</button>
+    <button class="btn ghost" id="print">🖨 打印 / 另存PDF</button>
+    <span class="spacer"></span>
+    <span class="hint">编号 No. 可手改后打印 · 每表自动单页</span>
+  </div>
+
+  <div id="forms"><div class="empty">选择月份与设备后点击「生成预览」</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p,opt)=>fetch(p,opt).then(r=>r.json());
+let DEVICES=[];
+
+function initMonth(){
+  const now=new Date();
+  const y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0');
+  $('#month').value = `${y}-${m}`;
+}
+
+async function loadDevices(){
+  try{ DEVICES = await api('/api/devices'); }catch(e){ DEVICES=[]; }
+  const sel=$('#dev');
+  sel.innerHTML = '<option value="0">全部设备</option>' +
+    DEVICES.map(d=>`<option value="${d.id}">${d.no} · ${esc(d.name)}</option>`).join('');
+}
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function render(){
+  const month=$('#month').value;
+  if(!month){ alert('请选择月份'); return; }
+  let data;
+  try{ data = await api('/api/monthly?month='+encodeURIComponent(month)); }
+  catch(e){ $('#forms').innerHTML='<div class="empty">加载失败：'+e+'</div>'; return; }
+  const sel=+$('#dev').value;
+  let devs = data.devices||[];
+  if(sel) devs = devs.filter(d=>d.id===sel);
+  const [yy,mm]=month.split('-');
+  const box=$('#forms'); box.innerHTML='';
+  if(!devs.length){ box.innerHTML='<div class="empty">该月 / 该设备暂无数据</div>'; return; }
+  for(const d of devs){ box.appendChild(buildForm(d, yy, mm)); }
+}
+
+function buildForm(d, yy, mm){
+  const dim = new Date(+yy, +mm, 0).getDate();
+  const f=document.createElement('div'); f.className='form';
+
+  let head='<th class="c-sn">序号<br>SN</th><th class="c-content">内容<br>Contents</th><th class="c-freq">频率<br>Frequency</th>';
+  for(let day=1; day<=dim; day++) head+=`<th>${day}</th>`;
+
+  let body='';
+  const items = d.items||[];
+  const dailyItems=items.filter(it=>it.frequency!=='每月');
+  const monthlyItems=items.filter(it=>it.frequency==='每月');
+  // 打印用行高：A4 横版单页约束 —— 每台设备每月必须正好一页
+  // 可用高度 ≈ 567pt；固定开销（标题+表头+页脚+边框）≈ 150pt；剩余 ≈ 342pt 均分给内容行
+  const totalRowCount = Math.max(1, dailyItems.length + monthlyItems.length);
+  const dailyRowPt = Math.max(12, Math.min(30, Math.floor(342 / totalRowCount)));
+  const monthlyRowPt = Math.max(16, dailyRowPt + 4);
+  if(!items.length){ body='<tr><td colspan="'+(dim+3)+'" class="empty">无点检项</td></tr>'; }
+  for(const it of dailyItems){
+    let row=`<tr style="height:${dailyRowPt}pt"><td class="c-sn">${it.sn}</td><td class="c-content">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td>`;
+    for(let day=1; day<=dim; day++){
+      const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+      const cell=d.days?d.days[dd]:null;
+      let mark='';
+      if(cell){ const st=cell.bySn?cell.bySn[it.sn]:null; mark = st==='ng'?'×':(st==='ok'?'√':''); }
+      const cls = mark==='×'?'ng':(mark==='√'?'ok':'');
+      row+=`<td class="cell ${cls}">${mark}</td>`;
+    }
+    row+='</tr>';
+    body+=row;
+  }
+  for(const it of monthlyItems){
+    let status='';
+    for(let day=1; day<=dim; day++){
+      const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+      const cell=d.days?d.days[dd]:null;
+      if(cell&&cell.bySn&&cell.bySn[it.sn]){
+        const s=cell.bySn[it.sn];
+        if(s==='ng'){status='×';break;}
+        if(s==='ok'&&status!=='×')status='√';
+      }
+    }
+    const cls = status==='×'?'ng':(status==='√'?'ok':'');
+    body+=`<tr style="height:${monthlyRowPt}pt"><td class="c-sn">${it.sn}</td><td class="c-content">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td><td class="cell ${cls}" colspan="${dim}">${status}</td></tr>`;
+  }
+
+  // 表头取自后台「点检模板」配置，未配置时回退公司通用表头
+  const formHead=[d.form_code||'DEMO-QR-001', d.form_rev||'Rev.A1'].join(' ');
+  const tblTitle=d.title||'设备维护保养记录';
+  const tblTitleEn=d.title_en||'Maintenance Record of Equipment';
+  const signers=(d.signers&&d.signers.length)?d.signers.join('、'):'—';
+  const abn=(d.abnormal&&d.abnormal.length)?d.abnormal.join('； '):'—';
+
+  f.innerHTML = `
+    <div class="print-code">${esc(formHead)}</div>
+    <div class="f-title">${esc(tblTitle)}<div class="en">${esc(tblTitleEn)}</div></div>
+    <div class="f-head">
+      <div class="fh-code">${esc(formHead)}</div>
+      <span>年 <b class="yr">${yy}</b></span>
+      <span>月 <b class="mo">${mm}</b></span>
+      <span class="f-meta">
+        <span>设备名称 Name of Equipments：<b>${esc(d.name)}</b></span>
+        <span>型号 Model：<b>${esc(d.model)}</b></span>
+        <span>编号 No.：<input class="no" value="${esc(d.no)}"></span>
+      </span>
+    </div>
+    <table class="grid">
+      <thead><tr>${head}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <div class="f-foot">
+      <div class="row"><span class="lbl">维护人员 Maintainer：</span><span>${esc(signers)}</span></div>
+      <div class="row"><span class="lbl">异常情况及处理记录：</span><span>${esc(abn)}</span></div>
+      <div class="legend">备注 Note：维护状态为正常时，划“√”；异常时，划“×”。When the maintenance status is OK, mark √; when NOK, mark "×".</div>
+    </div>`;
+  return f;
+}
+
+$('#go').onclick = render;
+$('#print').onclick = ()=>window.print();
+$('#month').addEventListener('change', ()=>{ if($('#dev').value!=='') render(); });
+
+initMonth();
+loadDevices().then(render);
+</script>
+</body>
+</html>

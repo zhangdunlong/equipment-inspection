@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<!-- v2026-08-21-5: 月度点检「只勾一次」标记恢复居中显示(此前误判为bug强制靠左) -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>点检作业</title>
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/sig.js"></script>
+<style>
+:root{ --line:#000; --glass-bd:rgba(255,95,162,.35); --pink:#ff5fa2; --cyan:#1aa6c4; }
+*{box-sizing:border-box}
+body{ color:#1a1a2e; }
+
+/* ===== 设备信息头部（模板式） ===== */
+.dev-header{ position:relative; background:#fff; border:2px solid var(--line); border-radius:8px; padding:12px 16px; margin-top:14px; }
+.dh-title{ text-align:center; font-size:18px; font-weight:800; letter-spacing:2px; margin-bottom:4px; }
+.dh-title .en{ font-size:10px; color:#666; letter-spacing:.5px; display:block; }
+.dh-meta{ display:flex; flex-wrap:wrap; gap:6pt 20pt; align-items:center; font-size:13px; border-top:1.5px solid #ddd; border-bottom:1.5px solid #ddd; padding:6pt 0; margin-top:4pt; }
+.dh-meta b{ font-weight:700; border-bottom:1px solid #999; padding:0 6pt; min-width:36px; display:inline-block;text-align:center;}
+.dh-meta .no-input{ font-weight:700; border:none; border-bottom:1px solid #999; width:90px; text-align:center; outline:none; background:transparent; }
+
+/* ===== 月度点检表（模板 序号|内容|频率|1..31日） ===== */
+.grid-wrap{ margin-top:10px; border:2px solid var(--line); border-radius:8px; overflow:auto; background:#fff; }
+.mtable{ border-collapse:collapse; width:100%; min-width:980px; font-size:12px; table-layout:fixed; }
+.mtable th,.mtable td{ border:1px solid #ccc; padding:3px 2px; text-align:center; vertical-align:middle; }
+.mtable thead th{ background:#f3f3f3; font-weight:700; color:#222; font-size:10.5px; }
+.mtable .c-sn{ width:34px; }
+.mtable .c-content{ width:170px; text-align:left !important; white-space:pre-line; line-height:1.15; font-size:11.5px; }
+.mtable .c-content-monthly{ text-align:center !important; }
+.mtable .c-freq{ width:46px; font-size:10px; color:#666; }
+.mtable .c-day{ width:30px; font-size:10px; }
+.mtable .c-day .dow{ display:block; font-size:8px; color:#aaa; font-weight:400; }
+.mtable tbody td.sn{ font-weight:700; background:#fafafa; }
+.mcell{ cursor:pointer; font-size:13px; font-weight:700; user-select:none; transition:background .1s; }
+.mcell:hover{ background:#fff0f7; }
+.mcell.ok{ color:#0a8f3c; }
+.mcell.ng{ color:#d11; background:#fdeaea; }
+.mcell.holiday{ color:#b8860b; background:#fff8e1; }
+.mcell.empty{ color:#ccc; }
+.mcell.future{ color:#ccc; cursor:not-allowed; background:#fafafa; }
+.mcell-monthly{ background:#f0f7ff !important; font-size:14px !important; text-align:center !important; }
+.mlegend{ font-size:11px; color:#888; margin-top:4pt; }
+.mlegend b{ color:#333; }
+.mtable .sigrow{ margin-top:0; }
+.mtable .sigrow td.sn{ background:#f3f3f3; font-weight:700; }
+.mtable .sigrow .c-content{ font-size:10px; }
+.sigcell{ position:relative; vertical-align:middle; height:108px; padding:2px 1px; text-align:center; cursor:pointer; }
+.sigcell:hover{ background:#fff0f7; }
+.sigthumb{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center; max-width:28px; max-height:100px; }
+.sph{ font-size:11px; color:#ccc; }
+
+/* ===== 签名 / 备注 / 操作 ===== */
+.sig-ops{ background:#fff; border:2px solid var(--line); border-radius:8px; margin-top:14px; padding:12pt; }
+.so-title{ font-weight:700; margin-bottom:6pt; }
+.so-tabs{ display:flex; gap:6pt; flex-wrap:wrap; margin-bottom:8pt; }
+.so-tabs button{ font-size:12px; padding:5pt 12pt; border-radius:8pt; border:1px solid var(--glass-bd); background:#fff; cursor:pointer; }
+.so-tabs button.active{ background:linear-gradient(135deg,#ff5fa2,#1aa6c4); color:#fff; border:none; }
+.so-box{ display:none; }
+.so-box.active{ display:block; }
+.so-box canvas{ background:#fff; border:1px solid #ccc; border-radius:8px; touch-action:none; cursor:crosshair; max-width:100%; }
+.so-prev{ margin-top:6pt; }
+.so-prev img{ max-height:48px; border:1px solid #ccc; border-radius:6px; background:#fff; padding:2pt 4pt; vertical-align:middle; }
+.so-meta{ display:flex; gap:8pt; flex-wrap:wrap; align-items:center; margin-top:6pt; }
+.so-meta input,.so-meta select{ font-size:12px; padding:5pt 8pt; border:1px solid #ccc; border-radius:6pt; }
+.sig-line{ margin-top:10pt; padding-top:6pt; border-top:1px dashed #ddd; font-size:13px; }
+.sig-line #s_sigprev{ display:inline-block; vertical-align:middle; min-width:60px; }
+.sig-line #s_sigprev img{ height:42px; border:none; }
+/* ===== 异常情况及处理记录（屏幕编辑 + 打印只读两套 DOM） ===== */
+.abn-section{ margin-top:12pt; border:2px solid var(--line); border-radius:8px; padding:10pt 12pt; background:#fff; }
+.abn-section .abn-h{ font-weight:800; font-size:14px; margin-bottom:6pt; color:#b00; }
+.abn-empty{ color:#888; font-size:12px; padding:6pt 0; }
+.abn-table{ width:100%; border-collapse:collapse; font-size:12px; }
+.abn-table th,.abn-table td{ border:1px solid #ccc; padding:4pt 6pt; vertical-align:top; text-align:left; }
+.abn-table th{ background:#f3f3f3; font-weight:700; }
+.abn-table .c-sn{ width:40px; } .abn-table .c-content{ width:150px; } .abn-table .c-abn{ width:200px; } .abn-table .c-handle{ width:200px; } .abn-table .c-person{ width:80px; } .abn-table .c-hdate{ width:120px; }
+.abn-table .ac{ font-size:11px; color:#333; }
+.abn-input{ width:100%; font-size:12px; padding:3pt 4pt; border:1px solid #ccc; border-radius:4pt; box-sizing:border-box; font-family:inherit; background:#fff; }
+textarea.abn-input{ min-height:34pt; resize:vertical; }
+.print-only{ display:none; }
+.note-line{ margin-top:8pt; font-size:12px; color:#333; line-height:1.5; }
+.actions{ margin-top:12pt; display:flex; gap:10pt; flex-wrap:wrap; }
+.btn{ cursor:pointer; border:none; border-radius:10px; padding:9pt 18pt; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg,var(--pink),var(--cyan)); box-shadow:0 4px 12px rgba(255,95,162,.3); }
+.btn:hover{ filter:brightness(1.05); }
+.btn.ghost{ background:#fff; color:var(--pink); border:1px solid var(--pink); box-shadow:none; }
+
+/* ===== 打印：整月一张 A4 横页（紧凑单页） ===== */
+.print-code{ display:none; }
+.dev-header .dh-code{ position:absolute; right:8mm; top:5mm; font-size:8pt; color:#888; font-weight:600; letter-spacing:.5px; pointer-events:none; }
+@media print {
+@page { size: A4 landscape; margin: 5mm 6mm; }
+/* 文档编号放在 dev-block 顶部最右（流式元素避免 position:fixed 幽灵尾页） */
+.print-code{ display:block; text-align:right; font-size:8pt; color:#333; font-weight:600; letter-spacing:.5px; margin-bottom:1pt; padding-right:1mm; }
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+body{ background:#fff !important; color:#000 !important; margin:0!important; padding:0!important; min-height:0!important; height:auto!important; overflow:visible!important; }
+html{ margin:0!important; padding:0!important; min-height:0!important; height:auto!important; }
+nav,.tabs,.panel:not(#p_single),.toast,.no-print,
+.row,.field,
+.sig-ops .so-tabs,.sig-ops .so-box,.sig-ops .so-prev,canvas,input[type=file],
+.actions,.abn-row textarea,.mlegend,
+.sig-ops{ display:none !important; }
+
+.wrap{ max-width:none!important; margin:0!important; padding:0!important; }
+#p_single{ display:block!important; background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important; }
+/* 表头与内容作为一个整体，禁止跨页断裂 */
+.dev-block{ display:block; page-break-inside:avoid; break-inside:avoid; }
+.dev-header{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; color:#000!important;
+  font-family:"SimSun","宋体","Microsoft YaHei",serif!important; margin-top:0!important; padding:2pt 6pt!important; }
+.dh-title{ font-size:12pt!important; font-weight:800!important; letter-spacing:3pt!important; padding:0!important; margin:0!important; }
+.dh-title .en{ font-size:7pt!important; color:#333!important; }
+.dev-header .dh-code{ display:none!important; }
+.dh-meta{ border-top:1.5px solid #000!important; border-bottom:1.5px solid #000!important; font-size:8pt!important; padding:1pt 0!important; margin-top:2pt!important; line-height:1.25!important; }
+.dh-meta b{ border-bottom:1px solid #000!important; color:#000!important; }
+.dh-meta .no-input{ border-bottom:1px solid #000!important; color:#000!important; }
+
+/* 表格区 */
+.grid-wrap{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; break-inside:avoid; color:#000!important;
+  font-family:"SimSun","宋体","Microsoft YaHei",serif!important; margin-top:2pt!important; display:block; overflow:visible!important; }
+.mtable{ min-width:0!important; font-size:6.5pt!important; width:100%!important; height:auto!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
+.mtable th,.mtable td{ border:1px solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
+.mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:6pt; }
+/* td height 强制行高（tr height 在 Chrome 打印中不可靠） */
+.mtable tbody td{ vertical-align:middle!important; height:18pt; box-sizing:border-box; }
+.mtable .c-sn{ width:14pt!important; font-size:6pt; }
+.mtable .c-content{ width:210pt!important; font-size:6pt!important; line-height:1.1!important; white-space:nowrap!important; overflow:hidden!important; }
+.mtable .c-freq{ width:20pt!important; font-size:5.5pt!important; }
+.mtable .c-day{ width:15pt!important; font-size:6pt; }
+
+/* ===== 签名行：彻底解决外溢 ===== */
+/* 关键修复：.mtable .sigrow（有空格）= .sigrow 是 .mtable 的后代元素；原写法 .mtable.sigrow（无空格）意为同一元素同时有两类，但 HTML 中 .mtable 在 <table>、.sigrow 在 <tr>，是不同元素，导致打印态约束全部不生效、回退到屏幕态 28px×100px 绝对定位 */
+.mtable .sigrow{ margin-top:0!important; }
+.mtable .sigrow td{ height:22pt!important; padding:0!important; overflow:hidden!important; }
+/* 签名格子：flex 居中 + overflow:hidden 双保险 */
+.mtable .sigrow .sigcell{ padding:0!important; text-align:center!important; vertical-align:middle!important; line-height:0!important; overflow:hidden!important; }
+/* 签名图：强制 inline-block + 固定 pt 宽高 + object-fit:contain */
+.mtable .sigrow .sigthumb{
+  display:inline-block!important;
+  position:static!important; top:auto!important; left:auto!important; transform:none!important;
+  margin:0 auto!important; padding:0!important; vertical-align:middle!important;
+  width:10pt!important; height:13pt!important; max-width:10pt!important; max-height:13pt!important;
+  object-fit:contain!important; object-position:center center!important;
+  border:0!important; outline:0!important; background:transparent!important;
+}
+.mtable .sigrow .sph{ display:none!important; }
+.mcell{ font-size:7pt!important; }
+.mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; } .mcell.holiday{ color:#000!important; } .mcell-monthly{ text-align:center!important; } .mtable .c-content-monthly{ text-align:center !important; }
+.sig-ops{ display:none !important; }
+.sig-line{ display:none !important; }
+.abn-row{ display:none !important; }
+  .actions{ display:none !important; }
+  /* 异常区块：屏幕编辑区隐藏，打印只读区显示 */
+  #abn_zone{ display:none !important; }
+  #abn_print{ display:block !important; }
+  .abn-section{ border:1.5px solid #000!important; border-radius:0!important; margin-top:4pt!important; padding:3pt 5pt!important; page-break-inside:avoid; break-inside:avoid; font-family:"SimSun","宋体",serif!important; color:#000!important; background:transparent!important; }
+  .abn-section .abn-h{ font-size:9.5pt!important; font-weight:800!important; margin-bottom:2pt!important; color:#000!important; }
+  .abn-table{ font-size:6.5pt!important; width:100%!important; border-collapse:collapse!important; }
+  .abn-table th,.abn-table td{ border:1px solid #000!important; color:#000!important; padding:.6pt 2pt!important; vertical-align:top!important; text-align:left!important; }
+  .abn-table th{ background:#eee!important; }
+  .abn-table .ac{ font-size:6pt!important; }
+  .abn-empty{ color:#000!important; font-size:7pt!important; }
+  .note-line{ margin-top:3pt!important; font-size:6.5pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
+}
+.muted.tiny{ font-size:11px; color:#888; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand">⚡ 设备点检中心</div>
+  <div class="sp"></div>
+  <a href="/">设备大屏</a>
+  <a href="/inspect" class="active">点检作业</a>
+  <a href="/admin" id="nav_admin" style="display:none">管理后台</a>
+  <span data-appver style="color:rgba(234,241,251,.45);font-size:11px;white-space:nowrap"></span>
+  <a href="/logout">退出</a>
+</nav>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="active" data-t="batch" id="tab_batch" style="display:none">⚡ 每日点检（全部设备）</button>
+    <button data-t="single" id="tab_single">🔧 单台点检（月度）</button>
+  </div>
+
+  <!-- 一键点检（仅管理员可见：普通用户隐藏，见下方角色判断 IIFE） -->
+  <div class="panel active glass" id="p_batch" style="display:none">
+    <h3 style="margin-bottom:6px">一键点检 · 全部设备（当日）</h3>
+    <p class="muted tiny">默认将全部设备标记为「正常」并一次性签名；如需标记异常，请在下方列表勾选并填写说明。</p>
+    <div class="row mt">
+      <div class="field"><label>点检日期</label><input type="date" id="b_date"></div>
+      <div class="field"><label>签名人</label><select id="b_signer"></select></div>
+      <div class="field"><label>签名密码</label><input type="password" id="b_pw" placeholder="签名人密码"></div>
+    </div>
+    <div class="flex mb">
+      <button class="btn primary" id="b_go">⚡ 一键点检所有设备（当日）</button>
+      <span class="muted tiny" id="b_stat"></span>
+    </div>
+    <div class="scroll glass" style="max-height:420px">
+      <table><thead><tr><th style="width:90px">编号</th><th>设备</th><th style="width:90px">型号</th><th style="width:90px">标记异常</th><th>异常说明</th></tr></thead>
+        <tbody id="b_list"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 单台点检（月度） -->
+  <div class="panel glass" id="p_single">
+    <div class="row">
+      <div class="field" style="max-width:210px"><label>房间</label><select id="s_room"></select></div>
+      <div class="field" style="flex:2"><label>选择设备（编号 / 名称搜索）</label>
+        <input type="text" id="s_search" placeholder="输入编号或名称筛选…" list="devlist">
+        <datalist id="devlist"></datalist></div>
+      <div class="field" style="max-width:200px"><label>月份</label><input type="month" id="s_month"></div>
+    </div>
+    <div class="flex mb" style="gap:8px">
+      <a class="btn sm ghost no-print" id="go_env" href="/env" title="跳到本房间的温湿度监测记录（DEMO-QR-008）">🌡 本房间温湿度表 →</a>
+      <a class="btn sm ghost no-print" id="go_all" href="/print-all" title="批量打印本房间全部设备的月度点检表">🖨 批量打印本房间 →</a>
+    </div>
+    <div id="s_body" class="mt"><p class="muted">请选择设备后加载本月点检表。</p></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+
+<script>
+const $=s=>document.querySelector(s);
+const api=(p,opt)=>fetch(p,opt).then(r=>r.json());
+function toast(m,t){const e=$('#toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(()=>e.className='toast',2600);}
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// 房间下拉选项：一律显示完整房间名；有分组的房间用 <optgroup> 归到组名之下。
+// 用 optgroup 而不是给选项加前缀，是因为下拉收起时只显示选项文本——选项写完整房间名，
+// 收起/展开都能看清是哪个房间，同时展开时仍能看出分组归属。
+function roomOpts(list,cur,allLabel){
+  const opt=r=>`<option value="${esc(r.name)}" ${r.name===cur?'selected':''}>${esc(r.name)}</option>`;
+  const groups=[]; const plain=[];
+  (list||[]).forEach(r=>{
+    const g=String(r.group||'').trim();
+    if(g){ let e=groups.find(x=>x.g===g); if(!e){ e={g:g,items:[]}; groups.push(e); } e.items.push(r); }
+    else plain.push(r);
+  });
+  let h=(allLabel!=null)?`<option value="" ${cur===''?'selected':''}>${esc(allLabel)}</option>`:'';
+  h+=groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('');
+  h+=plain.map(opt).join('');
+  return h;
+}
+
+const DOW=['日','一','二','三','四','五','六'];
+const ST={ ok:{mark:'√',cls:'ok',next:'ng'}, ng:{mark:'×',cls:'ng',next:'holiday'}, holiday:{mark:'/',cls:'holiday',next:'none'}, none:{mark:'',cls:'empty',next:'ok'} };
+const thisMonth=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
+// 用本地时间（非 UTC）计算今天，避免 GMT+8 上午时区偏差把"今天"算成昨天 → 误判为未来日期
+const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const dimOf=(yy,mm)=>new Date(+yy,+mm,0).getDate();
+
+let DEVICES=[],SIGNERS=[],CUR=null,CUR_MONTH=null,SIG_ASSETS={},STATE={items:[],dailyItems:[],monthlyItems:[],matrix:{},monthlyStatus:{},abnormal:[]};
+
+$('#b_date').value=localToday();
+$('#b_date').max=localToday();   // 禁止选择未来日期
+$('#s_month').value=thisMonth();
+
+// 角色控制：管理后台导航 + 「一键点检全部设备」，仅管理员显示（普通用户登录后两者都隐藏）
+(async()=>{try{
+  const me=await api('/api/admin/me');
+  if(me && me.ok && me.role==='admin'){
+    const a=document.getElementById('nav_admin'); if(a) a.style.display='';
+    const tb=document.getElementById('tab_batch'); if(tb) tb.style.display='';
+    const pb=document.getElementById('p_batch'); if(pb) pb.style.display='';
+  } else {
+    // 普通用户：隐藏一键点检全部设备，默认展示「单台点检」
+    const tb=document.getElementById('tab_batch'); if(tb) tb.classList.remove('active');
+    const ts=document.getElementById('tab_single'); if(ts) ts.classList.add('active');
+    const pb=document.getElementById('p_batch'); if(pb) pb.classList.remove('active');
+    const ps=document.getElementById('p_single'); if(ps) ps.classList.add('active');
+  }
+}catch(e){}})();
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
+});
+
+// 收集当前点检表中所有「× 异常」项，生成/保留异常明细清单（屏幕编辑 + 打印只读两套 DOM）
+function syncAbnormalList(){
+  if(!CUR_MONTH) return;
+  const ng = new Map();
+  for(const dd in STATE.matrix){
+    const row = STATE.matrix[dd];
+    for(const sn in row){
+      if(row[sn]==='ng'){
+        const it = STATE.dailyItems.find(x=>String(x.sn)===String(sn));
+        ng.set(dd+'#'+sn, { key:dd+'#'+sn, date:dd, sn:+sn, freq: it?it.frequency:'每日', content: it?it.content:'' });
+      }
+    }
+  }
+  for(const sn in STATE.monthlyStatus){
+    if(STATE.monthlyStatus[sn]==='ng'){
+      const it = STATE.monthlyItems.find(x=>String(x.sn)===String(sn));
+      ng.set('M#'+sn, { key:'M#'+sn, date:'', sn:+sn, freq:'每月', content: it?it.content:'' });
+    }
+  }
+  const kept=[];
+  ng.forEach((meta,key)=>{
+    const exist = STATE.abnormal.find(a=>a.key===key);
+    if(exist){ Object.assign(exist, meta); kept.push(exist); }
+    else { kept.push(Object.assign({ id:key, abnormal:'', handle:'', handler:'', handle_date:'' }, meta)); }
+  });
+  STATE.abnormal = kept;
+  renderAbnormal();
+}
+function renderAbnormal(){
+  // 屏幕编辑区：跟随 ng 状态（用于录入）；打印只读区：显示全部已保存明细（保证归档追溯完整）
+  const list = STATE.abnormal||[];
+  const saved = STATE.abnormalSaved && STATE.abnormalSaved.length ? STATE.abnormalSaved : list;
+  if(!list.length){
+    $('#abn_list').innerHTML = '<div class="abn-empty">本月暂无异常；在点检格点击切换为「×」后，此处自动列出需填写的异常项。</div>';
+  } else {
+    const head = '<table class="abn-table"><thead><tr><th class="c-date">日期</th><th class="c-sn">序号</th><th class="c-content">检查内容</th><th class="c-abn">异常情况</th><th class="c-handle">处理记录(措施)</th><th class="c-person">处理人</th><th class="c-hdate">处理日期</th></tr></thead><tbody>';
+    const bodyEdit = list.map(ab=>`<tr data-key="${ab.key}">
+     <td>${ab.freq==='每月'?'本月':esc(ab.date)}</td>
+     <td>${ab.sn}</td>
+     <td class="ac">${esc(ab.content)}</td>
+     <td><textarea class="abn-input" data-f="abnormal" data-key="${ab.key}" placeholder="异常情况描述">${esc(ab.abnormal||'')}</textarea></td>
+     <td><textarea class="abn-input" data-f="handle" data-key="${ab.key}" placeholder="处理记录/措施">${esc(ab.handle||'')}</textarea></td>
+     <td><input class="abn-input" data-f="handler" data-key="${ab.key}" value="${esc(ab.handler||'')}" placeholder="处理人"></td>
+     <td><input type="date" class="abn-input" data-f="handle_date" data-key="${ab.key}" value="${esc(ab.handle_date||'')}"></td>
+   </tr>`).join('');
+    $('#abn_list').innerHTML = head + bodyEdit + '</tbody></table>';
+  }
+  if(!saved.length){
+    $('#abn_print_list').innerHTML = '<div class="abn-empty">本月无异常情况记录。</div>';
+  } else {
+    const headP = '<table class="abn-table"><thead><tr><th class="c-date">日期</th><th class="c-sn">序号</th><th class="c-content">检查内容</th><th class="c-abn">异常情况</th><th class="c-handle">处理记录(措施)</th><th class="c-person">处理人</th><th class="c-hdate">处理日期</th></tr></thead><tbody>';
+    const bodyPrint = saved.map(ab=>`<tr>
+     <td>${ab.freq==='每月'?'本月':esc(ab.date)}</td>
+     <td>${ab.sn}</td>
+     <td class="ac">${esc(ab.content)}</td>
+     <td>${esc(ab.abnormal||'—')}</td>
+     <td>${esc(ab.handle||'—')}</td>
+     <td>${esc(ab.handler||'—')}</td>
+     <td>${esc(ab.handle_date||'—')}</td>
+   </tr>`).join('');
+    $('#abn_print_list').innerHTML = headP + bodyPrint + '</tbody></table>';
+  }
+}
+
+// 房间上下文：与温湿度表 / 大屏 / 批量打印共用同一个「当前房间」（?room= 或 sessionStorage）
+let ROOMS=[], CUR_ROOM='';
+function syncRoomLinks(){
+  const q=encodeURIComponent(CUR_ROOM||'');
+  const a=$('#go_env'); if(a) a.href='/env?room='+q;
+  const b=$('#go_all'); if(b) b.href='/print-all?room='+q+'&month='+encodeURIComponent($('#s_month').value||thisMonth())+'&auto=1';
+  const inRoom=d=>!CUR_ROOM||d.location===CUR_ROOM;
+  $('#devlist').innerHTML=DEVICES.filter(inRoom).map(d=>`<option value="${d.no}">${d.no} ${d.name}</option>`).join('');
+}
+async function initRooms(){
+  try{ ROOMS=await api('/api/rooms'); }catch(e){ ROOMS=[]; }
+  const qs=new URLSearchParams(location.search);
+  const rp=qs.get('room'); let sr='';
+  try{ sr=sessionStorage.getItem('selected_room')||''; }catch(e){}
+  if(rp&&ROOMS.some(r=>r.name===rp)) CUR_ROOM=rp;
+  else if(sr&&ROOMS.some(r=>r.name===sr)) CUR_ROOM=sr;
+  const sel=$('#s_room');
+  if(sel){
+    sel.innerHTML=roomOpts(ROOMS,CUR_ROOM,'全部房间');
+    sel.onchange=()=>{
+      CUR_ROOM=sel.value;
+      try{ sessionStorage.setItem('selected_room',CUR_ROOM); }catch(e){}
+      syncRoomLinks();
+      $('#s_search').value=''; $('#s_body').innerHTML='<p class="muted">请选择设备后加载本月点检表。</p>'; CUR=null;
+    };
+  }
+  syncRoomLinks();
+}
+
+async function init(){
+  // 异常明细输入委托：编辑区 textarea/input 实时写入 STATE.abnormal
+  $('#s_body').addEventListener('input', e=>{
+    const el=e.target.closest('.abn-input'); if(!el) return;
+    const item=STATE.abnormal.find(a=>a.key===el.dataset.key); if(!item) return;
+    item[el.dataset.f]=el.value;
+  });
+  DEVICES=await api('/api/devices');
+  SIGNERS=await api('/api/signers/public');
+  const so=$('#b_signer');so.innerHTML=SIGNERS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  renderBatch();
+  await initRooms();
+  // 支持从大屏 / 链接直接定位到某台设备的单台点检（?device=编号 或 ?dev=ID）
+  const qs=new URLSearchParams(location.search);
+  const devParam=qs.get('device')||qs.get('dev');
+  const monthParam=qs.get('month');
+  if(devParam){
+    const singleBtn=document.querySelector('.tabs button[data-t="single"]');
+    if(singleBtn) singleBtn.click();
+    $('#s_search').value=devParam;
+    if(monthParam) $('#s_month').value=monthParam;
+    await loadMonth();
+  }
+}
+function renderBatch(){
+  $('#b_list').innerHTML=DEVICES.map(d=>`<tr>
+    <td>${d.no}</td><td>${d.name}</td><td>${d.model||''}</td>
+    <td style="text-align:center"><input type="checkbox" class="abn" data-id="${d.id}"></td>
+    <td><input type="text" class="abn_note" data-id="${d.id}" placeholder="异常说明"></td></tr>`).join('');
+}
+$('#b_go').onclick=async()=>{
+  const sid=$('#b_signer').value,pw=$('#b_pw').value,date=$('#b_date').value;
+  if(!sid||!pw){toast('请选择签名人并输入密码','err');return;}
+  if(!date){toast('请选择点检日期','err');return;}
+  const today=localToday();
+  if(date>today){toast('不能点检未来日期','err');return;}
+  const devices=[];
+  document.querySelectorAll('.abn').forEach(c=>{if(c.checked){const id=c.dataset.id;
+    const note=document.querySelector('.abn_note[data-id="'+id+'"]').value;
+    devices.push({device_id:id,abnormal:true,note});}});
+  $('#b_go').disabled=true;
+  const r=await api('/api/inspect/batch',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({date,signer_id:sid,password:pw,devices})});
+  $('#b_go').disabled=false;
+  if(r.error){toast(r.error,'err');return;}
+  $('#b_stat').textContent=`已点检 ${r.signed} 台（异常 ${devices.length} 台）· 签名人：${r.signer}`;
+  toast(`一键点检完成：${r.signed} 台`,'ok');
+};
+
+// ===== 单台点检（月度模板表） =====
+$('#s_search').addEventListener('change',()=>loadMonth());
+$('#s_search').addEventListener('input',()=>{if($('#s_search').value.length>1)loadMonth();});
+$('#s_month').addEventListener('change',()=>{ if(CUR) loadMonth(); });
+
+async function loadMonth(){
+  const q=$('#s_search').value.trim();
+  const pool=DEVICES.filter(d=>!CUR_ROOM||d.location===CUR_ROOM);   // 只在本房间内匹配
+  const dev=pool.find(d=>String(d.no)===q)
+    ||pool.find(d=>String(d.id)===q)
+    ||pool.find(d=>(d.name||'')===q)
+    ||pool.find(d=>d.name&&d.name.includes(q));
+  if(!dev){$('#s_body').innerHTML='<p class="muted">请选择设备</p>';CUR=null;return;}
+  CUR=dev;
+  const month=$('#s_month').value||thisMonth();
+  CUR_MONTH=month;
+  const mon=await api('/api/monthly?month='+encodeURIComponent(month)).catch(()=>({devices:[]}));
+  SIG_ASSETS=mon.sig_assets||{};
+  const dmon=(mon.devices||[]).find(d=>d.id===dev.id)||{items:[],days:{}};
+  renderMonth(dev, month, dmon);
+}
+
+function renderMonth(dev, month, dmon){
+  const [yy,mm]=month.split('-');
+  const dim=dimOf(yy,mm);
+  const today=localToday();
+  const items=(dmon.items&&dmon.items.length)?dmon.items:[];
+  const days=dmon.days||{};
+  // 表头（表单编号 / 中文标题 / 英文标题）取自后台「点检模板」配置，未配置时回退公司通用表头
+  const formHead=[dmon.form_code||'DEMO-QR-001', dmon.form_rev||'Rev.A1'].join(' ');
+  const tblTitle=dmon.title||'设备维护保养记录';
+  const tblTitleEn=dmon.title_en||'Maintenance Record of Equipment';
+
+  const dailyItems=items.filter(it=>it.frequency!=='每月');
+  const monthlyItems=items.filter(it=>it.frequency==='每月');
+  STATE.items=items; STATE.dailyItems=dailyItems; STATE.monthlyItems=monthlyItems;
+  STATE.matrix={}; STATE.monthlyStatus={};
+  STATE.abnormal=(dmon.abnormal||[]).map(a=>Object.assign({key: a.freq==='每月'?'M#'+a.sn:a.date+'#'+a.sn}, a));
+  STATE.abnormalSaved = STATE.abnormal.map(a=>({...a}));
+  for(let day=1;day<=dim;day++){
+    const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+    const cell=days[dd];
+    const row={};
+    dailyItems.forEach(it=>{ row[it.sn]= cell? (cell.bySn&&cell.bySn[it.sn]?cell.bySn[it.sn]:'ok') : 'none'; });
+    STATE.matrix[dd]=row;
+  }
+  monthlyItems.forEach(it=>{
+    let status='none';
+    for(let day=1;day<=dim;day++){
+      const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+      const cell=days[dd];
+      if(cell&&cell.bySn&&cell.bySn[it.sn]){
+        const s=cell.bySn[it.sn];
+        if(s==='ng'){status='ng';break;}
+        if(s==='ok'&&status==='none')status='ok';
+      }
+    }
+    STATE.monthlyStatus[it.sn]=status;
+  });
+
+  // 打印用行高：A4 横版单页约束 —— 每台设备每月必须正好一页
+  // 可用高度 ≈ 561pt（A4 横 210mm − 上下边距 10mm）；固定开销（表头+表首+签名行+边框）≈ 100pt
+  // 剩余 ≈ 380pt 均分给全部内容行（最小 12pt，最大 28pt）
+  const totalRowCount = Math.max(1, dailyItems.length + monthlyItems.length);
+  const dailyRowPt = Math.max(12, Math.min(28, Math.floor(380 / totalRowCount)));
+  const monthlyRowPt = Math.max(16, dailyRowPt + 4);
+
+  let dayHeads='';
+  for(let day=1;day<=dim;day++){
+    const dow=DOW[new Date(+yy,+mm-1,day).getDay()];
+    dayHeads+=`<th class="c-day">${day}<span class="dow">${dow}</span></th>`;
+  }
+  let rows='';
+  if(!items.length){
+    rows=`<tr><td class="sn"></td><td class="c-content" colspan="2">该设备无点检项，请先在后台关联模板</td>${'<td></td>'.repeat(dim)}</tr>`;
+  } else {
+      dailyItems.forEach(it=>{
+      let cells='';
+      for(let day=1;day<=dim;day++){
+        const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+        const st=STATE.matrix[dd][it.sn]||'none'; const meta=ST[st];
+        const isFuture = dd > today;
+        cells+=`<td class="mcell ${meta.cls}${isFuture?' future':''}" data-day="${dd}" data-sn="${it.sn}" data-st="${st}"${isFuture?' data-future="1"':''} title="${isFuture?'未来日期不可点检':'点击切换：√正常 / ×异常 / 节假日 / 空'}">${meta.mark}</td>`;
+      }
+      rows+=`<tr style="height:18pt!important"><td class="sn">${it.sn}</td><td class="c-content">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td>${cells}</tr>`;
+    });
+    monthlyItems.forEach(it=>{
+      const st=STATE.monthlyStatus[it.sn]||'none'; const meta=ST[st];
+      const mFuture = month > today.slice(0,7);
+      rows+=`<tr style="height:18pt!important"><td class="sn">${it.sn}</td><td class="c-content c-content-monthly">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td><td class="mcell mcell-monthly ${meta.cls}" data-sn="${it.sn}" data-monthly="1" data-st="${st}"${mFuture?' data-future="1"':''} colspan="${dim}" title="${mFuture?'未来月份不可点检':'每月只需点检一次：点击切换 √正常 / ×异常 / 空'}">${meta.mark}</td></tr>`;
+    });
+  }
+
+  let sigStripCells='';
+  for(let day=1;day<=dim;day++){
+    const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+    const cell=days[dd];
+    const simg=cell&&cell.signature_image?cell.signature_image:null;
+    const asset=(cell&&cell.signer_id&&SIG_ASSETS[cell.signer_id])||{};
+    const sh=asset.h||simg, sv=asset.v||simg;   // 高窄格自动用竖版
+    sigStripCells+=`<td class="sigcell c-day" data-day="${dd}" title="${dd}｜点击用下方签名人电子签名到此日" onclick="onSigCellClick('${dd}')">${sh?`<img src="${sh}"${SIGFIT.attrs(sh,sv)} class="sigthumb" alt="签名">`:'<span class="sph">＋</span>'}</td>`;
+  }
+
+  const so=SIGNERS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+
+  $('#s_body').innerHTML=`
+  <div class="print-code">${esc(formHead)}</div>
+  <div class="dev-block">
+  <div class="dev-header">
+    <div class="dh-code">${esc(formHead)}</div>
+    <div class="dh-title">${esc(tblTitle)}<span class="en">${esc(tblTitleEn)}</span></div>
+    <div class="dh-meta">
+      <span>年 <b>${yy}</b></span><span>月 <b>${mm}</b></span>
+      <span>设备名称 Name of Equipments：<b>${esc(dev.name)}</b></span>
+      <span>型号 Model：<b>${esc(dev.model)}</b></span>
+      <span>编号 No.：<b>${esc(dev.no)}</b></span>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <table class="mtable">
+      <thead><tr><th class="c-sn">序号<br>SN</th><th class="c-content">检查内容 Contents</th><th class="c-freq">频率<br>Freq</th>${dayHeads}</tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="sigrow"><td class="sn">签名</td><td class="c-content" colspan="2">维护人员<br>Signer</td>${sigStripCells}</tr></tfoot>
+    </table>
+  </div>
+  </div>
+  <div class="mlegend" style="display:none">🖱 点击状态格切换：<b>√正常</b> → <b>×异常</b> → <b>/节假日</b> → <b>空</b> → √　|　底部选好<b>签名人+密码</b>后，点签名行任意「＋」即<b>电子签名到该日</b>（用该签名人电子签名）　|　「保存整月」可一次性补签/覆盖全部有状态的日期</div>
+
+  <div class="sig-ops">
+    <div class="so-title">🔐 本月签名 Signature（登记签名人 + 密码，电子签名由后台统一上传）</div>
+    <div class="so-meta">
+      <select id="s_signer">${so}</select>
+      <input type="password" id="s_pw" placeholder="签名人密码">
+    </div>
+    <div class="so-prev" data-so="prev"></div>
+    <div class="sig-line">维护人员 Maintainer：
+      <span id="s_sigprev"><span class="muted">未签名</span></span>
+    </div>
+  </div>
+
+  <div class="abn-section" id="abn_zone">
+    <div class="abn-h">⚠ 异常情况及处理记录（点检中标记「×」的项将自动列出）</div>
+    <div id="abn_list"></div>
+  </div>
+  <div class="abn-section print-only" id="abn_print">
+    <div class="abn-h">异常情况及处理记录</div>
+    <div id="abn_print_list"></div>
+  </div>
+  ${dmon.note?`<div class="note-line"><b>备注 Note：</b>${esc(dmon.note)}</div>`:''}
+
+  <div class="actions">
+    <button class="btn" id="s_save">💾 保存整月</button>
+    <button class="btn ghost" id="s_print">🖨 打印本月</button>
+  </div>`;
+
+  $('#s_body').querySelectorAll('.mcell').forEach(c=>c.onclick=onCellClick);
+  // 异常输入通过 #s_body 委托处理（见 init 绑定）
+  $('#s_signer').addEventListener('change',updateSigPreview);
+  $('#s_save').onclick=saveMonth;
+  $('#s_print').onclick=()=>window.print();
+  SIGFIT.fit($('#s_body'));
+  syncAbnormalList();
+  updateSigPreview();
+}
+
+function onCellClick(e){
+  const c=e.currentTarget;
+  if(c.dataset.future){ toast('未来日期不可点检','err'); return; }
+  const cur=c.dataset.st||'none'; const nxt=ST[cur].next;
+  c.dataset.st=nxt; c.className='mcell'+(c.dataset.monthly?' mcell-monthly':'')+' '+ST[nxt].cls; c.textContent=ST[nxt].mark;
+  if(c.dataset.monthly){
+    const sn=+c.dataset.sn;
+    STATE.monthlyStatus[sn]=nxt;
+  } else {
+    const dd=c.dataset.day, sn=+c.dataset.sn;
+    if(!STATE.matrix[dd])STATE.matrix[dd]={};
+    STATE.matrix[dd][sn]=nxt;
+  }
+  syncAbnormalList();
+}
+
+// 点击签名格的「＋」：使用下方已选的签名人+密码，直接电子签名到该日（无需整月保存）
+async function onSigCellClick(day){
+  if(!CUR){ toast('请先选择设备','err'); return; }
+  if(day>localToday()){ toast('未来日期不能电子签名','err'); return; }
+  const sid=$('#s_signer').value, pw=$('#s_pw').value;
+  if(!sid||!pw){ toast('请先在下方选择签名人并输入密码','err'); return; }
+  const td=document.querySelector('.sigcell[data-day="'+day+'"]');
+  const r=await api('/api/inspect/day-sig',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({device_id:CUR.id,date:day,signer_id:sid,password:pw})});
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('已电子签名：'+day,'ok');
+  const s=SIGNERS.find(x=>x.id==sid);
+  if(td){
+    // 立即就地显示该日签名图（来自签名人预存电子签名），无需整页重渲
+    if(s){ const sh=s.signature_image||s.signature_image_v||'', sv=s.signature_image_v||sh;
+      td.innerHTML='<img src="'+sh+'"'+SIGFIT.attrs(sh,sv)+' class="sigthumb" alt="签名">'; SIGFIT.fit(td); }
+    else { td.innerHTML=''; }
+  }
+  // 同步该日每日状态格：原本为空的置为 √（保留用户已点选的 ×/节假日）
+  if(STATE.matrix[day]){
+    document.querySelectorAll('.mcell[data-day="'+day+'"]').forEach(c=>{
+      if(c.dataset.monthly) return;
+      if((c.dataset.st||'none')==='none'){
+        c.dataset.st='ok'; c.className='mcell ok'; c.textContent='√';
+        STATE.matrix[day][+c.dataset.sn]='ok';
+      }
+    });
+  }
+  updateSigPreview();
+}
+
+async function updateSigPreview(){
+  const el=document.querySelector('#s_sigprev'); if(!el)return;
+  const sid=$('#s_signer').value; const s=SIGNERS.find(x=>x.id==sid);
+  if(!s){ el.innerHTML='<span class="muted">未选择</span>'; return; }
+  el.innerHTML=`<b>${esc(s.name)}</b> <span class="muted">（登记签名人）</span>`;
+  try{ const r=await api('/api/signers/'+sid+'/sig'); if(r.image) el.innerHTML=`<img src="${r.image}" style="height:38px;vertical-align:middle;border:1px solid #ddd;border-radius:4px;background:#fff;padding:2px 4px"> <b>${esc(s.name)}</b>`; }catch(e){}
+}
+
+async function getMonthSig(){
+  const sid=$('#s_signer').value, pw=$('#s_pw').value;
+  if(!sid||!pw){toast('请选择登记签名人并输入密码','err');return null;}
+  return {signer_id:sid, password:pw};
+}
+
+async function saveMonth(){
+  if(!CUR)return;
+  syncAbnormalList();
+  const sig=await getMonthSig(); if(!sig)return;
+  const days={};
+  const today=localToday();
+  for(const dd in STATE.matrix){
+    if(dd>today) continue;   // 跳过未来日期，不保存
+    const row=STATE.matrix[dd]; let any=false; const bySn={};
+    STATE.dailyItems.forEach(it=>{ const st=row[it.sn]||'none'; if(st!=='none'){ bySn[it.sn]=st; any=true; } });
+    STATE.monthlyItems.forEach(it=>{ const st=STATE.monthlyStatus[it.sn]||'none'; if(st!=='none'){ bySn[it.sn]=st; any=true; } });
+    if(any) days[dd]={bySn};
+  }
+  const payload=Object.assign({device_id:CUR.id, month:CUR_MONTH, days, abnormal: STATE.abnormal}, sig);
+  const r=await api('/api/inspect/month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(r.error){toast(r.error,'err');return;}
+  toast(`已保存整月：${r.created} 新建 / ${r.updated} 更新`,'ok');
+  loadMonth();
+}
+
+
+init();
+
+// 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
+fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# 运行时数据（含业务数据、密钥，绝不入库）
+data/kv.json
+data/config.json
+server.log
+
+# 便携运行时（二进制，单独下载，不入库）
+runtime/
+*.exe
+
+# 依赖 / 系统
+node_modules/
+*.log
+
+# 项目元数据
+.workbuddy/
+.wrangler/
+.DS_Store
+
+# 说明：本仓库 data/kv.json 与 data/config.json 均为【已脱敏演示数据】，随仓库提供、开箱即用
+#       （默认管理员 admin/admin123，演示用户 user/user123）。请勿把含真实业务数据的同名文件提交到公开仓库。

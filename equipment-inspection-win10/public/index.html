@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设备点检大屏</title>
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+.histq{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; margin-bottom:14px; }
+.histq select{ padding:6px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; background:#fff; color:#222; max-width:220px; }
+.histq select:focus{ outline:none; border-color:#36d399; }
+.roomq{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; margin-bottom:14px; }
+.roomq select{ padding:6px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; background:#fff; color:#222; min-width:150px; }
+.roomq select:focus{ outline:none; border-color:#36d399; }
+.roomq .badges{ display:flex; gap:6px; flex-wrap:wrap; }
+.roomq .badges span{ font-size:11px; color:#666; background:#f0f0f5; border:1px solid #ddd; border-radius:4px; padding:2px 6px; }
+.card{ position:relative; }
+.card-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px; }
+.card .room-badge{ font-size:10px; color:#666; background:#f0f0f5; border:1px solid #ddd; border-radius:4px; padding:0 5px; line-height:1.7; white-space:nowrap; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand">⚡ 设备点检中心</div>
+  <div class="sp"></div>
+  <a href="/" class="active">设备大屏</a>
+  <a href="/inspect">点检作业</a>
+  <a href="/env.html" id="nav_env">温湿度</a>
+  <a href="/admin" id="nav_admin" style="display:none">管理后台</a>
+  <a href="/logout">退出</a>
+</nav>
+
+<div class="wrap">
+  <div class="topbar">
+    <h1>📟 设备维护保养 · 实时大屏</h1>
+    <div class="clock" id="clock"></div>
+    <div class="sp"></div>
+    <button class="btn sm" id="fsBtn">⛶ 全屏</button>
+    <button class="btn sm" id="refreshBtn">🔄 刷新</button>
+  </div>
+
+  <div class="kpis" id="kpis">
+    <div class="kpi glass"><div class="label">设备总数</div><div class="val" id="k_total">–</div><div class="sub">台在册设备</div></div>
+    <div class="kpi ok glass"><div class="label">今日已点检</div><div class="val" id="k_insp">–</div><div class="sub" id="k_insp_sub"></div><div class="bar"><i id="k_bar"></i></div></div>
+    <div class="kpi ng glass"><div class="label">今日异常</div><div class="val" id="k_ng">–</div><div class="sub">需跟进处理</div></div>
+    <div class="kpi warn glass"><div class="label">本月累计点检</div><div class="val" id="k_month">–</div><div class="sub">次记录</div></div>
+  </div>
+
+  <div class="legend mb">
+    <span><i style="background:#36d399"></i>正常</span>
+    <span><i style="background:#ff5d6c"></i>异常</span>
+    <span><i style="background:#6b6390"></i>未点检</span>
+    <span class="sp"></span>
+    <span class="muted tiny">数据每 15 秒自动刷新 · 点击设备卡片查看点检明细</span>
+  </div>
+
+  <div class="roomq glass">
+    <span class="muted tiny" style="white-space:nowrap">📍 当前房间：</span>
+    <b id="cur_room" style="font-size:14px;color:#4f8cff">–</b>
+    <button class="btn sm" id="switch_room" title="返回房间选择页">🔄 切换房间</button>
+    <a class="btn sm ghost" id="go_env" href="/env" title="本房间的温湿度监测记录">🌡 温湿度表 →</a>
+    <a class="btn sm ghost" id="go_print" href="/print-all" title="本房间全部设备的月度点检表（可打印）">🖨 设备点检表 →</a>
+    <span id="grp_links" class="flex" style="display:none;gap:6px;align-items:center"></span>
+    <span class="badges" id="room_badges"></span>
+    <span data-appver class="muted tiny" style="white-space:nowrap;margin-left:auto"></span>
+  </div>
+
+  <div class="histq glass">
+    <span class="muted tiny" style="white-space:nowrap">📚 历史点检查询：</span>
+    <select id="h_year" title="年份"></select>
+    <select id="h_month" title="月份"></select>
+    <select id="h_dev" title="设备编号"></select>
+    <button class="btn sm primary" id="h_go">🔍 查询点检表</button>
+    <span class="muted tiny" id="h_hint"></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="sec-title">🕒 最近点检记录</div>
+  <div class="scroll glass" style="padding:6px 4px">
+    <table>
+      <thead><tr><th>时间</th><th>编号</th><th>设备</th><th>状态</th><th>签名人</th><th>签名</th><th>异常说明</th></tr></thead>
+      <tbody id="recent"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p,opt)=>fetch(p,opt).then(r=>r.json());
+function toast(msg,type){const t=$('#toast');t.textContent=msg;t.className='toast show '+(type||'');setTimeout(()=>t.className='toast',2600);}
+// 转义回显字段，防止存储型 XSS
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// signed_at 是 UTC ISO 字符串，转成本地时间显示（YYYY-MM-DD HH:MM:SS），避免差 8 小时
+function fmtTime(s){ if(!s) return ''; const d=new Date(s); if(isNaN(d.getTime())) return '';
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+function clock(){const d=new Date();const p=n=>String(n).padStart(2,'0');
+  $('#clock').innerHTML=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} <b>${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}</b>`;}
+setInterval(clock,1000);clock();
+
+// 「管理后台」导航图标：仅管理员登录时显示（普通用户登录后看不到此入口）
+(async()=>{try{
+  const me=await api('/api/admin/me');
+  if(me && me.ok && me.role==='admin'){
+    const a=document.getElementById('nav_admin'); if(a) a.style.display='';
+  }
+}catch(e){}})();
+
+// ===== 房间选择守卫：登录后必须先在 /rooms 选房间，才能看到对应设备大屏 =====
+// 两种"房间"标识：
+//   普通房间名（如「车间A」）→ 大屏只显示该房间的设备（location 过滤）
+//   __GROUP__<分组名>（如「__GROUP__车间」）→ 合并显示该分组下所有房间的设备，仅限本组，绝不含其他房间
+// 房间与分组均由后台「房间管理」维护：启动时从 /api/rooms 拉取
+let ROOM_COUNT={};
+let ROOM_META={};      // 房间完整信息（含分组 group）
+let GROUP_ROOMS={};    // 分组名 → 该组房间名数组
+const GRP_TP='__GROUP__';
+const isGroupTok=n=>String(n).indexOf(GRP_TP)===0;
+const tokGroup=n=>String(n).slice(GRP_TP.length);
+// 房间显示名：一律使用完整房间名（不再缩写为「车间 · 室1」，保证名称完整）
+function roomLabel(n){
+  if(isGroupTok(n)) return '全部'+tokGroup(n)+'设备';
+  return String((ROOM_META[n]||{}).name||n);
+}
+let ROOMS=['车间A','车间B'];
+let CURR_ROOM='';
+async function initRoom(){
+  try{
+    const rooms=await api('/api/rooms');
+    if(Array.isArray(rooms)&&rooms.length){
+      ROOMS=[]; GROUP_ROOMS={};
+      rooms.forEach(r=>{
+        ROOMS.push(r.name);
+        ROOM_COUNT[r.name]=r.count||0;
+        ROOM_META[r.name]=r;
+        const g=String(r.group||'').trim();
+        if(g){ if(!GROUP_ROOMS[g]) GROUP_ROOMS[g]=[]; GROUP_ROOMS[g].push(r.name); }
+      });
+      Object.keys(GROUP_ROOMS).forEach(g=>ROOMS.push(GRP_TP+g));  // 分组合并视图
+    }
+  }catch(e){}
+  const rp=new URLSearchParams(location.search).get('room');
+  if(rp && ROOMS.indexOf(rp)>=0){
+    CURR_ROOM=rp;
+    try{ sessionStorage.setItem('selected_room',rp); }catch(e){}
+  }else{
+    try{ CURR_ROOM=sessionStorage.getItem('selected_room')||''; }catch(e){}
+  }
+  if(ROOMS.indexOf(CURR_ROOM)<0){ location.replace('/rooms.html'); return false; }
+  $('#cur_room').textContent=roomLabel(CURR_ROOM);
+  document.title='设备点检大屏 · '+roomLabel(CURR_ROOM);
+
+  // 徽章：说明当前视图覆盖范围（单房间 / 分组合并）
+  (function renderRoomBadges(){
+    const el=$('#room_badges'); if(!el) return;
+    const names=Object.keys(ROOM_COUNT);
+    const total=names.reduce((a,b)=>a+(ROOM_COUNT[b]||0),0);
+    // 同分组房间合并算一个「房间区域」
+    const seen={}; let entries=0;
+    names.forEach(n=>{ const g=String((ROOM_META[n]||{}).group||'').trim();
+      if(g){ if(!seen[g]){ seen[g]=1; entries++; } } else entries++; });
+    let html='';
+    if(isGroupTok(CURR_ROOM)){
+      const g=tokGroup(CURR_ROOM), ms=GROUP_ROOMS[g]||[];
+      const gt=ms.reduce((a,b)=>a+(ROOM_COUNT[b]||0),0);
+      html+='<span>🧩 '+esc(g)+'：'+gt+' 台</span>';
+      html+='<span>📦 '+esc(ms.map(n=>n+' '+(ROOM_COUNT[n]||0)+' 台').join(' · '))+'</span>';
+    }else{
+      html+='<span>🏠 本房间在册：'+(ROOM_COUNT[CURR_ROOM]||0)+' 台</span>';
+      html+='<span>🏢 全厂：'+total+' 台</span>';
+    }
+    html+='<span>🗂 共 '+entries+' 个房间区域</span>';
+    el.innerHTML=html;
+  })();
+
+  // 跳转链接：单房间 → 直接指到本房间；分组合并 → 逐房间给出入口（温湿度/点检表都是单房间单据，不能合并打印）
+  const ne=document.getElementById('nav_env');
+  const ge=document.getElementById('go_env');
+  const gp=document.getElementById('go_print');
+  const gl=document.getElementById('grp_links');
+  if(isGroupTok(CURR_ROOM)){
+    const g=tokGroup(CURR_ROOM), ms=GROUP_ROOMS[g]||[];
+    if(ne) ne.href='/env';
+    if(ge) ge.style.display='none';
+    if(gp) gp.style.display='none';
+    if(gl){
+      gl.style.display='';
+      const mini=(cls,label,room)=>`<a class="btn sm ghost" href="${cls}?room=${encodeURIComponent(room)}" title="「${esc(room)}」${label}">${esc(room)}</a>`;
+      gl.innerHTML=
+        '<span class="muted tiny" style="white-space:nowrap">🌡 温湿度表：</span>'+
+        ms.map(n=>mini('/env','温湿度监测记录',n)).join('')+
+        '<span class="muted tiny" style="white-space:nowrap;margin-left:6px">🖨 点检表：</span>'+
+        ms.map(n=>mini('/print-all','月度点检表（可打印）',n)).join('');
+    }
+  }else{
+    const rq=encodeURIComponent(CURR_ROOM);
+    if(ne) ne.href='/env?room='+rq;
+    if(ge){ ge.style.display=''; ge.href='/env?room='+rq; }
+    if(gp){ gp.style.display=''; gp.href='/print-all?room='+rq+'&auto=1'; }
+    if(gl){ gl.style.display='none'; gl.innerHTML=''; }
+  }
+  return true;
+}
+$('#switch_room').onclick=()=>{ location.href='/rooms.html'; };
+
+async function load(){
+  const d=new Date();const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  // 分组合并视图 → group=分组名（服务端只回本组房间的设备）；单房间 → location=房间名
+  const scope = isGroupTok(CURR_ROOM)
+    ? '&group='+encodeURIComponent(tokGroup(CURR_ROOM))
+    : '&location='+encodeURIComponent(CURR_ROOM);
+  const data=await api('/api/dashboard?date='+date+scope);
+  $('#k_total').textContent=data.total;
+  $('#k_insp').textContent=data.today_inspected;
+  $('#k_insp_sub').textContent=`已完成 ${data.total?Math.round(data.today_inspected/data.total*100):0}%`;
+  $('#k_bar').style.width=(data.total?data.today_inspected/data.total*100:0)+'%';
+  $('#k_ng').textContent=data.today_abnormal;
+  $('#k_month').textContent=data.month_inspected;
+  const grid=$('#grid');grid.innerHTML='';
+  data.grid.forEach(g=>{
+    // 状态语义样式：异常=红边脉冲提醒，未检=降透明度，正常=淡绿边
+    const stcls=g.status==='ng'?' stcard-ng':g.status==='none'?' stcard-none':' stcard-ok';
+    const c=document.createElement('div');c.className='card glass'+stcls;
+    c.innerHTML=`<div class="card-head"><span class="room-badge">${esc(g.location)||'—'}</span><span class="st ${g.status}"></span></div>
+      <div class="no">No.${esc(g.no)}</div>
+      <div class="nm" title="${esc(g.name)}">${esc(g.name)||'—'}</div>
+      <div class="md">${esc(g.model)||''}</div>
+      <div class="tm" style="font-size:10px;color:#888;margin-top:2px">${g.status!=='none'&&g.signed_at?fmtTime(g.signed_at):''}</div>
+      <div class="sig">${g.signature_image?`<img src="${g.signature_image}">`:''}<span class="who">${esc(g.signed_by)||'未点检'}</span></div>`;
+    c.onclick=()=>{ window.location.href='/inspect.html?device='+encodeURIComponent(g.no); };
+    grid.appendChild(c);
+  });
+  const rb=$('#recent');rb.innerHTML='';
+  data.recent.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="tiny">${fmtTime(r.signed_at)}</td>
+      <td>${esc(r.no)}</td><td>${esc(r.name)}</td>
+      <td><span class="pill ${r.status}">${r.status==='ok'?'正常':r.status==='ng'?'异常':'—'}</span></td>
+      <td>${esc(r.signer_name)||'—'}</td>
+      <td>${r.signature_image?`<img src="${r.signature_image}" style="height:24px">`:'—'}</td>
+      <td class="tiny">${esc(r.abnormal_note)||''}</td>`;
+    rb.appendChild(tr);
+  });
+}
+$('#refreshBtn').onclick=load;
+$('#fsBtn').onclick=()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();};
+
+// ===== 历史点检查询：按年份 / 月份 / 设备编号 查找对应点检表 =====
+async function fillHist(){
+  const now=new Date();
+  const y=$('#h_year');
+  for(let i=4;i>=0;i--){
+    const yr=now.getFullYear()-i;
+    y.insertAdjacentHTML('beforeend',`<option value="${yr}">${yr}年</option>`);
+  }
+  y.value=now.getFullYear();
+  const mm=$('#h_month');
+  for(let i=1;i<=12;i++){
+    const m=String(i).padStart(2,'0');
+    mm.insertAdjacentHTML('beforeend',`<option value="${m}">${i}月</option>`);
+  }
+  mm.value=String(now.getMonth()+1).padStart(2,'0');
+  const devs=await api('/api/devices');
+  $('#h_dev').innerHTML='<option value="">（请选择设备编号）</option>'+
+    devs.map(d=>`<option value="${d.no}">${d.no} · ${d.name}</option>`).join('');
+  $('#h_hint').textContent=`可查 ${y.value} 年往前共 5 年 · 未来月份不可查询`;
+}
+$('#h_go').onclick=()=>{
+  const yr=$('#h_year').value, mm=$('#h_month').value, no=$('#h_dev').value;
+  if(!no){toast('请选择设备编号','err');return;}
+  const selMonth=yr+'-'+mm;
+  const now=new Date();
+  const curMonth=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  if(selMonth>curMonth){toast('不能查询未来月份的记录','err');return;}
+  window.open('/inspect.html?device='+encodeURIComponent(no)+'&month='+selMonth,'_blank');
+};
+fillHist();
+
+initRoom().then(ok=>{ if(ok){ load(); setInterval(load,15000); } }); // 校验房间后才启动大屏轮询
+
+// 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
+fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
+</script>
+</body>
+</html>

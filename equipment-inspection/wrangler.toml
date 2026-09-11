@@ -1,0 +1,12 @@
+name = "equipment-inspection"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "."
+
+# 设备点检系统 —— Cloudflare Pages 项目配置
+# 部署：在仓库根目录执行  wrangler pages deploy . --project-name=equipment-inspection --branch=main
+# 静态前端（index.html 等）与 functions/ 目录一并上传；functions 编译为 Pages Functions。
+# 数据存于 KV 命名空间 INSPECTION_DATA（单键 STORE 存整个 store 对象）。
+
+[[kv_namespaces]]
+binding = "INSPECTION_DATA"
+id = "<YOUR_KV_NAMESPACE_ID>"   # 在 Cloudflare 控制台新建 KV 命名空间后填入其 ID

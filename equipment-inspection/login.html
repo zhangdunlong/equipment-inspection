@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="oLOIBH9liROz6gyOxdh87w">
+<head data-page-node-id="YIXNKHzyxNum7fFNmHRNlC">
+<meta charset="UTF-8" data-page-node-id="vKwCY6m5MxXANJcmCvPR6W">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="NMOXUgHEv3RHMv5DdYPdQI">
+<title>登录 · 设备点检系统</title>
+<link rel="stylesheet" href="/assets/style.css" data-page-node-id="LE74YcrV2PO9unPQLo0l13">
+<style>
+body{ background:radial-gradient(900px 500px at 15% -10%, rgba(79,140,255,.22), transparent 60%),
+      radial-gradient(800px 450px at 110% 15%, rgba(34,193,220,.15), transparent 55%),
+      linear-gradient(160deg,#0a1120,#101a30 55%,#16233f); min-height:100vh; display:flex; align-items:center; justify-content:center; margin:0; }
+.login-card{ width:360px; max-width:92vw; background:#fff; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.35); padding:34px 32px; }
+.login-title{ text-align:center; font-size:20px; font-weight:800; letter-spacing:1px; margin-bottom:4px; color:#101a30; }
+.login-sub{ text-align:center; color:#8a97ad; font-size:12px; margin-bottom:22px; }
+.login-card .field{ margin-bottom:14px; }
+.login-card label{ display:block; font-size:12px; font-weight:700; color:#444; margin-bottom:5px; }
+.login-card input{ width:100%; padding:10px 12px; font-size:14px; border:1px solid #ccd4e0; border-radius:8px; box-sizing:border-box; outline:none; background:#f7f9fc; color:#1a2436; }
+.login-card input:focus{ border-color:#22c1dc; box-shadow:0 0 0 3px rgba(34,193,220,.18); }
+.login-card .err{ color:#d11; font-size:12px; min-height:16px; margin-bottom:8px; text-align:center; }
+.btn-login{ width:100%; padding:11px; border:none; border-radius:10px; background:linear-gradient(135deg,#4f8cff,#22c1dc); color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
+.btn-login:hover{ filter:brightness(1.06); }
+.btn-login:disabled{ opacity:.6; cursor:not-allowed; }
+.login-foot{ text-align:center; color:#aaa; font-size:11px; margin-top:16px; }
+</style>
+</head>
+<body data-page-node-id="1aqshUvpocOXKxHIExSTzU">
+<div class="login-card" data-page-node-id="h6AbaYh6T000PQwqQv26ja">
+  <div class="login-title" data-page-node-id="ZpOC9IbLxWA6YqQnCWM6uU">⚡ 设备点检系统</div>
+  <div class="login-sub" data-page-node-id="6vvdGajSDDNxiOGWEYQlHA">Equipment Inspection System · 请登录后使用 · <span data-appver></span></div>
+  <div class="field" data-page-node-id="nIrA52f0R3Q2KQHVz9LZP5"><label data-page-node-id="6KNDZZtGO3WkhNpkxhf0TF">账号 Username</label><input id="u" autocomplete="username" placeholder="请输入账号" data-page-node-id="l85gpgYehiiZC72iu6adOF"></div>
+  <div class="field" data-page-node-id="p4zFNnOEak2iNIl11qqYKs"><label data-page-node-id="SnWwho1u5SahFyInnNg2BD">密码 Password</label><input id="p" type="password" autocomplete="current-password" placeholder="请输入密码" data-page-node-id="Qu0Y39Oqat5SkNQyJQeGCt"></div>
+  <div class="err" id="err" data-page-node-id="1MgD8YzXVFuj6mNHoAt7jN"></div>
+  <button class="btn-login" id="go" data-page-node-id="BEkpaDusYe1zERwCCSkZtt">登 录</button>
+  <div class="login-foot" data-page-node-id="AkxUA6Y38Nf1ijJNrs1QbU">内网系统 · 登录后访问全部功能</div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+function safeNext(n){ if(!n || n[0]!=='/' || n.indexOf('//')===0) return '/rooms.html'; return n; }
+// 登录后默认进入「实验房间选择页」；next 参数优先（页面级跳转回登录时携带原地址）
+const target = safeNext(new URLSearchParams(location.search).get('next') || '/rooms.html');
+async function doLogin(){
+  const u=$('#u').value.trim(), p=$('#p').value;
+  if(!u||!p){ $('#err').textContent='请输入账号和密码'; return; }
+  const btn=$('#go'); btn.disabled=true; btn.textContent='登录中…';
+  try{
+    const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}).then(r=>r.json());
+    if(r.ok){
+      // 清除上一次会话记住的房间，强制重新选择
+      try{ sessionStorage.removeItem('selected_room'); }catch(e){}
+      location.href=target; return;
+    }
+    $('#err').textContent = r.error || '登录失败，请检查账号密码';
+  }catch(e){ $('#err').textContent='网络错误，请重试'; }
+  btn.disabled=false; btn.textContent='登 录';
+}
+$('#go').onclick=doLogin;
+$('#u').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#p').focus(); });
+$('#p').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+$('#u').focus();
+
+// 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
+fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
+</script>
+</body>
+</html>

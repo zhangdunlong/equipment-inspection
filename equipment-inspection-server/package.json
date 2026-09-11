@@ -1,0 +1,13 @@
+{
+  "name": "equipment-inspection-server",
+  "version": "1.0.0",
+  "description": "设备点检巡检系统 - 服务器部署版（零依赖 Node.js，可跑在任意 Linux/Windows 服务器）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT"
+}

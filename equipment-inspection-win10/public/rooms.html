@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>选择实验房间 · 设备点检系统</title>
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+/* ===== 房间选择页：工业监控风（深蓝灰玻璃 + 青蓝强调） ===== */
+.pick-wrap{ max-width:1180px; margin:0 auto; padding:38px 22px 48px; }
+/* 本页内容可能高于一屏：取消 style.css 的 background-attachment:fixed，避免滚动区底部露白 */
+html{ background:#0a1120; }
+body{ background-attachment:scroll; }
+
+/* 页头 */
+.pick-head{ text-align:center; margin-bottom:26px; }
+.pick-brand{ font-size:15px; font-weight:800; letter-spacing:3px; color:var(--muted); }
+.pick-brand b{ background:linear-gradient(90deg,var(--pink),var(--cyan)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.pick-title{ font-size:27px; font-weight:800; letter-spacing:1px; margin:8px 0 6px; text-shadow:0 0 26px rgba(79,140,255,.45); }
+.pick-sub{ font-size:13px; color:var(--muted); }
+
+/* 概览条 */
+.pick-stat{ display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin:18px 0 30px; }
+.pick-stat .st{ display:flex; align-items:baseline; gap:7px; padding:8px 16px; border-radius:12px;
+  background:var(--glass); border:1px solid var(--glass-bd); }
+.pick-stat .st i{ font-style:normal; font-size:11px; color:var(--muted); letter-spacing:.5px; }
+.pick-stat .st b{ font-size:19px; font-variant-numeric:tabular-nums; color:var(--cyan); }
+
+/* 分区标题 */
+.sec-h{ display:flex; align-items:center; gap:9px; font-size:15px; font-weight:800; letter-spacing:1px; margin:0 0 14px; }
+.sec-h::before{ content:''; width:5px; height:16px; border-radius:3px; background:linear-gradient(var(--pink),var(--cyan)); }
+.sec-h .tip{ font-size:11px; font-weight:400; color:var(--muted); letter-spacing:0; }
+
+/* 分组面板 */
+.grp{ padding:20px 22px 22px; margin-bottom:20px; }
+.grp-head{ display:flex; align-items:center; gap:13px; margin-bottom:18px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,.09); }
+.grp-ico{ width:44px; height:44px; flex:none; border-radius:13px; display:flex; align-items:center; justify-content:center;
+  font-size:21px; background:linear-gradient(135deg,rgba(79,140,255,.9),rgba(34,193,220,.85)); box-shadow:0 4px 16px rgba(79,140,255,.4); }
+.grp-tt{ flex:1; min-width:0; }
+.grp-name{ font-size:19px; font-weight:800; letter-spacing:1px; }
+.grp-meta{ font-size:12px; color:var(--muted); margin-top:3px; }
+.grp-tag{ flex:none; font-size:11px; font-weight:700; padding:5px 11px; border-radius:20px;
+  color:var(--purple); background:rgba(110,168,255,.16); border:1px solid rgba(110,168,255,.42); }
+
+/* 房间卡片网格 */
+.room-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:14px; }
+.rcard{ position:relative; overflow:hidden; text-align:left; padding:16px 17px 15px; border-radius:15px;
+  background:rgba(255,255,255,.06); border:1px solid var(--glass-bd); color:var(--txt);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:.18s; }
+.rcard::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--pink),var(--cyan)); opacity:.75; }
+.rcard:hover,.rcard:focus-visible{ transform:translateY(-3px); border-color:var(--pink); box-shadow:0 12px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(79,140,255,.45); outline:none; }
+.rcard.empty{ opacity:.62; }
+.rc-top{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.rc-name{ flex:1; min-width:0; font-size:17px; font-weight:800; letter-spacing:.5px; line-height:1.3; }
+/* 台数右对齐在标题行，卡片结构统一 → 所有卡片等高 */
+.rc-n{ flex:none; font-size:12px; font-weight:800; color:#cfe0ff; font-variant-numeric:tabular-nums;
+  background:rgba(79,140,255,.18); border:1px solid rgba(79,140,255,.42); border-radius:20px; padding:3px 10px; }
+.rcard.empty .rc-n{ color:var(--muted); background:rgba(255,255,255,.06); border-color:var(--glass-bd); }
+.rc-go{ flex:none; color:var(--cyan); font-size:15px; font-weight:700; transition:transform .18s; }
+.rcard:hover .rc-go{ transform:translateX(4px); }
+/* 说明固定两行高度，超长省略 */
+.rc-desc{ font-size:12px; color:var(--muted); line-height:1.65; height:40px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+/* 温湿度仪器：固定一行，未配置时也占位，保证卡片高度一致 */
+.rc-th{ margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08);
+  font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rc-th.none{ opacity:.5; }
+
+/* 组内「合并查看」整宽卡 */
+.agg{ width:100%; margin-top:14px; display:flex; align-items:center; gap:14px; text-align:left;
+  padding:15px 18px; border-radius:15px; transition:.18s;
+  background:linear-gradient(90deg,rgba(79,140,255,.16),rgba(34,193,220,.09));
+  border:1px dashed rgba(110,168,255,.55); color:var(--txt); }
+.agg:hover,.agg:focus-visible{ border-style:solid; border-color:var(--pink); box-shadow:0 10px 28px rgba(0,0,0,.32), 0 0 22px rgba(79,140,255,.22); outline:none; }
+.agg-ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  font-size:18px; background:rgba(255,255,255,.09); border:1px solid var(--glass-bd); }
+.agg-tt{ flex:1; min-width:0; }
+.agg-tt b{ display:block; font-size:15px; font-weight:800; letter-spacing:.5px; }
+.agg-tt i{ display:block; font-style:normal; font-size:11.5px; color:var(--muted); margin-top:3px; }
+.agg-n{ flex:none; font-size:13px; font-weight:800; color:var(--cyan); font-variant-numeric:tabular-nums; }
+.agg-ar{ flex:none; color:var(--cyan); font-weight:700; }
+
+/* 页脚 */
+.pick-foot{ text-align:center; margin-top:34px; font-size:12px; color:var(--muted); }
+.pick-foot a{ color:var(--muted); }
+.pick-foot a:hover{ color:var(--txt); }
+
+@media(max-width:640px){
+  .pick-wrap{ padding:26px 14px 40px; }
+  .pick-title{ font-size:22px; }
+  .grp{ padding:16px 15px 18px; }
+  .room-grid{ grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div class="pick-wrap">
+  <div class="pick-head">
+    <div class="pick-brand">⚡ <b>设备点检中心</b></div>
+    <div class="pick-title">请选择实验房间</div>
+    <div class="pick-sub">选择后进入该房间的设备点检大屏 · 房间与设备一一对应</div>
+  </div>
+
+  <div class="pick-stat" id="pick_stat"></div>
+
+  <!-- 分组房间：后台「房间管理」里填了「分组」的房间，合并到一个面板展示（如 车间A / 室2） -->
+  <div id="group_panels"></div>
+
+  <!-- 独立房间：没有分组的房间，各自单独一张卡 -->
+  <section id="plain_block" style="display:none">
+    <div class="sec-h">独立房间<span class="tip">各自独立，设备互不混显</span></div>
+    <div class="room-grid" id="plain_cards"></div>
+  </section>
+
+  <div class="pick-foot">
+    <a href="/logout">退出登录</a>
+    <span style="opacity:.45"> · </span><span data-appver></span>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// 分组图标：已知分组给语义图标，其他分组用拼图兜底
+const GROUP_ICON={'车间':'⏱️'};
+
+// 房间卡片：显示完整房间名（不做「车间 · 室1」这类缩写，保证名称完整可读）
+function cardHtml(r){
+  const n=r.count||0;
+  const th=String(r.thermo_apparatus||'').trim();
+  return `
+    <button class="rcard${n?'':' empty'}" data-room="${esc(r.name)}" title="进入「${esc(r.name)}」设备大屏">
+      <div class="rc-top">
+        <span class="rc-name">${esc(r.name)}</span>
+        <span class="rc-n">${n} 台</span>
+        <span class="rc-go">→</span>
+      </div>
+      <div class="rc-desc">${esc(r.desc)||'该房间暂未填写说明'}</div>
+      <div class="rc-th${th?'':' none'}">🌡 ${th?esc(th):'未配置温湿度监测仪器'}</div>
+    </button>`;
+}
+
+// 组内「合并查看」卡：只合并本组房间，不会带进其他房间的设备
+function aggHtml(g,rooms,total){
+  return `
+    <button class="agg" data-room="__GROUP__${esc(g)}" title="合并查看「${esc(g)}」分组下的全部设备">
+      <span class="agg-ico">🧩</span>
+      <span class="agg-tt">
+        <b>全部${esc(g)}设备</b>
+        <i>合并查看：${esc(rooms.map(x=>x.name).join(' + '))} · 仅含本组房间，不含其他房间</i>
+      </span>
+      <span class="agg-n">${total} 台</span>
+      <span class="agg-ar">→</span>
+    </button>`;
+}
+
+(async()=>{
+  let list=[];
+  try{
+    const rooms=await fetch('/api/rooms').then(r=>r.json());
+    list=Array.isArray(rooms)?rooms:[];
+  }catch(e){ list=[]; }
+
+  if(!list.length){
+    $('#pick_stat').innerHTML='<span class="st"><i>提示</i><b style="font-size:13px">未读到房间配置</b></span>';
+    return;
+  }
+
+  // 按分组归并：有 group 的进组面板，没有的进独立房间区
+  const groups=new Map(), plain=[];
+  list.forEach(r=>{
+    const g=String(r.group||'').trim();
+    if(g){ if(!groups.has(g)) groups.set(g,[]); groups.get(g).push(r); }
+    else plain.push(r);
+  });
+
+  // 概览：房间总数 / 房间区域数（同组算一个）/ 设备总数
+  const total=list.reduce((s,r)=>s+(r.count||0),0);
+  const areas=plain.length+groups.size;
+  $('#pick_stat').innerHTML=
+    '<span class="st"><i>房间总数</i><b>'+list.length+'</b></span>'+
+    '<span class="st"><i>房间区域</i><b>'+areas+'</b></span>'+
+    '<span class="st"><i>在册设备</i><b>'+total+'</b></span>';
+
+  let html='';
+  groups.forEach((rs,g)=>{
+    const gt=rs.reduce((s,r)=>s+(r.count||0),0);
+    html+=`<section class="grp">
+      <div class="grp-head">
+        <div class="grp-ico">${GROUP_ICON[g]||'🧩'}</div>
+        <div class="grp-tt">
+          <div class="grp-name">${esc(g)}</div>
+          <div class="grp-meta">${esc(rs.map(x=>x.name).join(' · '))} · 共 ${gt} 台设备 · 同组房间合并展示</div>
+        </div>
+        <span class="grp-tag">🧩 合并展示</span>
+      </div>
+      <div class="room-grid">${rs.map(cardHtml).join('')}</div>
+      ${aggHtml(g,rs,gt)}
+    </section>`;
+  });
+  $('#group_panels').innerHTML=html;
+  if(plain.length){ $('#plain_block').style.display=''; $('#plain_cards').innerHTML=plain.map(cardHtml).join(''); }
+
+  // 合法房间集合（含分组合并 token __GROUP__<组名>）——点击时校验，防止跳到不存在的房间
+  const valid=new Set(list.map(r=>r.name));
+  groups.forEach((rs,g)=>valid.add('__GROUP__'+g));
+
+  document.querySelectorAll('[data-room]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const room=btn.getAttribute('data-room');
+      if(!valid.has(room)) return;
+      try{ sessionStorage.setItem('selected_room',room); }catch(e){}
+      location.href='/?room='+encodeURIComponent(room);
+    });
+  });
+})();
+
+fetch('/api/version').then(r=>r.json()).then(v=>{
+  document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);
+}).catch(()=>{});
+</script>
+</body>
+</html>

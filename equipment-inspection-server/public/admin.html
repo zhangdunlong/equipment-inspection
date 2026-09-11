@@ -1,0 +1,1675 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="4uVbJXS3FTF7ks6bks1Vlf">
+<head data-page-node-id="LDisMe1Uh8wgiKCaNiFIaw">
+<meta charset="UTF-8" data-page-node-id="S31XLsBE7VKspOjWKYZKMY">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="aBSuehNjOKioAaYUgX5pv4">
+<title>管理后台</title>
+<link rel="stylesheet" href="/assets/style.css" data-page-node-id="YhFHUAgYDou8mQu26AuGcG">
+<style>
+/* ===== 逐字签名组件（v1.3.0）===== */
+.sigpad{margin-top:2px}
+.sp-tip{display:block;font-size:12px;color:var(--muted);margin-bottom:8px}
+.sp-cells{display:flex;gap:12px;flex-wrap:wrap;padding:4px 0 2px}
+.sp-cell{position:relative;background:rgba(255,255,255,.95);border:1px solid var(--glass-bd);border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.22)}
+.sp-cell canvas{display:block;width:132px;height:132px;background:#fff;border-radius:8px;touch-action:none;cursor:crosshair}
+.sp-cell .sp-no{position:absolute;top:-8px;left:-8px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:linear-gradient(90deg,var(--pink),var(--cyan));color:#04121f;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.sp-cell .sp-ops{display:flex;gap:5px;margin-top:6px}
+.sp-cell .sp-ops>*{flex:1;text-align:center;font-size:11px;line-height:1.6;padding:1px 0;border-radius:7px;border:1px solid var(--glass-bd);background:rgba(255,255,255,.10);color:var(--txt);cursor:pointer}
+.sp-cell .sp-ops>*:hover{border-color:var(--cyan)}
+.sp-empty{font-size:12px;color:var(--muted);background:rgba(255,255,255,.05);border:1px dashed var(--glass-bd);border-radius:10px;padding:14px 16px}
+.sp-tpl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--txt);margin-top:14px}
+.sp-tpl>b{font-size:12.5px;color:var(--cyan)}
+.sp-tpl label{display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 10px;border:1px solid var(--glass-bd);border-radius:9px;background:var(--glass)}
+.sp-tpl label:has(input:checked){border-color:var(--pink);box-shadow:0 0 12px rgba(79,140,255,.35)}
+.sp-tpl input{accent-color:var(--cyan)}
+.sp-dirhint{font-size:11.5px;color:var(--muted)}
+.sp-prev{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap}
+.sp-pv{background:rgba(255,255,255,.95);border-radius:10px;padding:6px 11px 9px;min-width:186px}
+.sp-pv b{display:block;font-size:11px;color:#25324a;margin-bottom:5px;font-weight:700}
+.sp-pv .sp-box{height:62px;display:flex;align-items:center;justify-content:center}
+.sp-pv img{max-height:58px;max-width:240px;display:block}
+.sp-pv .sp-none{font-size:11px;color:#93a4c0}
+.sp-more{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+/* 上传整张签名图 → 自动剪切预览区 */
+.sp-cut{margin-top:12px;padding:12px 14px;border:1px solid var(--glass-bd);border-radius:12px;background:rgba(255,255,255,.05)}
+.sp-cut[hidden]{display:none}
+.sp-cut-hd{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12.5px;margin-bottom:10px}
+.sp-cut-hd>b{color:var(--cyan)}
+.sp-cut-sl{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.sp-cut-sl input[type=range]{width:158px;accent-color:var(--cyan)}
+.sp-cut-sl b{color:var(--txt);min-width:26px;text-align:right}
+.sp-cut-img{background:#fff;border-radius:10px;padding:10px;display:flex;align-items:center;justify-content:center;min-height:76px}
+.sp-cut-img img{max-width:100%;max-height:158px;object-fit:contain;display:block}
+.sp-cut-tip{display:block;font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+.sp-cut-ft{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+</style>
+</head>
+<body data-page-node-id="RvLgTuOm6uqFgvBLvRkwy0">
+<nav class="nav" data-page-node-id="gOdJJbobV9gjx1jkn6W9bu">
+  <div class="brand" data-page-node-id="5tU0rx3J5t0DIvcwI0C8cR">⚡ 设备点检中心</div>
+  <div class="sp" data-page-node-id="bKo1bOzVVT3Iz3BohGo9Zj"></div>
+  <a href="/" data-page-node-id="CRY5hQfffadzvorFA0a3By">设备大屏</a>
+  <a href="/inspect" data-page-node-id="usI7VVhkcCWLEfDr9KRatu">点检作业</a>
+  <a href="/admin" class="active" data-page-node-id="Y2MEUXVPvRNGHIiCnJGEDp">管理后台</a>
+</nav>
+
+<!-- login -->
+<div id="login" class="login-box glass" data-page-node-id="sGsyQ9PfG7sW4sAjBsszVK">
+  <h2 style="margin-bottom:6px" data-page-node-id="BYdxb2Je9wBfBKfJAReXjI">🔐 管理后台登录</h2>
+  <p class="muted tiny mb" data-page-node-id="Z9F78WFd88l95ddrDsW4DS">请输入账号和密码登录（普通用户 / 管理员）。</p>
+  <div class="field" data-page-node-id="C87zYTxhwoGygwYr836u33"><label data-page-node-id="Ye0AQMCRKlSeMWyjYpvokG">账号</label><input id="l_u" placeholder="管理员账号" data-page-node-id="TGaPr96FO50AbvZf0oaDnB"></div>
+  <div class="field" data-page-node-id="Gu10nO4oE4dRrx8nblpSEm"><label data-page-node-id="oE1PrfmSypbhhAArAuwF1r">密码</label><input id="l_p" type="password" placeholder="密码" data-page-node-id="Lg0QRo7l3FzEcoBRVEULAA"></div>
+  <button class="btn primary" id="l_go" style="width:100%;margin-top:6px" data-page-node-id="a44aco0k5672B4Wckqzn9y">登录</button>
+</div>
+
+<div class="wrap" id="app" style="display:none" data-page-node-id="zWNh2OGuBItJb3Gek6xiLO">
+  <div class="flex mb" data-page-node-id="vcg37GNWMigMwPStDoJbD3">
+    <h2 data-page-node-id="qoKW8G7DLRamv25I5SN4DN">🛠 管理后台</h2><div class="sp" data-page-node-id="kzEUDEj2yApLDqypBn0XoC"></div>
+    <span class="tag" id="who" data-page-node-id="0P5t9KDFJT5WQ3U2n8Ad92"></span>
+    <span class="tag" data-appver style="opacity:.55"></span>
+    <button class="btn sm" id="logout" data-page-node-id="Xc4RI1SPazxQLHE6cYck0H">退出</button>
+  </div>
+  <div class="tabs" data-page-node-id="sqqyHEYlWXMKgCnFaSwhD2">
+    <button class="active" data-t="dev" data-page-node-id="9ANWIe93Uc9yPExtYQhR8h">📦 设备管理</button>
+    <button data-t="room" data-page-node-id="SUAjsRTkwsT7gKVZoQs6yE">🏠 房间管理</button>
+    <button data-t="tpl" data-page-node-id="K9LgEk7j1ermXYxhP3wt6A">📋 点检模板</button>
+    <button data-t="sig" data-page-node-id="L6hCDQ6RB1eFMCMA5nPN9I">✍️ 签名人员</button>
+    <button data-t="rec" data-page-node-id="6Tqm6ScuvPcuX1BsKiyVJs">📑 点检记录</button>
+    <button data-t="month" data-page-node-id="LkqgtW5QdjoqB14c2E7rw7">📅 月度点检</button>
+    <button data-t="user" data-page-node-id="yvGHzG1cgMHBOgFfK5sGF2">👥 用户管理</button>
+    <button data-t="sys" data-page-node-id="2UmR7JEXmVL4svbpwnPS5N">⚙️ 系统</button>
+  </div>
+
+  <!-- 设备 -->
+  <div class="panel active glass" id="p_dev" data-page-node-id="WIcqRWInFvPICkzUtxBJ9O">
+    <div class="row" data-page-node-id="iDXxaZzzEM4TJFfnrPEUMC">
+      <div class="field" data-page-node-id="awnYgnsccQHfZ5yaJwmrvD"><label data-page-node-id="eG4YG4kfwcUUZOpN6241yD">批量生成编号设备（自动 No.001 起）</label>
+        <div class="flex" data-page-node-id="rDee7iVIeq19khRgANAJxv">
+          <input type="number" id="g_count" value="101" min="1" style="max-width:120px" data-page-node-id="DAGjCvyzN1t6eOO3oNAHEb">
+          <select id="g_tpl" style="max-width:240px" data-page-node-id="GY8erSGAPcBkD4oKtBSoUK"></select>
+          <button class="btn cyan" id="g_go" data-page-node-id="aXr1VoN2xgO6wTVeV9c1RY">生成</button>
+        </div>
+      </div>
+    </div>
+    <div class="field" data-page-node-id="h8OharQSqBG6kQPY0qAkiE"><label data-page-node-id="xNsTbFBZSjECYGfwG62aUf">按行导入（格式：编号,模板型号,设备名称）每行一条</label>
+      <textarea id="imp_txt" placeholder="001,设备型号-C,电子式高温蠕变持久试验机&#10;002,设备型号-A,高温电子蠕变试验机"></textarea>
+      <button class="btn sm mt" id="imp_go" data-page-node-id="Vztw6I3ww3aycyHD4pu57c">导入</button>
+    </div>
+    <div class="flex mb" data-page-node-id="eDPZaPZNHZcR9u5vduB7iX">
+      <button class="btn sm" id="dev_add" data-page-node-id="NTdjx4wWPGDtjpGcPm5WpV">＋ 新增单台</button>
+      <button class="btn sm danger" id="dev_delmulti" data-page-node-id="WsfA2ZMASAvwDyFLOrBrAv">🗑 批量删除选中 <span id="dev_selcount" class="muted tiny" style="display:none" data-page-node-id="sE4cmlANbXI4eXJjpBqejq">(0)</span></button>
+      <span class="muted tiny" id="dev_stat" data-page-node-id="vns9VeYAsEK2cHKo0LGON6"></span>
+    </div>
+    <div class="scroll glass" style="max-height:420px" data-page-node-id="HR6220v6e9LCIDMlHPEYqA">
+      <table data-page-node-id="QFzwmk2CqEXO8ItWgBxkH2"><thead data-page-node-id="Bg1IjvkHQJ0Ce3xYiH4Zkk"><tr data-page-node-id="bkPFKNvHBCd5g1oSVLyX3N"><th style="width:40px;text-align:center" data-page-node-id="2KwxjI4MLjEQr3YXkqHL00"><input type="checkbox" id="dev_all" title="全选/取消全选" data-page-node-id="vFdRtBGzk7jciKJIKE4jOG"></th><th data-page-node-id="fMabuthIa5i3ayCM9WeIs6">编号</th><th data-page-node-id="Q3jeMAOklcXjv5pwvZliZH">名称</th><th data-page-node-id="SdOI5NJpWFlH9Z2k0hx2FW">型号</th><th data-page-node-id="yDLOwGINR77LRvVb77vF0c">模板</th><th data-page-node-id="e8a7r62MLt15QcDVDXNIhw">位置</th><th data-page-node-id="vyhXnZFPTgHawysjHVFjxw"></th></tr></thead>
+      <tbody id="dev_list" data-page-node-id="wfNYKzg2ChGIQ1Drl1mt8X"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 模板 -->
+  <div class="panel glass" id="p_tpl" data-page-node-id="F7wpQLqzYpTyBVgePeg3qF">
+    <div class="flex mb" data-page-node-id="3F4mcbainuUyzpxvZrn3bE">
+      <button class="btn sm" id="tpl_add" data-page-node-id="Cn7SHQaJHCuhXdMYeqn0qO">＋ 新增模板</button>
+      <button class="btn sm" id="tpl_import" style="margin-left:8px">📥 导入模板</button>
+    </div>
+    <p class="muted tiny" style="margin:4px 0 10px">设备用哪张点检表，由「设备管理」里选的模板决定。卡片上 <b>✎ 编辑检查项</b> 改内容（增 / 删 / 改 / 调序），<b>✎ 编辑表头</b> 改表单编号 · 版本 · 标题 · 备注 Note（直接印在点检表上），<b>⧉ 复制</b> 可为单台设备做一份独立模板。设备列表每行的 <b>📋 模板</b> 按钮可直达那台设备的点检表编辑。</p>
+    <div id="tpl_list" data-page-node-id="UyqVEl2UfJsVICj6Y6TMeH"></div>
+  </div>
+
+  <!-- 房间管理 -->
+  <div class="panel glass" id="p_room" data-page-node-id="wQTbHyF887kgG7h3atuRfb">
+    <p class="muted tiny" data-page-node-id="oIl5ayBUQe0YnlCmS8U9En">房间用于大屏分组与登录后的房间选择页。重命名房间会自动迁移该房间下所有设备的位置；删除房间要求房间内已无设备。</p>
+    <div class="row" data-page-node-id="3PvLzwxoJpB0H4JNU53RTB">
+      <div class="field" data-page-node-id="TLJ9BHbvww2t7O4FuBx1Nh"><label data-page-node-id="mHci2pXueqA7ThzU1Wc5Z5">房间名称</label><input id="room_name" placeholder="如：车间C" maxlength="40" data-page-node-id="kDgvGTaon4AuSiL8BShfK9"></div>
+      <div class="field" data-page-node-id="TmcZT9ebxTPfowgVAuEyhQ"><label data-page-node-id="3LuOBCdkuXzCM9HbGn41SC">描述（可选）</label><input id="room_desc" placeholder="如：设备型号说明" maxlength="60" data-page-node-id="PZFbkr7biT12UsKn09B6UA"></div>
+      <div class="field"><label>分组（可选）</label><input id="room_group" placeholder="同组房间会合并显示，如：车间" maxlength="20"></div>
+      <div class="field" style="align-self-end" data-page-node-id="i6XSvBL78sBBhzsGH7i4jD"><button class="btn cyan sm" id="room_add" data-page-node-id="ECSpqgb72VBEuj9ZXyb0Rb">＋ 新增房间</button></div>
+    </div>
+    <div class="muted tiny" style="margin:2px 0 8px">🌡 温湿度监测配置（可选）——填好后该房间的「温湿度监测记录」表头会自动带出；已建好的房间在列表里点 <b>✏️ 编辑</b>（表头缺项时另有一键 <b>🌡 补填表头</b>）补填即可。</div>
+    <div class="row">
+      <div class="field"><label>监测仪器型号和编号</label><input id="room_app" placeholder="如 hx-rtu-t10/DEMO-ZX-882" maxlength="80"></div>
+      <div class="field"><label>被监测的设备型号和编号</label><input id="room_eq" placeholder="如 设备型号-A/227083-2-1~227083-2-54" maxlength="300"></div>
+    </div>
+    <div class="field"><label>综合温湿度要求</label><textarea id="room_req" rows="2" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH"></textarea>
+      <div class="muted tiny" style="margin-top:3px">格式建议：<b>温度：下限℃-上限℃</b> + <b>湿度：≤上限%RH</b>（可再附标准号）。温度/湿度超限自动标红依赖这两行，写不规范则不校验。</div>
+    </div>
+    <div class="scroll glass" style="max-height:420px" data-page-node-id="yAXJCtDScbs7OGvv6iTKHI">
+      <table data-page-node-id="gjPLFux2Xysx5zwL6DR0TS"><thead data-page-node-id="fzuGyQAKEBCBYZo3HdDB9S"><tr data-page-node-id="RRVrRMTTaAJwTvQXyDmBrv"><th data-page-node-id="o3QHK0L9aC5F1LyLQ3Z0cT">房间名称</th><th data-page-node-id="GIRtdUPHgMKXxSMw3qMsBF">描述</th><th style="width:128px">温湿度表头</th><th style="width:80px" data-page-node-id="zIfiq3QQJ5M1yVTX4DW0Ih">设备数</th><th style="width:300px" data-page-node-id="kchYFK7EMyZE5f3SqOoE0p">关联页面</th></tr></thead>
+      <tbody id="room_list" data-page-node-id="hYrEAwMv9ZhZk6kpBgj39H"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 签名 -->
+  <div class="panel glass" id="p_sig" data-page-node-id="K7Sw3C087J22gtN4oRA7hc">
+    <div class="row" data-page-node-id="TuKgtI7EHooYor2lx1Aly3">
+      <div class="field" data-page-node-id="mySan4qTBYBy24om02x44j"><label data-page-node-id="M1GjEYD8Rg9fApWbY7cdM2">姓名</label><input id="sg_name" data-page-node-id="41fVBrioOYQCNpOHf07ya7"></div>
+      <div class="field" data-page-node-id="bVhUcGzt2lexiF3N74IAnf"><label data-page-node-id="IVsWTBBhKV8CC8pLAIU25Q">签名密码</label><input id="sg_pw" type="password" placeholder="用于签名验证" data-page-node-id="prrvtS6VP0sie2NixKTtL6"></div>
+    </div>
+    <div class="field" data-page-node-id="VYPDoDpl3ZhREyziczMhcR">
+      <label data-page-node-id="k92FwL65XZhIqStKSzAJSp">电子签名 · 逐字书写（每格一个字：可手写，或「上传整张签名图 · 自动剪切」）</label>
+      <div class="sigpad" id="p_sigpad" data-page-node-id="X6MCYyj94HgPeZ3jTlVEQy"></div>
+    </div>
+    <button class="btn primary" id="sg_add" data-page-node-id="EvIGHYjbfZ3kbxJ0ZcMYAk">＋ 添加签名人员</button>
+    <div class="scroll glass mt" style="max-height:360px" data-page-node-id="FQBrX7bCGIfh9oSlfTjfFe">
+      <table data-page-node-id="3nAEHTxucbGCzep1tI9AmM"><thead data-page-node-id="cVxayMWMdOROXnL2aRVsxS"><tr data-page-node-id="l4dg2DBWlGYXwLrYAcDLs4"><th data-page-node-id="0PFb5HkfKuNu3fujkDyesg">姓名</th><th data-page-node-id="hfOqLp4naBhFbwpFgPaTfQ">电子签名</th><th style="width:132px">签名版本</th><th data-page-node-id="nlpcRGWy6WiTfmMwLCWOec">状态</th><th data-page-node-id="XlzFkwXPkWndxN2cSZDcqI"></th></tr></thead>
+      <tbody id="sg_list" data-page-node-id="o2HcLcvLAxxq96SMa3qZBb"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 记录 -->
+  <div class="panel glass" id="p_rec" data-page-node-id="hJvrG6x0OteIT0HCqSULXg">
+    <div class="row" data-page-node-id="BM3DI4oWzPkqtRDniA1NKl">
+      <div class="field" data-page-node-id="51iQLDvNjBe0sorbidusvB"><label data-page-node-id="DBTlSfL0tfLXTa8X1D8sa6">按设备编号筛选</label><input id="r_no" placeholder="如 001" data-page-node-id="zQ0bXQVRCI602rEVujTBiK"></div>
+      <div class="field" data-page-node-id="ZKu8KTh6c6G2GokfjM8Bej"><label data-page-node-id="QZkDlt0lbYeIbFHJX7CQTL">按日期筛选</label><input type="date" id="r_date" data-page-node-id="9fxT2xAbMY9vJxwO0ti6eS"></div>
+      <div class="field" style="max-width:120px" data-page-node-id="sHhLExDqMIKexKBmkQujE2"><label data-page-node-id="1I0uQNnh6dZxsh6V3lH7pj">&nbsp;</label><button class="btn sm" id="r_q" data-page-node-id="oLCUCWipPnKNe4PHzX6sjK">查询</button></div>
+    </div>
+    <div class="flex mb" data-page-node-id="9U91Fj0Txtnd2HdPWWzA74">
+      <label class="muted tiny" style="display:flex;align-items:center;gap:4px" data-page-node-id="Lf49EZsLzMjDzW68FUp2q2"><input type="checkbox" id="r_all" onclick="toggleAll(this)" data-page-node-id="5fpCx3U2vvnSkZvUe9TZdT"> 全选</label>
+      <button class="btn sm danger" id="r_del" data-page-node-id="lcAuk9sRl8qpOatGwg1jQd">🗑 删除选中（<span id="r_cnt" data-page-node-id="AkvzVHt2RB4ZSQH6rZ3MFP">0</span>）</button>
+      <span class="muted tiny" id="r_stat" data-page-node-id="xsMjOARGxPU2uUjGL78BRv"></span>
+    </div>
+    <div class="scroll glass" style="max-height:420px" data-page-node-id="uWAbMzBJKm9dhodn7HaOwI">
+      <table data-page-node-id="U6t9By4su8NrKBBc9Jqyvn"><thead data-page-node-id="g07GL4MNABC4HU1uqidxhj"><tr data-page-node-id="nQUiFzLeBUbiiYlx3qNEES"><th style="width:26px" data-page-node-id="WdYylIMVrtwuH24bYJxctb"></th><th data-page-node-id="Tc1NNcGDIQcVrY5MPAB3rR">日期</th><th data-page-node-id="QkxNQNQ4DfRnORE9h21FDT">编号</th><th data-page-node-id="mDcAEOlA32xOtEygbO6e9W">设备</th><th data-page-node-id="BAHMjkfucDCd87izJ1ZJcd">状态</th><th data-page-node-id="1AemofnC6gRhhVxQG9vJ5R">签名人</th><th data-page-node-id="RSuzxVjL1D1cey2QR7nRJ9">异常说明</th><th data-page-node-id="7VJsOgJUJ2SsPtUL4SVHWr"></th></tr></thead>
+      <tbody id="r_list" data-page-node-id="8BDyuqByF3czAhMzm8gv1A"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 用户管理 -->
+  <div class="panel glass" id="p_user" data-page-node-id="qpUBqbY42DbYNfGprbIKCC">
+    <div class="flex mb" data-page-node-id="rYWIRYKdg3LUuVOkEBLr9A">
+      <button class="btn sm" id="user_add" data-page-node-id="ai6e5JsGI3nQaFp45ksU7h">＋ 新增用户</button>
+      <span class="muted tiny" data-page-node-id="ERnnknmBPndJP9QgodcR9q">普通用户可登录查看大屏 / 点检 / 打印；管理员才可进入本后台。</span>
+    </div>
+    <div class="scroll glass" style="max-height:420px" data-page-node-id="dUloCuNeEYIOJLTEqPuU1J">
+      <table data-page-node-id="GGx9FIgYPz2fWEnZkDxbyg"><thead data-page-node-id="LOm7g7Ctl4IaujqCOkRiQe"><tr data-page-node-id="mEiIIFEAkHfnLfNKDBGKJx"><th data-page-node-id="UEk2fB8vdAASCH74aWTdgZ">用户名</th><th data-page-node-id="mNfzLRJsqlw0eO2gY6LBKd">姓名</th><th data-page-node-id="r6aRYH8kJVAjlKX4UfczaR">角色</th><th data-page-node-id="gqL9kleSxviaAX46l2pYpp">状态</th><th data-page-node-id="6GWDAMLoEaWVeFy2D6slOC"></th></tr></thead>
+      <tbody id="user_list" data-page-node-id="xFvxHBrMFBRFwds90pYldM"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 系统 -->
+  <div class="panel glass" id="p_sys" data-page-node-id="ULgKoasiYohJNzlZN78DwV">
+    <div class="field" style="max-width:360px" data-page-node-id="t6P9pDfbZ5Ay5tPGZvKrnp"><label data-page-node-id="EdVlWXVyEgIX60ISuNPHlC">修改后台密码</label>
+      <input type="password" id="npw" placeholder="新密码（至少4位）" data-page-node-id="U6p1g6pUZGn8QVTwsw9lsF">
+      <button class="btn sm mt" id="npw_go" data-page-node-id="GMHCwbVzzRKHQEqXY1o4Nh">保存</button>
+    </div>
+    <p class="muted tiny mt" data-page-node-id="yIFeFdthSM7MJ2xipHHEPi">数据库文件：<code data-page-node-id="WQiEkud1dzM7FsxWTN9KPG">data/kv.json</code></p>
+
+    <h3 style="margin:18px 0 8px;font-size:15px" data-page-node-id="H3QAVLrrKwNsIFm39qu01A">📊 数据统计</h3>
+    <div class="flex mb" id="sys_stat" style="flex-wrap:wrap;gap:10px" data-page-node-id="yn3u3cfPN824FRWZN6cCFf"></div>
+
+    <h3 style="margin:18px 0 8px;font-size:15px" data-page-node-id="W976AkKmTA8TdaCCtKIM8H">💾 数据备份 / 导出</h3>
+    <div class="flex mb" data-page-node-id="vEDf1FDLHHZo7MozWsHyDr">
+      <button class="btn sm cyan" id="sys_backup" data-page-node-id="f6q6zQtnNxbWycoVbvCGlL">⬇️ 下载数据备份 (JSON)</button>
+      <button class="btn sm cyan" id="sys_csv" data-page-node-id="p41KFCzTzsXy1Ogm2xIKcY">⬇️ 导出点检记录 (CSV)</button>
+      <span class="muted tiny" id="sys_backup_hint" data-page-node-id="0TLQeOY9uAttiGuWrxxGIn"></span>
+    </div>
+    <p class="muted tiny" data-page-node-id="SCNR84gTjFykeY9sSibTWa">备份建议每月一次，下载的 JSON 即完整数据库快照，可整份替换 <code data-page-node-id="fJogHBYyETt0dXS6hR9WHN">data/kv.json</code> 恢复。CSV 含全部点检记录（编号/名称/房间/日期/时间/结果/备注），带 BOM 可直接用 Excel 打开。</p>
+  
+    <h3 style="margin:18px 0 8px;font-size:15px" id="sys_about">🔗 关于</h3>
+    <div class="flex mb" style="flex-wrap:wrap;gap:10px;align-items:center">
+      <a class="btn sm cyan" href="https://github.com/equipment-inspection-demo" target="_blank" rel="noopener">🐙 GitHub 主页</a>
+      <span class="muted tiny">设备点检巡检系统 <b data-appver style="opacity:.75"></b> · Node.js 零依赖 · 数据存于 <code>data/kv.json</code></span>
+    </div>
+</div>
+
+  <!-- 月度点检（后台） -->
+  <div class="panel glass" id="p_month" data-page-node-id="WvgMciUvfO2tgEEnwGhzR7">
+    <p class="muted tiny" data-page-node-id="7CcLxBwGRrIv4PU9ab7rck">整月一键点检为管理员操作：选择月份、设备范围（按房间 / 指定单台 / 全部设备）与登记签名人，将所选设备整月标记为「正常」并套用该签名人的电子签名（电子签名仅能在后台上传）。可指定「截止日期」，避免提前点检未到的日期。「取消 / 删除」在指定单台时，还能一键清掉这台设备之前所有月份的点检数据与签名。</p>
+    <div class="row" data-page-node-id="F6p0t6HOEU9UDXjxpEu8fj">
+      <div class="field" data-page-node-id="bZnJ4W29sLHlY3X30qozfx"><label data-page-node-id="01qMSxIdJ0juIB54wgsafK">月份</label><input type="month" id="m_month" data-page-node-id="8uwMbVHRkyha0ibXdjU2fM"></div>
+      <div class="field" data-page-node-id="1RsHYxwvJzuwvYfmj3B3qC"><label data-page-node-id="AkMPy1N0RadXhUNGGSUKcU">截止日期</label><input type="date" id="m_end" data-page-node-id="24t3Kiyx00IHuxu41tVLgZ"><p class="muted tiny" style="margin-top:2px" data-page-node-id="3j7EvNsmAXYGnMDkxIv0Wl">默认截止到今天，仅点检 1 日至该日的日期</p></div>
+      <div class="field" data-page-node-id="06Wnda69fnaCehaWjs4Gxs"><label data-page-node-id="YeQvF5tZjSxdcdHLRtZfuM">签名人</label><select id="m_signer" data-page-node-id="ADByFygVtoPUhn9ZAAmAcH"></select></div>
+      <div class="field" data-page-node-id="A1b2c3d4e5f6g7h8i9j0k1l"><label data-page-node-id="B2c3d4e5f6g7h8i9j0k1l2m">签名密码</label><input type="password" id="m_pw" placeholder="签名人密码" data-page-node-id="C3d4e5f6g7h8i9j0k1l2m3n"></div>
+      <div class="field" data-page-node-id="WHHGD9t3vi5x13pNs2HzHE"><label data-page-node-id="3J4BYb6ulMCFiFDqM6Wn6q">设备范围</label>
+        <select id="m_scope" data-page-node-id="FFpU7uq7uGkLONuTkdZBHJ"><option value="room" data-page-node-id="MNE7DeF1kCH4nyznYj3uGg">按房间</option><option value="one" data-page-node-id="Qv6T0yUGyENAleSiMbVFT7">指定单台</option><option value="all" data-page-node-id="Wwh1ScopeAll000000001">全部设备</option></select></div>
+      <div class="field" id="m_roomwrap" data-page-node-id="Wwh1RoomWrap0000000001"><label data-page-node-id="Wwh1RoomLbl00000000002">选择房间</label><select id="m_room" data-page-node-id="Wwh1RoomSel00000000003"></select></div>
+      <div class="field" id="m_devwrap" style="display:none" data-page-node-id="eFBb5CRGzDuNmOhYFnllmN"><label data-page-node-id="PkXNtCGfHopvmQEEA1Orf1">选择设备</label><select id="m_dev" data-page-node-id="212nASCe1OPRawK45EGgcI"></select></div>
+      <div class="field" id="m_delwrap" data-page-node-id="Wwh1DelWrap0000000004"><label data-page-node-id="Wwh1DelLbl00000000005">删除范围</label>
+        <select id="m_delscope" data-page-node-id="Wwh1DelSel00000000006"><option value="month">当月（1 日至截止日）</option><option value="all">该设备全部历史记录</option></select>
+        <p class="muted tiny" style="margin-top:2px" id="m_delhint" data-page-node-id="Wwh1DelHint0000000007">点「取消 / 删除」时生效</p></div>
+    </div>
+    <div class="flex mb" data-page-node-id="d0ZJj1mKfGvBABAfpoKxnV">
+      <button class="btn primary" id="m_go" data-page-node-id="LRTDkFH1a6p108E3q1IeZY">📅 点检（按上方范围）</button>
+      <button class="btn sm danger" id="m_cancel" data-page-node-id="vTMSw8U3pfmfn05tPOHToS">🗑 取消 / 删除点检</button>
+      <button class="btn cyan" id="m_print" data-page-node-id="9RDCdFV5qO3hdF8CSyXWVp">🖨 打印整月点检表</button>
+      <span class="muted tiny" id="m_stat" data-page-node-id="s1BxwNuSQG0qO9NXBlVPWI"></span>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="mask" data-page-node-id="JOttaQEaO3EoOOdhnWoGad"><div class="modal glass" id="modal" data-page-node-id="dk2xTcFkY7LDWyOBVUs0cm"></div></div>
+<div class="toast" id="toast" data-page-node-id="PZ7iMw46Cil3fKuVZPhOtH"></div>
+<script>
+const $=s=>document.querySelector(s);
+const api=(p,opt)=>fetch(p,Object.assign({credentials:'same-origin'},opt)).then(r=>r.json());
+function toast(m,t){const e=$('#toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(()=>e.className='toast',2600);}
+// 转义用户可输入字段，防止存储型 XSS（设备名/模板内容/签名人姓名等会回显到 innerHTML）
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const me=()=>api('/api/admin/me');
+const dimOf=(yy,mm)=>new Date(+yy,+mm,0).getDate();
+// 用本地时间（非 UTC）计算今天/本月，避免 GMT+8 上午时区偏差把"今天"算成昨天 → 误判为未来日期
+const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const localMonth=()=>localToday().slice(0,7);
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
+  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month')loadMonthInspect();if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='sys')loadSysStat();
+});
+
+$('#l_go').onclick=async()=>{
+  const r=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:$('#l_u').value,password:$('#l_p').value})});
+  if(r.error){toast(r.error,'err');return;}
+  enter();
+};
+$('#logout').onclick=()=>{location.href='/logout';};  // HttpOnly cookie 前端清不掉，走服务端退出
+async function enter(){
+  const ok=await me();if(!ok.ok){return;}
+  $('#login').style.display='none';$('#app').style.display='block';
+  $('#who').textContent=(ok.name||ok.username)+'（'+(ok.role==='admin'?'管理员':'普通用户')+'）';
+  loadDev();
+}
+
+// ===== 用户管理 =====
+async function loadUsers(){
+  const users=await api('/api/users');
+  $('#user_list').innerHTML=users.map(u=>`<tr>
+    <td>${esc(u.username)}</td><td>${esc(u.name)}</td>
+    <td>${u.role==='admin'?'<span class="tag">管理员</span>':'普通用户'}</td>
+    <td>${u.active?'<span style="color:#0a8f3c">启用</span>':'<span style="color:#d11">停用</span>'}</td>
+    <td><button class="btn sm" onclick="editUser('${u.id}')">编辑</button>
+        <button class="btn sm ${u.active?'':'cyan'}" onclick="toggleUser('${u.id}',${u.active?0:1})">${u.active?'停用':'启用'}</button>
+        <button class="btn sm danger" onclick="delUser('${u.id}')">删</button></td></tr>`).join('');
+}
+$('#user_add').onclick=()=>{
+  const m=$('#modal');m.innerHTML=`<h3>新增用户</h3>
+    <div class="field"><label>用户名（登录账号）</label><input id="u_name" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">必填，唯一；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
+    <div class="field"><label>姓名</label><input id="u_disp" placeholder="仅用于显示，可中文"></div>
+    <div class="field"><label>密码</label><input type="password" id="u_pw" placeholder="至少4位"></div>
+    <div class="field"><label>角色</label><select id="u_role"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
+    <div class="flex"><button class="btn primary" onclick="saveUser()">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
+  $('#mask').classList.add('show');
+};
+async function saveUser(){
+  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value;
+  if(!username||!pw){toast('用户名与密码必填','err');return;}
+  if(username.length<2||username.length>32||/\s/.test(username)){toast('用户名需 2-32 位，可中文/英文/数字，不能含空格','err');return;}
+  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name,password:pw,role})});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已新增用户','ok');closeM();loadUsers();
+}
+async function editUser(id){
+  const users=await api('/api/users');const u=users.find(x=>x.id===id);if(!u)return;
+  const m=$('#modal');m.innerHTML=`<h3>编辑用户</h3>
+    <div class="field"><label>用户名</label><input id="u_name" value="${esc(u.username)}" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
+    <div class="field"><label>姓名</label><input id="u_disp" value="${esc(u.name)}"></div>
+    <div class="field"><label>重置密码（留空不修改）</label><input type="password" id="u_pw" placeholder="至少4位"></div>
+    <div class="field"><label>角色</label><select id="u_role"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></div>
+    <div class="flex"><button class="btn primary" onclick="saveUserEdit('${id}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
+  $('#mask').classList.add('show');
+}
+async function saveUserEdit(id){
+  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value;
+  const body={username,name,role}; if(pw) body.password=pw;
+  const r=await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已保存','ok');closeM();loadUsers();
+}
+async function toggleUser(id,active){
+  const r=await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:!!active})});
+  if(r.error){toast(r.error,'err');return;}
+  toast(active?'已启用':'已停用','ok');loadUsers();
+}
+async function delUser(id){
+  if(!confirm('确定删除该用户？'))return;
+  const r=await api('/api/users/'+id,{method:'DELETE'});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已删除','ok');loadUsers();
+}
+
+// ===== 房间管理 =====
+async function loadRooms(){
+  const rooms=await api('/api/rooms');
+  window.__rooms=rooms;
+  $('#room_list').innerHTML=rooms.map(r=>{
+    // 温湿度表头三项（监测仪器 / 被监测设备 / 综合要求）完整度：一眼看出哪个房间还没填
+    const parts=[r.thermo_apparatus,r.thermo_equipment,r.thermo_requirement].map(x=>String(x||'').trim());
+    const miss=parts.filter(x=>!x).length;
+    const chip = miss===0 ? '<span class="pill ok">✅ 已填写</span>'
+               : miss===3 ? '<span class="pill ng">❌ 未填写</span>'
+               : '<span class="pill" style="background:rgba(255,209,102,.18);color:#ffd166">⚠️ 缺 '+miss+' 项</span>';
+    const missTip = miss? '<div class="muted tiny" style="margin-top:3px">缺：'+[['thermo_apparatus','仪器'],['thermo_equipment','被监测设备'],['thermo_requirement','温湿度要求']].filter((p,i)=>!parts[i]).map(p=>p[1]).join('、')+'</div>' : '';
+    const key=esc(r.name).replace(/'/g,"\\'");
+    return `<tr>
+    <td><b>${esc(r.name)}</b>${r.group?'<div class="muted tiny" style="margin-top:2px">🧩 分组：'+esc(r.group)+'（合并展示）</div>':''}</td>
+    <td class="muted">${esc(r.desc)||'—'}${r.thermo_apparatus?'<br><span class="muted tiny">🌡 仪器：'+esc(r.thermo_apparatus)+(r.thermo_requirement?' · '+esc(r.thermo_requirement.split('\n')[0]):'')+'</span>':''}</td>
+    <td>${chip}${missTip}</td>
+    <td>${r.count} 台</td>
+    <td>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <a class="btn sm" href="/env?room=${encodeURIComponent(r.name)}" target="_blank" rel="noopener" title="该房间的温湿度监测记录（DEMO-QR-008）">🌡 温湿度表</a>
+        <a class="btn sm" href="/print-all?room=${encodeURIComponent(r.name)}&auto=1" target="_blank" rel="noopener" title="该房间全部设备的月度点检表（DEMO-QR-001）">🖨 点检表</a>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sm" onclick="renameRoom('${key}')" title="改名称 / 描述 / 分组 / 温湿度表头">✏️ 编辑</button>
+        ${miss?`<button class="btn sm cyan" onclick="renameRoom('${key}','thermo')" title="直接定位到温湿度表头三个字段">🌡 补填表头</button>`:''}
+        <button class="btn sm danger" onclick="delRoom('${key}')">🗑 删除</button>
+      </div>
+    </td></tr>`;}).join('') || '<tr><td colspan="5" class="muted">暂无房间，请先新增</td></tr>';
+}
+$('#room_add').onclick=async()=>{
+  const name=$('#room_name').value.trim(), desc=$('#room_desc').value.trim(), group=$('#room_group').value.trim();
+  if(!name){toast('请输入房间名称','err');return;}
+  const r=await api('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,group})});
+  if(r.error){toast(r.error,'err');return;}
+  // 温湿度表头配置（可选）：新增后再走一次 PUT 写入，避免改动 POST 接口签名
+  const app=$('#room_app').value.trim(), eq=$('#room_eq').value.trim(), req=$('#room_req').value.trim();
+  if(app||eq||req){
+    const r2=await api('/api/rooms/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({thermo_apparatus:app,thermo_equipment:eq,thermo_requirement:req})});
+    if(r2.error) toast('房间已建，但温湿度表头保存失败：'+r2.error,'err');
+  }
+  toast('已新增房间「'+name+'」'+(app||eq||req?'（含温湿度表头）':''),'ok');
+  $('#room_name').value='';$('#room_desc').value='';$('#room_group').value='';
+  $('#room_app').value='';$('#room_eq').value='';$('#room_req').value='';
+  loadRooms();
+};
+function renameRoom(name,focus){
+  const r=(window.__rooms||[]).find(x=>x.name===name)||{};
+  const m=$('#modal');m.innerHTML=`<h3>编辑房间 · ${esc(name)}</h3>
+    <div class="field"><label>名称</label><input id="rm_name" value="${esc(name)}" maxlength="40"></div>
+    <div class="field"><label>描述（可选）</label><input id="rm_desc" maxlength="60" value="${esc(r.desc||'')}"></div>
+    <hr style="border:none;border-top:1px dashed #ccc;margin:10px 0">
+    <div class="field"><label>分组（可选）</label><input id="rm_group" maxlength="20" value="${esc(r.group||'')}" placeholder="留空 = 独立房间">
+      <div class="muted tiny" style="margin-top:3px">例：给「车间A」「车间B」都填「车间」，两间房就会归到一个组下展示（房间本身仍各自独立，设备和记录不受影响）</div></div>
+    <h4 style="margin:4px 0 8px;font-size:13px">🌡 温湿度监测配置（新建月度记录时自动带出）</h4>
+    <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 hx-rtu-t10/DEMO-ZX-882"></div>
+    <div class="field"><label>被监测的设备型号和编号</label><input id="rm_eq" maxlength="300" value="${esc(r.thermo_equipment||'')}"></div>
+    <div class="field"><label>综合温湿度要求</label><textarea id="rm_req" rows="3" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH">${esc(r.thermo_requirement||'')}</textarea></div>
+    <p class="muted tiny">重命名后该房间下所有设备的位置会同步更新，点检记录不受影响。</p>
+    <div class="flex"><button class="btn primary" onclick="saveRoom('${esc(name).replace(/'/g,"\\'")}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
+  $('#mask').classList.add('show');
+  // 从列表点「🌡 表头配置」进来时，直接定位并聚焦到监测仪器输入框
+  if(focus==='thermo'){ const el=$('#rm_app'); if(el){ el.scrollIntoView({block:'center'}); setTimeout(()=>{ try{el.focus();}catch(e){} },80); } }
+}
+async function saveRoom(oldName){
+  const name=$('#rm_name').value.trim(), desc=$('#rm_desc').value.trim();
+  if(!name){toast('请输入房间名称','err');return;}
+  const body={name,
+    group:$('#rm_group').value.trim(),
+    thermo_apparatus:$('#rm_app').value.trim(),
+    thermo_equipment:$('#rm_eq').value.trim(),
+    thermo_requirement:$('#rm_req').value.trim()};
+  if(desc) body.desc=desc;
+  const r=await api('/api/rooms/'+encodeURIComponent(oldName),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}
+  toast(oldName===name?'已保存':'已重命名为「'+name+'」','ok');closeM();loadRooms();
+}
+async function delRoom(name){
+  if(!confirm('确定删除房间「'+name+'」？仅当房间内无设备时才能删除。'))return;
+  const r=await api('/api/rooms/'+encodeURIComponent(name),{method:'DELETE'});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已删除','ok');loadRooms();
+}
+
+// ===== 系统：数据统计 / 备份导出 =====
+async function loadSysStat(){
+  try{
+    const [devs,rooms,tpls,signers,users,insp]=await Promise.all([api('/api/devices'),api('/api/rooms'),api('/api/templates'),api('/api/signers'),api('/api/users'),api('/api/inspections')]);
+    const today=localToday();
+    // 今日已点检：按设备号去重（同一设备同一天只有一条记录）
+    const todaySet=new Set();
+    (Array.isArray(insp)?insp:[]).forEach(r=>{ if(r.inspect_date===today) todaySet.add(r.device_id); });
+    const roomTxt=(Array.isArray(rooms)?rooms:[]).map(r=>esc(r.name)+' '+r.count).join(' ｜ ')||'—';
+    $('#sys_stat').innerHTML=[
+      ['设备总数',devs.length],['房间',roomTxt],['点检模板',tpls.length],['签名人员',signers.length],['用户',users.length],['点检记录',insp.length],['今日已点检',todaySet.size+' 台']
+    ].map(([k,v])=>`<span class="glass" style="border-radius:10px;padding:8px 14px"><span class="muted tiny">${k}</span><br><b style="font-size:16px">${v}</b></span>`).join('');
+  }catch(e){ $('#sys_stat').innerHTML='<span class="muted tiny">统计加载失败</span>'; }
+}
+$('#sys_backup').onclick=()=>{ location.href='/api/admin/backup'; toast('已开始下载 JSON 备份','ok'); };
+$('#sys_csv').onclick=()=>{ location.href='/api/admin/export-inspections-csv'; toast('已开始导出 CSV','ok'); };
+
+// 设备
+async function loadDev(){
+  const tpls=await api('/api/templates');
+  ALL_TPL=tpls;
+  $('#g_tpl').innerHTML='<option value="">（无模板）</option>'+tpls.map(t=>`<option value="${t.id}">${esc(t.key)} · ${esc(t.equip_name)}</option>`).join('');
+  const devs=await api('/api/devices');
+  ALL_DEV=devs;
+  $('#dev_stat').textContent='共 '+devs.length+' 台';
+  const tmap={};tpls.forEach(t=>tmap[t.id]=t.key);
+  $('#dev_list').innerHTML=devs.map(d=>`<tr>
+    <td style="text-align:center"><input type="checkbox" class="devchk" data-id="${d.id}"></td>
+    <td>${d.no}</td><td>${esc(d.name)}</td><td>${d.model||''}</td><td class="tiny">${tmap[d.template_id]||'—'}</td>
+    <td class="tiny">${d.location||''}</td>
+    <td style="white-space:nowrap"><button class="btn sm" onclick="openDevTpl('${d.id}')" title="编辑这台设备的点检表模板（检查内容 + 表头）">📋 模板</button> <button class="btn sm" onclick="editDev('${d.id}')">编辑</button> <button class="btn sm danger" onclick="delDev('${d.id}')">删</button></td></tr>`).join('');
+  const allCb=$('#dev_all'); if(allCb){allCb.checked=false;}
+  updateDelBtn();
+}
+$('#g_go').onclick=async()=>{
+  const r=await api('/api/devices/batch',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({count:+$('#g_count').value,template_id:$('#g_tpl').value||null})});
+  if(r.error){toast(r.error,'err');return;}toast('已生成 '+r.count+' 台','ok');loadDev();
+};
+$('#imp_go').onclick=async()=>{
+  const r=await api('/api/devices/import',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:$('#imp_txt').value})});
+  if(r.error){toast(r.error,'err');return;}toast(`导入成功 ${r.added} 台，跳过 ${r.skipped} 台`,'ok');loadDev();
+};
+$('#dev_add').onclick=()=>editDev('');
+
+// 设备多选删除
+function updateDelBtn(){
+  const sel=document.querySelectorAll('.devchk:checked');
+  const btn=$('#dev_delmulti');
+  const cnt=$('#dev_selcount');
+  if(sel.length){
+    btn.disabled=false; btn.style.opacity='1';
+    cnt.textContent='('+sel.length+')'; cnt.style.display='inline';
+  } else {
+    btn.disabled=true; btn.style.opacity='.4';
+    cnt.style.display='none';
+  }
+}
+$('#dev_all').onchange=()=>{ const v=$('#dev_all').checked; document.querySelectorAll('.devchk').forEach(c=>c.checked=v); updateDelBtn(); };
+$('#dev_list').addEventListener('change', e=>{ if(e.target.classList.contains('devchk')) updateDelBtn(); });
+$('#dev_delmulti').onclick=async()=>{
+  const ids=[...document.querySelectorAll('.devchk:checked')].map(c=>c.dataset.id);
+  if(!ids.length){toast('请先勾选要删除的设备','err');return;}
+  if(!confirm(`确认删除选中的 ${ids.length} 台设备？\n该操作将同时删除这些设备的全部点检记录，不可恢复！`)) return;
+  const r=await api('/api/devices/batch-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
+  if(r.error){toast(r.error,'err');return;}
+  toast(`已删除 ${r.deleted} 台设备（请求 ${r.requested} 台）`,'ok');
+  $('#dev_all').checked=false;
+  loadDev();
+};
+async function editDev(id){
+  const tpls=await api('/api/templates');
+  let d={no:'',name:'',model:'',template_id:'',location:''};
+  if(id){const devs=await api('/api/devices');d=devs.find(x=>x.id===id)||d;}
+  // Find the matching template to pre-fill name/model
+  const curTpl=tpls.find(t=>t.id===d.template_id);
+  if(curTpl && !id){ d.name=curTpl.equip_name; d.model=curTpl.model||curTpl.key||''; }
+  const m=$('#modal');
+  m.innerHTML=`<h3>${id?'编辑':'新增'}设备</h3>
+    <div class="field"><label>关联模板</label><select id="e_tpl"><option value="">（无模板，手动输入）</option>${tpls.map(t=>`<option value="${t.id}" ${t.id==d.template_id?'selected':''}>${esc(t.key)} · ${esc(t.equip_name)}</option>`).join('')}</select>
+      <p class="muted tiny" style="margin-top:4px">选择模板后自动带出设备名称和型号，可在此基础上手动修改。</p></div>
+    <div class="field"><label>设备编号 No. <span class="muted tiny">（必填）</span></label><input id="e_no" value="${d.no}" placeholder="如 001"></div>
+    <div class="field"><label>设备名称</label><input id="e_name" value="${esc(d.name)}" placeholder="从模板自动带出，可修改"></div>
+    <div class="field"><label>型号</label><input id="e_model" value="${d.model||''}" placeholder="从模板自动带出，可修改"></div>
+    <div class="field"><label>位置/区域</label><input id="e_loc" value="${d.location||''}"></div>
+    <div class="flex"><div class="sp"></div><button class="btn" onclick="closeM()">取消</button>
+    <button class="btn primary" onclick="saveDev('${id}')">保存</button></div>`;
+  // 选择模板时自动填充名称和型号（仍可手动修改）
+  $('#e_tpl').onchange=()=>{
+    const tid=$('#e_tpl').value;
+    const t=tpls.find(x=>x.id===tid);
+    const nameEl=$('#e_name'), modelEl=$('#e_model');
+    if(t){
+      nameEl.value=t.equip_name;
+      modelEl.value=t.model||t.key||'';
+    }
+    nameEl.removeAttribute('readonly');
+    modelEl.removeAttribute('readonly');
+    nameEl.style.background='';
+    modelEl.style.background='';
+  };
+  $('#mask').classList.add('show');
+}
+async function saveDev(id){
+  const body={no:$('#e_no').value,name:$('#e_name').value,model:$('#e_model').value,template_id:$('#e_tpl').value||null,location:$('#e_loc').value};
+  const r=id?await api('/api/devices/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+            :await api('/api/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}toast('已保存','ok');closeM();loadDev();
+}
+async function delDev(id){if(!confirm('确认删除该设备？'))return;const r=await api('/api/devices/'+id,{method:'DELETE'});if(r.error){toast(r.error,'err');return;}toast('已删除','ok');loadDev();}
+
+// ===== 点检模板（内容 + 表头 编辑）=====
+// 数据模型：templates[] = { id, key, equip_name, model, source_file, items:[{sn,content,frequency}],
+//   note（表下备注）, form_code（表单编号，如 DEMO-QR-001）, form_rev（Rev.A1）,
+//   title / title_en（表标题）, use_count（引用该模板的设备数，服务端算） }
+// 关键：items[].sn 是历史点检数据（inspections.bySn）的绑定键 —— 保存时服务端会重排为 1..n，
+//       并自动把该模板下所有设备的历史记录按 旧sn→新sn 迁移，保证删除/调序后数据不错位。
+let ALL_TPL=[], ALL_DEV=[], TI_BACKUP=null;
+async function loadTpl(){
+  ALL_TPL=await api('/api/templates');
+  $('#tpl_list').innerHTML=ALL_TPL.map(t=>`<div class="glass" style="padding:14px;margin-bottom:12px">
+    <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
+      <b>${esc(t.key)}</b> <span class="tag">${esc(t.equip_name)}</span>
+      <span class="tag">${esc(t.form_code||'DEMO-QR-001')} ${esc(t.form_rev||'Rev.A1')}</span>
+      <span class="muted tiny">${(t.items||[]).length} 项检查 · 被 ${t.use_count||0} 台设备使用 · 来源 ${esc(t.source_file||'—')}</span>
+      <div class="sp"></div>
+      <button class="btn sm" onclick="tplItems('${t.id}')">✎ 编辑检查项</button>
+      <button class="btn sm" onclick="tplHead('${t.id}')">✎ 编辑表头</button>
+      <button class="btn sm" onclick="tplDup('${t.id}')">⧉ 复制</button>
+      <button class="btn sm danger" onclick="tplDel('${t.id}')">🗑</button>
+    </div>
+    <table class="mt"><thead><tr><th style="width:46px">#</th><th>检查内容</th><th style="width:150px">频率</th></tr></thead>
+    <tbody>${(t.items||[]).map((i,idx)=>`<tr><td class="muted tiny" style="text-align:center">${idx+1}</td><td>${esc(i.content)}</td><td class="tiny">${esc(i.frequency)||''}</td></tr>`).join('')}</tbody></table>
+  </div>`).join('');
+}
+
+// —— 表头编辑：表单编号 / 版本 / 标题 / 备注 / 标识 / 设备名称 / 型号 / 来源 ——
+function tplHead(id){
+  const t=ALL_TPL.find(x=>x.id===id); if(!t){toast('模板不存在','err');return;}
+  $('#modal').innerHTML=`<h3>✎ 编辑表头 · ${esc(t.key)}</h3>
+    <p class="muted tiny" style="margin:2px 0 8px">表单编号与标题直接印在点检表右上角及表头（如 DEMO-QR-001 Rev.A1 / 设备维护保养记录）；留空则用通用默认值。备注 Note 印在表格下方。</p>
+    <div class="row">
+      <div class="field"><label>模板标识 key</label><input id="th_key" value="${esc(t.key)}"></div>
+      <div class="field"><label>设备名称</label><input id="th_name" value="${esc(t.equip_name)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>型号</label><input id="th_model" value="${esc(t.model||'')}"></div>
+      <div class="field"><label>来源文件（仅备注用）</label><input id="th_src" value="${esc(t.source_file||'')}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>表单编号</label><input id="th_code" value="${esc(t.form_code||'')}" placeholder="DEMO-QR-001"></div>
+      <div class="field"><label>版本</label><input id="th_rev" value="${esc(t.form_rev||'')}" placeholder="Rev.A1"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>标题（中文）</label><input id="th_title" value="${esc(t.title||'')}" placeholder="设备维护保养记录"></div>
+      <div class="field"><label>标题（英文）</label><input id="th_title_en" value="${esc(t.title_en||'')}" placeholder="Maintenance Record of Equipment"></div>
+    </div>
+    <div class="field"><label>备注 Note（印在表格下方）</label><textarea id="th_note" rows="3">${esc(t.note||'')}</textarea></div>
+    <div class="flex"><span class="sp"></span><button class="btn" onclick="closeM()">取消</button>
+    <button class="btn primary" onclick="saveTplHead('${t.id}')">保存表头</button></div>`;
+  $('#mask').classList.add('show');
+}
+async function saveTplHead(id){
+  const body={key:$('#th_key').value.trim(),equip_name:$('#th_name').value.trim(),model:$('#th_model').value.trim(),
+    source_file:$('#th_src').value.trim(),form_code:$('#th_code').value.trim(),form_rev:$('#th_rev').value.trim(),
+    title:$('#th_title').value.trim(),title_en:$('#th_title_en').value.trim(),note:$('#th_note').value};
+  const r=await api('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}
+  toast('表头已保存','ok');closeM();loadTpl();
+}
+
+// —— 检查项编辑：改内容/频率、增删、上下移（保存时整体提交，服务端重排序号并迁移历史数据）——
+function tplItems(id){
+  const t=ALL_TPL.find(x=>x.id===id); if(!t){toast('模板不存在','err');return;}
+  window.__tiTid=id;
+  $('#modal').innerHTML=`<h3>✎ 编辑检查项 · ${esc(t.key)} <span class="muted tiny">${(t.items||[]).length} 项 · 该模板被 ${t.use_count||0} 台设备使用</span></h3>
+    <p class="muted tiny" style="margin:2px 0 8px">直接改「检查内容 / 频率」；<b>↑ ↓</b> 调顺序，<b>🗑</b> 删行，<b>＋</b> 末尾追加。保存后序号自动重排为 1…N；若删行或调序，该模板下所有设备的历史点检数据会同步迁移，不会错位。</p>
+    <div class="scroll glass" style="max-height:44vh">
+      <table class="mt"><thead><tr><th style="width:46px;text-align:center">#</th><th>检查内容</th><th style="width:150px">频率</th><th style="width:126px"></th></tr></thead>
+      <tbody id="ti_body"></tbody></table>
+    </div>
+    <div class="flex" style="margin-top:10px;gap:8px">
+      <button class="btn sm" onclick="tiAdd()">＋ 追加一行</button>
+      <button class="btn sm ghost" onclick="tiPaste()">📋 批量粘贴</button>
+      <span class="sp"></span>
+      <button class="btn" onclick="closeM()">取消</button>
+      <button class="btn primary" onclick="tiSave('${t.id}')">💾 保存检查项</button>
+    </div>`;
+  $('#mask').classList.add('show');
+  tiRows((t.items||[]).map(i=>({sn:i.sn,content:i.content,frequency:i.frequency||''})));
+}
+function tiRowHTML(it){
+  return `<tr data-sn="${it.sn==null?'':it.sn}">
+    <td class="muted tiny ti-no" style="text-align:center"></td>
+    <td><input class="ti_c" value="${esc(it.content||'')}" style="width:100%"></td>
+    <td><input class="ti_f" value="${esc(it.frequency||'')}" style="width:100%;max-width:150px"></td>
+    <td style="white-space:nowrap;text-align:right">
+      <button class="btn sm" onclick="tiMove(this,-1)" title="上移">↑</button>
+      <button class="btn sm" onclick="tiMove(this,1)" title="下移">↓</button>
+      <button class="btn sm danger" onclick="tiDel(this)" title="删除该行">🗑</button>
+    </td></tr>`;
+}
+function tiRows(list){ $('#ti_body').innerHTML=list.map(tiRowHTML).join(''); tiRenumber(); }
+function tiRenumber(){
+  document.querySelectorAll('#ti_body tr').forEach((tr,i)=>{ const c=tr.querySelector('.ti-no'); if(c)c.textContent=i+1; });
+}
+function tiAdd(){
+  $('#ti_body').insertAdjacentHTML('beforeend',tiRowHTML({sn:null,content:'',frequency:''}));
+  tiRenumber();
+  const rows=document.querySelectorAll('#ti_body tr'); const last=rows[rows.length-1];
+  if(last){ const i=last.querySelector('.ti_c'); if(i)i.focus(); }
+}
+function tiDel(btn){ const tr=btn.closest('tr'); if(tr)tr.remove(); tiRenumber(); }
+function tiMove(btn,dir){
+  const tr=btn.closest('tr'); if(!tr)return;
+  const sib=dir<0?tr.previousElementSibling:tr.nextElementSibling;
+  if(!sib)return;
+  if(dir<0) tr.parentNode.insertBefore(tr,sib); else tr.parentNode.insertBefore(sib,tr);
+  tiRenumber();
+}
+function tiCollect(){
+  return [...document.querySelectorAll('#ti_body tr')].map(tr=>({
+    sn: tr.dataset.sn?Number(tr.dataset.sn):null,
+    content: (tr.querySelector('.ti_c')||{}).value||'',
+    frequency: (tr.querySelector('.ti_f')||{}).value||''
+  }));
+}
+async function tiSave(id){
+  const t=ALL_TPL.find(x=>x.id===id)||{};
+  const oldItems=t.items||[];
+  const rows=tiCollect().map(r=>({sn:r.sn,content:r.content.trim(),frequency:r.frequency.trim()})).filter(r=>r.content);
+  if(!rows.length){toast('至少保留一条检查项（内容不能全空）','err');return;}
+  const moved = rows.length!==oldItems.length || rows.some((r,i)=>r.sn!==(oldItems[i]||{}).sn);
+  if(moved){
+    const msg='检查项数量或顺序有变化：\n· 原 '+oldItems.length+' 项 → 新 '+rows.length+' 项'
+      +'\n· 保存后序号将重排为 1…'+rows.length
+      +'\n· 该模板共 '+(t.use_count||0)+' 台设备在使用，这些设备的历史点检结果会自动迁移到新序号（内容不丢）'
+      +'\n\n确定继续？';
+    if(!confirm(msg))return;
+  }
+  const r=await api('/api/templates/'+id+'/items',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:rows})});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已保存 '+r.count+' 条检查项'+(r.migrated?('，迁移历史记录 '+r.migrated+' 条'):''),'ok');
+  closeM(); loadTpl();
+}
+// 批量粘贴：每行「检查内容,频率」，解析后替换当前表格
+function tiPaste(){
+  TI_BACKUP=tiCollect();
+  $('#modal').innerHTML=`<h3>📋 批量粘贴检查项</h3>
+    <p class="muted tiny">每行一条：<b>检查内容,频率</b>（逗号 / Tab / 分号 分隔；频率可省略）。首列为纯数字序号会自动忽略。解析后将<b>替换</b>当前表格内容，仍可再手工调整。</p>
+    <div class="field"><label>粘贴内容</label>
+      <textarea id="ti_paste" rows="10" style="width:100%" placeholder="1,保持仪器设备及操作台面的卫生,每次试验前&#10;2,检查实验室温湿度是否在要求范围内,每天"></textarea>
+      <label class="tiny" style="display:flex;align-items:center;gap:6px;margin-top:6px"><input type="checkbox" id="ti_paste_hd" checked> 首行是表头（忽略）</label>
+    </div>
+    <div class="flex"><span class="sp"></span>
+      <button class="btn" onclick="tiPasteBack()">返回</button>
+      <button class="btn primary" onclick="tiPasteGo()">解析并替换</button></div>`;
+}
+function tiPasteBack(){
+  if(!TI_BACKUP){closeM();return;}
+  const t=ALL_TPL.find(x=>x.id===(window.__tiTid||''))||null;
+  $('#modal').innerHTML=`<h3>✎ 编辑检查项</h3>
+    <div class="scroll glass" style="max-height:44vh">
+      <table class="mt"><thead><tr><th style="width:46px;text-align:center">#</th><th>检查内容</th><th style="width:150px">频率</th><th style="width:126px"></th></tr></thead>
+      <tbody id="ti_body"></tbody></table>
+    </div>
+    <div class="flex" style="margin-top:10px;gap:8px">
+      <button class="btn sm" onclick="tiAdd()">＋ 追加一行</button>
+      <button class="btn sm ghost" onclick="tiPaste()">📋 批量粘贴</button>
+      <span class="sp"></span>
+      <button class="btn" onclick="closeM()">取消</button>
+      <button class="btn primary" onclick="tiSave('${window.__tiTid||''}')">💾 保存检查项</button>
+    </div>`;
+  tiRows(TI_BACKUP.map(r=>({sn:r.sn,content:r.content,frequency:r.frequency})));
+}
+function tiPasteGo(){
+  let lines=($('#ti_paste').value||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
+  if($('#ti_paste_hd') && $('#ti_paste_hd').checked) lines=lines.slice(1);
+  const items=parseTplText(lines.join('\n'));
+  if(!items.length){toast('未解析到检查项，请检查粘贴内容','err');return;}
+  tiRows(items.map(i=>({sn:null,content:i.content,frequency:i.frequency})));
+  toast('已解析 '+items.length+' 条，点「保存检查项」生效','ok');
+}
+async function tplDup(id){
+  const t=ALL_TPL.find(x=>x.id===id); if(!t)return;
+  const nk=prompt('复制为新的模板标识 key：',t.key+'-副本');
+  if(nk===null)return;
+  const r=await api('/api/templates/'+id+'/duplicate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:(nk||'').trim()})});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已复制模板：'+r.template.key,'ok');loadTpl();
+}
+async function tplDel(id){
+  const t=ALL_TPL.find(x=>x.id===id); if(!t)return;
+  if((t.use_count||0)>0){toast('该模板仍被 '+(t.use_count||0)+' 台设备使用，请先给这些设备换模板','err');return;}
+  if(!confirm('确定删除模板「'+t.key+'」？其 '+(t.items||[]).length+' 条检查项将一并删除。'))return;
+  const r=await api('/api/templates/'+id,{method:'DELETE'});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已删除模板','ok');loadTpl();
+}
+
+// —— 单台设备视角：编辑这台设备的点检表（内容 / 表头 / 独立模板）——
+async function openDevTpl(devId){
+  if(!ALL_TPL.length) ALL_TPL=await api('/api/templates');
+  if(!ALL_DEV.length) ALL_DEV=await api('/api/devices');
+  const d=ALL_DEV.find(x=>x.id===devId); if(!d){toast('设备不存在','err');return;}
+  const t=ALL_TPL.find(x=>x.id===d.template_id);
+  if(!t){
+    $('#modal').innerHTML=`<h3>📋 ${esc(d.no)} · ${esc(d.name)}</h3>
+      <p class="muted">这台设备还没有关联点检模板，无法编辑点检表。</p>
+      <div class="flex"><span class="sp"></span><button class="btn" onclick="closeM()">关闭</button>
+      <button class="btn primary" onclick="closeM();editDev('${d.id}')">去关联模板</button></div>`;
+    $('#mask').classList.add('show'); return;
+  }
+  const multi=(t.use_count||0)>1;
+  $('#modal').innerHTML=`<h3>📋 点检表模板 · ${esc(d.no)} ${esc(d.name)}</h3>
+    <div class="glass" style="padding:12px;margin-bottom:10px">
+      <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
+        <b>${esc(t.key)}</b><span class="tag">${esc(t.equip_name)}</span>
+        <span class="tag">${esc(t.form_code||'DEMO-QR-001')} ${esc(t.form_rev||'Rev.A1')}</span>
+        <span class="muted tiny">${(t.items||[]).length} 项检查 · ${t.use_count||0} 台设备共用此模板</span>
+      </div>
+    </div>
+    <p class="muted tiny">${multi?('⚠ 该模板同时被 '+(t.use_count||0)+' 台设备使用，编辑会同时改变这些设备的点检表。只改这一台 → 用右边「复制为专用模板」。'):'该模板目前只被这台设备使用。'}</p>
+    <div class="flex" style="flex-wrap:wrap;gap:8px;margin-top:12px">
+      <button class="btn sm" onclick="tplItems('${t.id}')">✎ 编辑检查项</button>
+      <button class="btn sm" onclick="tplHead('${t.id}')">✎ 编辑表头</button>
+      <button class="btn sm cyan" onclick="devTplFork('${t.id}','${d.id}')">⧉ 复制为专用模板</button>
+      <span class="sp"></span><button class="btn" onclick="closeM()">关闭</button>
+    </div>`;
+  $('#mask').classList.add('show');
+}
+// 复制一份独立模板，只关联当前这台设备（同型号里个别设备点检表不同时用）
+async function devTplFork(tid,devId){
+  const d=ALL_DEV.find(x=>x.id===devId)||{};
+  if(!confirm('将复制一份独立模板并只关联「'+(d.no||'')+' '+(d.name||'')+'」这台设备。\n原模板及其它设备不受影响。\n\n继续？'))return;
+  const r=await api('/api/templates/'+tid+'/duplicate',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key:((d.model||'设备')+'-'+d.no),equip_name:d.name||''})});
+  if(r.error){toast(r.error,'err');return;}
+  const r2=await api('/api/devices/'+devId,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({no:d.no,name:d.name,model:d.model,template_id:r.template.id,location:d.location||''})});
+  if(r2.error){toast('模板已创建，但关联设备失败：'+r2.error,'err');return;}
+  toast('已创建专用模板「'+r.template.key+'」并关联该设备','ok');
+  closeM(); loadDev();
+}
+$('#tpl_add').onclick=()=>{
+  const m=$('#modal');m.innerHTML=`<h3>新增点检模板</h3>
+    <div class="field"><label>模板标识 key（如 设备型号-A）</label><input id="t_key"></div>
+    <div class="field"><label>设备名称</label><input id="t_name"></div>
+    <div class="field"><label>型号</label><input id="t_model"></div>
+    <div class="flex"><div class="sp"></div><button class="btn" onclick="closeM()">取消</button>
+    <button class="btn primary" onclick="saveTpl()">保存</button></div>`;
+  $('#mask').classList.add('show');
+};
+async function saveTpl(){const r=await api('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({key:$('#t_key').value,equip_name:$('#t_name').value,model:$('#t_model').value})});
+  if(r.error){toast(r.error,'err');return;}toast('已添加模板','ok');closeM();loadTpl();}
+
+
+// 导入模板：上传 CSV/TSV 自动解析生成点检模板
+$('#tpl_import').onclick=()=>{
+  const m=$('#modal');m.innerHTML=`<h3>📥 导入点检模板（CSV / TSV 自动解析）</h3>
+    <div class="row">
+      <div class="field"><label>模板标识 key（如 设备型号-A）</label><input id="it_key" placeholder="导入文件名会自动填入，可修改"></div>
+      <div class="field"><label>设备名称</label><input id="it_name" placeholder="如 车间试验机"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>型号（可选）</label><input id="it_model"></div>
+      <div class="field"><label>来源文件（可选）</label><input id="it_src" placeholder="自动填入上传文件名"></div>
+    </div>
+    <div class="field">
+      <label>上传文件（CSV / TSV；Excel 请先“另存为 CSV”）</label>
+      <input type="file" id="it_file" accept=".csv,.tsv,.txt">
+      <p class="muted tiny" id="it_file_hint" style="margin-top:4px"></p>
+    </div>
+    <div class="field">
+      <label>或粘贴表格文本（每行一条，列用 逗号 / 制表符 / 分号 分隔；可含表头）</label>
+      <textarea id="it_text" rows="6" placeholder="示例：&#10;1,检查外观有无损伤,每天&#10;2,检查温度显示正常,每天"></textarea>
+    </div>
+    <div class="flex">
+      <label class="tiny" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="it_header" checked> 首行是表头</label>
+      <div class="sp"></div>
+      <button class="btn sm" onclick="previewTpl()">解析预览</button>
+    </div>
+    <div id="it_preview" class="scroll glass" style="max-height:200px;margin-top:10px;display:none"></div>
+    <div class="flex" style="margin-top:12px">
+      <label class="tiny" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="it_overwrite"> 标识已存在时覆盖检查项</label>
+      <div class="sp"></div><button class="btn" onclick="closeM()">取消</button>
+      <button class="btn primary" id="it_go" onclick="genTpl()">生成模板</button>
+    </div>`;
+  $('#mask').classList.add('show');
+  $('#it_file').onchange=e=>{
+    const f=e.target.files[0]; if(!f)return;
+    $('#it_src').value=f.name;
+    const base=f.name.replace(/\.[^.]+$/,'');
+    if(!$('#it_key').value) $('#it_key').value=base;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const txt=rd.result||'';
+      // xlsx 为 ZIP 包，二进制头 PK\x03\x04，浏览器无法按文本解析
+      if(txt.charCodeAt(0)===0x50 && txt.charCodeAt(1)===0x4B && txt.charCodeAt(2)===0x03 && txt.charCodeAt(3)===0x04){
+        const h=$('#it_file_hint'); h.textContent='⚠️ 检测到 .xlsx 二进制文件，浏览器无法直接解析。请先在 Excel / WPS 中「另存为 → CSV（逗号分隔）」，再上传 CSV。'; h.style.color='#e08a3c';
+        return;
+      }
+      $('#it_text').value=txt;
+      const h=$('#it_file_hint'); h.textContent='已读取文件内容到下方文本框，可调整后点“解析预览”。'; h.style.color='';
+    };
+    rd.readAsText(f,'UTF-8');
+  };
+};
+// 解析表格文本为检查项：自动选分隔符、跳过空行、列映射
+function parseTplText(text){
+  const lines=(text||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return [];
+  const first=lines[0];
+  const counts={tb:(first.match(/\t/g)||[]).length, cm:(first.match(/,/g)||[]).length, sc:(first.match(/;/g)||[]).length};
+  let delim='\t',best=-1;
+  for(const k in counts){ if(counts[k]>best){best=counts[k];delim=k==='tb'?'\t':(k==='cm'?',':';');} }
+  const out=[];
+  for(const ln of lines){
+    const cells=ln.split(delim).map(c=>c.trim());
+    let content='',freq='';
+    if(cells.length<=1){ content=cells[0]||''; }
+    else if(cells.length===2){ content=cells[0]; freq=cells[1]; }
+    else {
+      // 三列及以上：首列若为纯数字序号则跳过
+      if(/^\d+$/.test(cells[0])){ content=cells[1]; freq=cells.slice(2).join(' / '); }
+      else { content=cells[0]; freq=cells.slice(1).join(' / '); }
+    }
+    if(content) out.push({content, frequency:freq});
+  }
+  return out;
+}
+async function previewTpl(){
+  let lines=($('#it_text').value||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ toast('请先上传文件或粘贴文本','err'); return; }
+  if($('#it_header').checked) lines=lines.slice(1);
+  const items=parseTplText(lines.join('\n'));
+  const box=$('#it_preview');
+  if(!items.length){ box.style.display='block'; box.innerHTML='<p class="muted tiny">未解析到检查项，请检查分隔符或内容。</p>'; return; }
+  box.style.display='block';
+  box.innerHTML=`<p class="muted tiny">已解析 ${items.length} 条检查项：</p><table class="mt"><thead><tr><th>#</th><th>检查内容</th><th>频率</th></tr></thead><tbody>`+
+    items.map((i,idx)=>`<tr><td>${idx+1}</td><td>${esc(i.content)}</td><td class="tiny">${esc(i.frequency)||''}</td></tr>`).join('')+`</tbody></table>`;
+}
+async function genTpl(){
+  const key=$('#it_key').value.trim(), name=$('#it_name').value.trim();
+  if(!key||!name){ toast('模板标识与设备名称必填','err'); return; }
+  let lines=($('#it_text').value||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
+  if($('#it_header').checked) lines=lines.slice(1);
+  const items=parseTplText(lines.join('\n'));
+  if(!items.length){ toast('未解析到检查项','err'); return; }
+  $('#it_go').disabled=true;
+  const r=await api('/api/admin/import-template',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key,equip_name:name,model:$('#it_model').value.trim(),source_file:$('#it_src').value.trim(),overwrite:$('#it_overwrite').checked,items})});
+  $('#it_go').disabled=false;
+  if(r.error){ toast(r.error,'err'); return; }
+  toast(`已生成模板：${r.itemsCount} 条检查项`,'ok'); closeM(); loadTpl();
+}
+
+// ===== 逐字签名组件（v1.3.0）=====
+// 姓名 → 拆成单字格 → 每格独立手写 / 上传单字图 → 按「签名模板」拼装
+// 关键设计：
+//   1) 一个字一格写，位置/大小不受整行影响，写完自动按墨迹裁边再拼装；
+//   2) 模板「自动」=  横版 + 竖版都生成；使用时由各页面按容器形状自动挑
+//      （表格里的横向格 → 横版；高窄格 → 竖版），从根上避免竖图塞横格被压成一条线；
+//   3) 模板「只生成横版 / 只生成竖版」= 只保留一种；
+//   4) 支持把老数据里那一整张签名图按投影切开成单字，重新排成横版（一键迁移）。
+const SP_MAX_CHARS = 12;
+let SP_SEQ = 0;
+function spLoadImg(src) {
+  return new Promise(res => {
+    if (!src) return res(null);
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = src;
+  });
+}
+// 规整为「透明底 + 按墨迹裁边」的小画布；返回 canvas 或 null
+async function spPrepared(dataUrl) {
+  const im = await spLoadImg(dataUrl);
+  if (!im) return null;
+  const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+  if (!w || !h) return null;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(im, 0, 0, w, h);
+  const id = x.getImageData(0, 0, w, h), d = id.data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    // 白底抠除：扫描件/照片上传的签名多为白底，近白像素转透明，裁边才准、打印才干净
+    if (d[i + 3] > 8 && d[i] > 236 && d[i + 1] > 236 && d[i + 2] > 236) d[i + 3] = 0;
+    if (d[i + 3] > 28) {
+      const px = p % w, py = (p - px) / w;
+      if (px < x0) x0 = px; if (px > x1) x1 = px;
+      if (py < y0) y0 = py; if (py > y1) y1 = py;
+    }
+  }
+  if (x1 < 0) return null;                       // 全空白
+  x.putImageData(id, 0, 0);
+  const padX = Math.max(2, Math.round((x1 - x0 + 1) * .05)),
+        padY = Math.max(2, Math.round((y1 - y0 + 1) * .05));
+  x0 = Math.max(0, x0 - padX); y0 = Math.max(0, y0 - padY);
+  x1 = Math.min(w - 1, x1 + padX); y1 = Math.min(h - 1, y1 + padY);
+  const ow = x1 - x0 + 1, oh = y1 - y0 + 1;
+  const out = document.createElement('canvas'); out.width = ow; out.height = oh;
+  out.getContext('2d').drawImage(c, x0, y0, ow, oh, 0, 0, ow, oh);
+  return out;
+}
+// ===== 上传整张签名图 · 自动剪切 =====
+// 与 spPrepared 的分工：
+//   spPrepared —— 给「已经写好的单字/单字图」做规整，用固定近白阈值（236），够用；
+//   spAutoCut  —— 处理手机拍的照片：光照不匀、纸张发灰、带阴影，固定阈值会失灵，
+//                 所以用 Otsu 自适应阈值 + 软阈值抗锯齿，并按墨迹占比做一次合理性修正。
+function spOtsu(hist, total) {
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, best = -1, thr = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB, mF = (sum - sumB) / wF;
+    const v = wB * wF * (mB - mF) * (mB - mF);
+    if (v > best) { best = v; thr = t; }
+  }
+  return thr;
+}
+function spQuantile(hist, total, q) {
+  let acc = 0;
+  for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= total * q) return i; }
+  return 255;
+}
+// 返回 { canvas, thr, w, h, mode } 或 null（没识别到笔迹）
+async function spAutoCut(dataUrl, thrSet) {
+  const im = await spLoadImg(dataUrl);
+  if (!im) return null;
+  const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
+  if (!iw || !ih) return null;
+  const MAXS = 1800;                                   // 超大照片先缩小，处理更快且够清晰
+  const sc = Math.min(1, MAXS / Math.max(iw, ih));
+  const w = Math.max(1, Math.round(iw * sc)), h = Math.max(1, Math.round(ih * sc));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(im, 0, 0, iw, ih, 0, 0, w, h);
+  const id = x.getImageData(0, 0, w, h), d = id.data;
+  const gray = new Uint8Array(w * h), hist = new Array(256).fill(0);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    const g = (d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114) | 0;
+    gray[p] = g; hist[g]++;
+  }
+  // --- 背景估计：缩到 1/22 再放大回来 ≈ 一次超大口径均值滤波。
+  //     结果只剩「周围一大片区域的整体亮度」，笔迹这种细节被抹掉。
+  //     用它做归一化（灰度 ÷ 背景），光照不匀 / 纸张发灰 / 半张阴影都会被消掉 ——
+  //     这正是全局阈值（固定值也好、Otsu 也好）最容易翻车的地方。
+  const BG = 22;
+  const bw = Math.max(1, Math.round(w / BG)), bh = Math.max(1, Math.round(h / BG));
+  const bc = document.createElement('canvas'); bc.width = bw; bc.height = bh;
+  const bx = bc.getContext('2d', { willReadFrequently: true });
+  bx.imageSmoothingEnabled = true;
+  bx.drawImage(c, 0, 0, w, h, 0, 0, bw, bh);
+  const upc = document.createElement('canvas'); upc.width = w; upc.height = h;
+  const ux = upc.getContext('2d', { willReadFrequently: true });
+  ux.imageSmoothingEnabled = true;
+  ux.drawImage(bc, 0, 0, bw, bh, 0, 0, w, h);
+  const bd = ux.getImageData(0, 0, w, h).data;
+  const rel = new Uint8Array(w * h), rhist = new Array(256).fill(0);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    const bg = bd[i] * .299 + bd[i + 1] * .587 + bd[i + 2] * .114;
+    const v = Math.max(0, Math.min(255, Math.round(gray[p] / Math.max(1, bg) * 255)));
+    rel[p] = v; rhist[v]++;
+  }
+  // 归一化尺度是否可用：墨迹占比要落在合理区间。
+  // 若整张图本身就是签名（估不出独立背景），归一化会失效 → 退回绝对灰度。
+  const rthr = spOtsu(rhist, w * h);
+  let cInk = 0;
+  for (let p = 0; p < w * h; p++) if (rel[p] <= rthr) cInk++;
+  const cRatio = cInk / (w * h);
+  const useRel = cRatio >= .004 && cRatio <= .45;
+  const score = useRel ? rel : gray;
+  const man = (typeof thrSet === 'number' && thrSet > 0);
+  let thr;
+  if (man) thr = thrSet;
+  else if (useRel) thr = rthr;
+  else {
+    thr = spOtsu(hist, w * h);
+    // 绝对灰度这一支再补一次占比修正：墨迹过多多半是拍进了深色桌面/大片阴影
+    let ink = 0;
+    for (let p = 0; p < w * h; p++) if (gray[p] <= thr) ink++;
+    const r = ink / (w * h);
+    if (r > .40) thr = spQuantile(hist, w * h, .15);
+    else if (r < .0012) thr = spQuantile(hist, w * h, .40);
+  }
+  // 软阈值：阈值附近做渐变，边缘不出锯齿；保留的墨迹按亮度压暗，打印更清楚
+  const lo = Math.max(0, thr * .72), hi = Math.min(255, thr * 1.22);
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4, g = score[p];
+    if (g >= hi) { d[i + 3] = 0; continue; }
+    const a = (g > lo) ? Math.round(255 * (hi - g) / Math.max(1, hi - lo)) : 255;
+    if (a <= 6) { d[i + 3] = 0; continue; }
+    const k = Math.min(1, g / Math.max(1, thr));       // 0 = 最黑
+    const f = (k * 96) / Math.max(1, gray[p]);         // 压暗因子（保留色相）
+    d[i] = Math.min(255, d[i] * f);
+    d[i + 1] = Math.min(255, d[i + 1] * f);
+    d[i + 2] = Math.min(255, d[i + 2] * f);
+    d[i + 3] = a;
+    const px = p % w, py = (p - px) / w;
+    if (px < x0) x0 = px; if (px > x1) x1 = px;
+    if (py < y0) y0 = py; if (py > y1) y1 = py;
+  }
+  if (x1 < 0) return null;                             // 全被剔除 → 没识别到笔迹
+  x.putImageData(id, 0, 0);
+  const padX = Math.max(2, Math.round((x1 - x0 + 1) * .04)),
+        padY = Math.max(2, Math.round((y1 - y0 + 1) * .04));
+  x0 = Math.max(0, x0 - padX); y0 = Math.max(0, y0 - padY);
+  x1 = Math.min(w - 1, x1 + padX); y1 = Math.min(h - 1, y1 + padY);
+  const ow = x1 - x0 + 1, oh = y1 - y0 + 1;
+  const out = document.createElement('canvas'); out.width = ow; out.height = oh;
+  out.getContext('2d').drawImage(c, x0, y0, ow, oh, 0, 0, ow, oh);
+  return { canvas: out, thr: thr, w: ow, h: oh, mode: useRel ? 'rel' : 'abs' };
+}
+// 笔迹投影：竖图按行投影、横图按列投影，连续非零区间即一段笔迹
+function spProjection(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  const vertical = h >= w;
+  const n = vertical ? h : w;
+  const proj = new Array(n).fill(0);
+  for (let p = 0; p < w * h; p++) {
+    if (d[p * 4 + 3] <= 28) continue;
+    const px = p % w, py = (p - px) / w;
+    proj[vertical ? py : px]++;
+  }
+  const segs = [];
+  let st = -1;
+  for (let i = 0; i < n; i++) {
+    const on = proj[i] > 0;
+    if (on && st < 0) st = i;
+    if (!on && st >= 0) { segs.push([st, i - 1]); st = -1; }
+  }
+  if (st >= 0) segs.push([st, n - 1]);
+  return { vertical, n, w, h, segs };
+}
+// 把一张（已去背景的）签名图按笔迹投影切成 expectN 个字；粘连/碎片时按字数均分兜底
+async function spProjectCut(canvas, expectN) {
+  const { vertical, n, w, h, segs } = spProjection(canvas);
+  if (!w || !h || expectN < 1) return [];
+  let ranges = segs;
+  if (segs.length !== expectN) {
+    ranges = [];
+    for (let i = 0; i < expectN; i++) {
+      ranges.push([Math.round(i * n / expectN), Math.round((i + 1) * n / expectN) - 1]);
+    }
+  }
+  const cutOne = (a, b) => {
+    const cv = document.createElement('canvas');
+    if (vertical) {
+      cv.width = w; cv.height = b - a + 1;
+      cv.getContext('2d').drawImage(canvas, 0, a, w, cv.height, 0, 0, w, cv.height);
+    } else {
+      cv.width = b - a + 1; cv.height = h;
+      cv.getContext('2d').drawImage(canvas, a, 0, cv.width, h, 0, 0, cv.width, h);
+    }
+    return cv;
+  };
+  const out = [];
+  for (const [a, b] of ranges) {
+    const t = await spPrepared(cutOne(a, b).toDataURL());
+    out.push(t ? t.toDataURL() : '');
+  }
+  return out;
+}
+// 拼装：dir='h' 横排（底对齐，像手写签名沿基线）｜'v' 竖排（水平居中堆叠）
+function spCompose(parts, dir) {
+  const list = parts.filter(Boolean);
+  if (!list.length) return null;
+  const MAX = 560, gapR = .10, pts = [];
+  let W, H;
+  if (dir === 'h') {
+    const gap = Math.max(2, Math.round(list.reduce((a, c) => a + c.width, 0) / list.length * gapR));
+    W = list.reduce((a, c) => a + c.width, 0) + gap * (list.length - 1);
+    H = Math.max(...list.map(c => c.height));
+    let x = 0;
+    list.forEach(c => { pts.push([c, x, H - c.height]); x += c.width + gap; });
+  } else {
+    const gap = Math.max(2, Math.round(list.reduce((a, c) => a + c.height, 0) / list.length * gapR));
+    H = list.reduce((a, c) => a + c.height, 0) + gap * (list.length - 1);
+    W = Math.max(...list.map(c => c.width));
+    let y = 0;
+    list.forEach(c => { pts.push([c, Math.round((W - c.width) / 2), y]); y += c.height + gap; });
+  }
+  const s = Math.min(1, MAX / (dir === 'h' ? W : H));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(W * s));
+  cv.height = Math.max(1, Math.round(H * s));
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  pts.forEach(([c, px, py]) => ctx.drawImage(c, Math.round(px * s), Math.round(py * s),
+    Math.max(1, Math.round(c.width * s)), Math.max(1, Math.round(c.height * s))));
+  return cv.toDataURL('image/png');
+}
+// 自动判方向：单字墨迹普遍偏窄高（竖着写的）→ 推荐竖版，否则横版
+function spAutoDir(cs) {
+  if (cs.length <= 1) return 'h';
+  const rs = cs.map(c => c.width / c.height).sort((a, b) => a - b);
+  return rs[Math.floor(rs.length / 2)] < 0.9 ? 'v' : 'h';
+}
+// 把一整张签名图按墨迹投影切成 expectN 个字（老数据「拆字重排」用）
+async function spSplitImage(dataUrl, expectN) {
+  const im = await spLoadImg(dataUrl);
+  if (!im || expectN < 1) return [];
+  const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+  if (!w || !h) return [];
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(im, 0, 0, w, h);
+  const id = x.getImageData(0, 0, w, h), d = id.data;
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    if (d[i + 3] > 8 && d[i] > 236 && d[i + 1] > 236 && d[i + 2] > 236) d[i + 3] = 0;
+  }
+  x.putImageData(id, 0, 0);
+  return spProjectCut(c, expectN);                 // 切字逻辑统一在 spProjectCut
+}
+// 姓名拆字：中文按字拆，空白剔除，上限 SP_MAX_CHARS
+function spSplitName(name) {
+  return Array.from(String(name || '').replace(/[\s\u3000]+/g, '')).slice(0, SP_MAX_CHARS);
+}
+
+// 挂载一个签名书写面板；返回控制对象
+function makeSigPad(root) {
+  const uid = 'spg' + (++SP_SEQ);
+  root.innerHTML =
+    '<span class="sp-tip" data-sp="tip">请输入姓名，自动按字拆成书写格</span>' +
+    '<div class="sp-cells" data-sp="cells"></div>' +
+    '<div class="sp-tpl"><b>签名模板</b>' +
+      '<label><input type="radio" name="' + uid + '" value="auto" checked> 自动（横竖都生成，按用到的表格自动选）</label>' +
+      '<label><input type="radio" name="' + uid + '" value="h"> 只生成横版</label>' +
+      '<label><input type="radio" name="' + uid + '" value="v"> 只生成竖版</label>' +
+      '<span class="sp-dirhint" data-sp="dirhint"></span>' +
+    '</div>' +
+    '<div class="sp-prev">' +
+      '<div class="sp-pv"><b>横版签名（表格横向格用）</b><div class="sp-box" data-sp="ph"><span class="sp-none">—</span></div></div>' +
+      '<div class="sp-pv"><b>竖版签名（高窄格用）</b><div class="sp-box" data-sp="pv"><span class="sp-none">—</span></div></div>' +
+    '</div>' +
+    '<div class="sp-more">' +
+      '<button class="btn sm primary" type="button" data-sp="autocut">🖼 上传整张签名图 · 自动剪切</button>' +
+      '<button class="btn sm" type="button" data-sp="split">✂ 从现有签名图拆字重排</button>' +
+      '<button class="btn sm" type="button" data-sp="wipe">清空所有格</button>' +
+      '<input type="file" accept="image/*" data-sp="cutfile" hidden>' +
+    '</div>' +
+    '<div class="sp-cut" data-sp="cutbox" hidden>' +
+      '<div class="sp-cut-hd"><b>自动剪切预览</b>' +
+        '<label class="sp-cut-sl">阈值 <input type="range" min="1" max="255" step="1" value="128" data-sp="thr"><b data-sp="thrv">—</b></label>' +
+        '<button class="btn sm" type="button" data-sp="thrauto">自动</button>' +
+        '<span class="sp-cut-sl" data-sp="segs"></span>' +
+      '</div>' +
+      '<div class="sp-cut-img"><img data-sp="cutimg" alt="剪切预览"></div>' +
+      '<div class="sp-cut-tip" data-sp="cuttip"></div>' +
+      '<div class="sp-cut-ft">' +
+        '<button class="btn sm" type="button" data-sp="cutcancel">取消</button>' +
+        '<button class="btn sm primary" type="button" data-sp="cutapply">应用到书写格</button>' +
+      '</div>' +
+    '</div>';
+  const q = k => root.querySelector('[data-sp="' + k + '"]');
+  const tip = q('tip'), cellsBox = q('cells'), hint = q('dirhint'), boxH = q('ph'), boxV = q('pv');
+  const cutBox = q('cutbox'), cutImg = q('cutimg'), cutTip = q('cuttip'),
+        thrR = q('thr'), thrV = q('thrv'), segsEl = q('segs');
+  const st = { names: [], chars: [], parts: [], out: { h: null, v: null }, dir: 'auto',
+               cut: null, cutThr: 0, cutSrc: null };
+  const canDraw = () => !!st.names.length;
+
+  function cellHTML(i) {
+    return '<div class="sp-cell" data-i="' + i + '"><div class="sp-no">' + (i + 1) + '</div>' +
+      '<canvas width="264" height="264"></canvas>' +
+      '<div class="sp-ops"><label>上传<input type="file" accept="image/*" hidden></label>' +
+      '<button type="button" data-act="clr">清除</button></div></div>';
+  }
+  function buildCells() {
+    if (!st.names.length) {
+      cellsBox.innerHTML = '<div class="sp-empty">输入姓名后，这里会按字拆成一个个书写格（一个字一格）</div>';
+      refresh(); return;
+    }
+    cellsBox.innerHTML = st.names.map((_, i) => cellHTML(i)).join('');
+    st.names.forEach((_, i) => bindCell(cellsBox.children[i], i));
+    // 回填已写好的字
+    st.names.forEach((_, i) => paintExisting(i));
+    refresh();
+  }
+  function paintExisting(i) {
+    const url = st.chars[i]; if (!url) return;
+    const cell = cellsBox.querySelector('.sp-cell[data-i="' + i + '"]'); if (!cell) return;
+    const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
+    spLoadImg(url).then(im => { if (im) ctx.drawImage(im, 0, 0, cv.width, cv.height); });
+  }
+  function bindCell(cell, i) {
+    const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
+    ctx.lineWidth = 6.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#16203a';
+    let drawing = false, last = null;
+    const pos = e => {
+      const r = cv.getBoundingClientRect(), t = e.touches ? e.touches[0] : e;
+      return { x: (t.clientX - r.left) * (cv.width / r.width), y: (t.clientY - r.top) * (cv.height / r.height) };
+    };
+    const dot = p => { ctx.beginPath(); ctx.fillStyle = ctx.strokeStyle; ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill(); };
+    const start = e => { e.preventDefault(); drawing = true; last = pos(e); dot(last); };
+    const move = e => {
+      if (!drawing) return; e.preventDefault();
+      const p = pos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p;
+    };
+    const end = () => {
+      if (!drawing) return; drawing = false;
+      st.chars[i] = cv.toDataURL('image/png');      // 整格导出，拼装时再按墨迹裁边
+      refresh();
+    };
+    cv.addEventListener('mousedown', start); cv.addEventListener('mousemove', move);
+    cv.addEventListener('mouseup', end); cv.addEventListener('mouseleave', end);
+    cv.addEventListener('touchstart', start, { passive: false });
+    cv.addEventListener('touchmove', move, { passive: false });
+    cv.addEventListener('touchend', end);
+    const file = cell.querySelector('input[type=file]');
+    file.onchange = e => {
+      const f = e.target.files[0]; if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => { st.chars[i] = rd.result; redrawCell(i); refresh(); };
+      rd.readAsDataURL(f);
+    };
+    cell.querySelector('[data-act=clr]').onclick = () => {
+      ctx.clearRect(0, 0, cv.width, cv.height); st.chars[i] = ''; refresh();
+    };
+  }
+  function redrawCell(i) {
+    const cell = cellsBox.querySelector('.sp-cell[data-i="' + i + '"]'); if (!cell) return;
+    const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    paintExisting(i);
+  }
+  async function refresh() {
+    const n = st.names.length;
+    const parts = [];
+    for (let i = 0; i < n; i++) parts.push(st.chars[i] ? await spPrepared(st.chars[i]) : null);
+    st.parts = parts;
+    const done = parts.filter(Boolean).length;
+    if (n) {
+      tip.textContent = '已写 ' + done + '/' + n + ' 个字' + (done < n ? '（没写的字不会出现在签名里）' : ' ✓') +
+        '　·　每格可手写，也可「上传」单字图片';
+    } else {
+      tip.textContent = '请输入姓名，自动按字拆成书写格';
+    }
+    const valid = parts.filter(Boolean);
+    const rec = spAutoDir(valid);
+    hint.textContent = valid.length > 1
+      ? '自动判断：单字形态偏' + (rec === 'v' ? '竖' : '横') + ' → 建议' + (rec === 'v' ? '竖版' : '横版') + '签名'
+      : '';
+    const h = (st.dir === 'v') ? null : spCompose(parts, 'h');
+    const v = (st.dir === 'h') ? null : spCompose(parts, 'v');
+    st.out = { h, v };
+    boxH.innerHTML = h ? '<img src="' + h + '">' : '<span class="sp-none">—</span>';
+    boxV.innerHTML = v ? '<img src="' + v + '">' : '<span class="sp-none">—</span>';
+  }
+  root.querySelectorAll('input[type=radio]').forEach(r => {
+    r.onchange = () => { st.dir = r.value; refresh(); };
+  });
+  q('wipe').onclick = () => { st.chars = []; buildCells(); };
+  q('split').onclick = async () => {
+    if (!st.names.length) { toast('请先输入姓名（用于确定拆成几个字）', 'err'); return; }
+    if (!st.srcImage) { toast('当前没有可拆分的整张签名图', 'err'); return; }
+    toast('正在按笔迹拆分…', '');
+    const arr = await spSplitImage(st.srcImage, st.names.length);
+    if (!arr.length) { toast('拆分失败', 'err'); return; }
+    st.chars = arr.concat(st.chars.slice(arr.length));
+    buildCells();
+    toast('已拆成 ' + arr.filter(Boolean).length + ' 个字，可逐格调整', 'ok');
+  };
+
+  // ----- 上传整张签名图 → 自动剪切 → 填入书写格 -----
+  let cutTimer = null;
+  function closeCut() {
+    st.cut = null; st.cutSrc = null; cutBox.hidden = true;
+    cutImg.removeAttribute('src'); cutTip.textContent = '';
+    q('cutfile').value = '';
+  }
+  async function runCut(thr) {
+    if (!st.cutSrc) return;
+    const r = await spAutoCut(st.cutSrc, thr || 0);
+    if (!r) {
+      st.cut = null; cutImg.removeAttribute('src');
+      cutTip.textContent = '这张图里没识别出笔迹。换一张对比更明显的图（白纸深色字），或拖下面的阈值滑块试试。';
+      segsEl.textContent = ''; return;
+    }
+    st.cut = r.canvas; st.cutThr = r.thr;
+    cutImg.src = r.canvas.toDataURL('image/png');
+    thrR.value = r.thr; thrV.textContent = r.thr;
+    const n = st.names.length, seg = spProjection(r.canvas).segs.length;
+    segsEl.textContent = '笔迹 ' + seg + ' 段' + (n ? ' / 姓名 ' + n + ' 字' + (seg === n ? ' ✓' : '') : '');
+    segsEl.dataset.mode = r.mode || '';            // rel=背景归一化 / abs=绝对灰度（排查用）
+    cutTip.textContent = n
+      ? (seg === n
+          ? '识别到 ' + seg + ' 段笔迹，与姓名 ' + n + ' 个字正好对应，点「应用到书写格」即可。'
+          : '识别到 ' + seg + ' 段笔迹，与姓名 ' + n + ' 个字不一致 —— 应用时会按 ' + n + ' 等分（连笔或断笔常见，可先调阈值再应用）。')
+      : '请先在上面输入姓名 —— 系统按字拆格，需要知道要切成几个字。';
+  }
+  q('autocut').onclick = () => {
+    if (!st.names.length) { toast('请先输入姓名，再上传整张签名图（要按字数切分）', 'err'); return; }
+    const f = q('cutfile'); f.value = ''; f.click();
+  };
+  q('cutfile').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = async () => {
+      st.cutSrc = rd.result; cutBox.hidden = false;
+      cutTip.textContent = '正在自动剪切…';
+      await runCut(0);
+    };
+    rd.readAsDataURL(f);
+  };
+  thrR.oninput = () => {                             // 拖动时防抖重算，避免卡顿
+    thrV.textContent = thrR.value;
+    clearTimeout(cutTimer);
+    cutTimer = setTimeout(() => runCut(+thrR.value), 150);
+  };
+  q('thrauto').onclick = () => runCut(0);
+  q('cutcancel').onclick = closeCut;
+  q('cutapply').onclick = async () => {
+    if (!st.cut) { toast('还没有可应用的剪切结果', 'err'); return; }
+    if (!st.names.length) { toast('请先输入姓名，以确定拆成几个字', 'err'); return; }
+    const arr = await spProjectCut(st.cut, st.names.length);
+    const got = arr.filter(Boolean).length;
+    if (!got) { toast('剪切结果为空，请调整阈值后重试', 'err'); return; }
+    st.chars = arr.concat(st.chars.slice(arr.length)).slice(0, st.names.length);
+    buildCells();
+    toast('已自动剪切并填入 ' + got + ' 个字', 'ok');
+    closeCut();
+  };
+  return {
+    setNames(names) {
+      const same = names.join('') === st.names.join('');
+      st.names = names;
+      if (!same) { buildCells(); }
+      else if (!cellsBox.children.length) buildCells();
+    },
+    setAll(chars) { st.chars = (chars || []).slice(0, SP_MAX_CHARS); buildCells(); },
+    setDir(d) {
+      st.dir = ['h', 'v'].includes(d) ? d : 'auto';
+      root.querySelectorAll('input[type=radio]').forEach(r => { r.checked = (r.value === st.dir); });
+      refresh();
+    },
+    setSrcImage(img) { st.srcImage = img || null; },
+    hasSrcImage() { return !!st.srcImage; },
+    chars() { return st.chars.slice(0, st.names.length); },
+    dir() { return st.dir; },
+    async gen() { await refresh(); return st.out; },
+    empty() { return !st.chars.filter(Boolean).length; },
+    reset() { st.names = []; st.chars = []; st.out = { h: null, v: null }; st.dir = 'auto'; st.srcImage = null;
+      closeCut();
+      root.querySelectorAll('input[type=radio]').forEach((r, i) => r.checked = i === 0); buildCells(); }
+  };
+}
+
+// ---- 新建签名人 ----
+const addPad = makeSigPad(document.getElementById('p_sigpad'));
+{
+  const nm = $('#sg_name');
+  let t = null;
+  nm.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => addPad.setNames(spSplitName(nm.value)), 160); });
+}
+$('#sg_add').onclick = async () => {
+  const name = ($('#sg_name').value || '').trim(), pw = $('#sg_pw').value;
+  if (!name || !pw) { toast('姓名与密码必填', 'err'); return; }
+  if (addPad.empty()) { toast('请至少写一个字或上传单字图片', 'err'); return; }
+  const out = await addPad.gen();
+  if (!out.h && !out.v) { toast('签名内容为空，请检查书写格', 'err'); return; }
+  const body = { name, password: pw, sig_chars: addPad.chars(), sig_dir: addPad.dir(),
+    signature_image: out.h || out.v, signature_image_v: out.v };
+  const r = await api('/api/signers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.error) { toast(r.error, 'err'); return; }
+  toast('已添加签名人员', 'ok');
+  $('#sg_name').value = ''; $('#sg_pw').value = ''; addPad.reset(); loadSig();
+};
+
+// ---- 列表 / 编辑 ----
+var editPad = null;
+function sigVerTag(s) {
+  if (s.has_sig && s.has_sig_v) return '<span class="pill ok">横 + 竖</span>';
+  if (s.has_sig) return '<span class="pill ok">仅横版</span>';
+  if (s.has_sig_v) return '<span class="pill" style="background:rgba(255,209,102,.18);color:var(--warn);border-color:rgba(255,209,102,.4)">仅竖版</span>';
+  return '<span class="pill ng">无</span>';
+}
+async function loadSig() {
+  const rows = await api('/api/signers');
+  $('#sg_list').innerHTML = rows.map(s => `<tr>
+    <td>${esc(s.name)}</td>
+    <td>${(s.has_sig || s.has_sig_v) ? '<img src="/api/signers/' + s.id + '/sig?t=' + Date.now() + '" style="height:30px;max-width:190px;object-fit:contain;background:#fff;border-radius:4px;padding:1px 3px">' : '<span class="muted tiny">未上传</span>'}</td>
+    <td>${sigVerTag(s)}${s.chars ? ' <span class="muted tiny">逐字 ' + s.chars + '</span>' : ''}</td>
+    <td>${s.active ? '<span class="pill ok">启用</span>' : '<span class="pill ng">停用</span>'}</td>
+    <td><button class="btn sm" onclick="editSig('${s.id}')">编辑</button> <button class="btn sm danger" onclick="delSig('${s.id}')">删除</button></td></tr>`).join('');
+}
+async function delSig(id) { if (!confirm('确认删除该签名人员？')) return; const r = await api('/api/signers/' + id, { method: 'DELETE' }); if (r.error) { toast(r.error, 'err'); return; } toast('已删除', 'ok'); loadSig(); }
+async function editSig(id) {
+  const rows = await api('/api/signers'); const s = rows.find(x => x.id === id); if (!s) return;
+  const sd = await api('/api/signers/' + id + '/sig');
+  const m = $('#modal');
+  m.innerHTML = `<h3>编辑签名人员 · ${esc(s.name)}</h3>
+    <div class="row">
+      <div class="field"><label>姓名</label><input id="es_name" value="${esc(s.name)}"></div>
+      <div class="field"><label>状态</label><select id="es_active"><option value="1" ${s.active ? 'selected' : ''}>启用</option><option value="0" ${!s.active ? 'selected' : ''}>停用</option></select></div>
+    </div>
+    <div class="field"><label>重置密码（留空则不修改）</label><input type="password" id="es_pw" placeholder="新密码"></div>
+    <div class="field"><label>电子签名 · 逐字书写（每格一个字：可手写，或「上传整张签名图 · 自动剪切」）</label>
+      <div class="sigpad" id="es_sigpad"></div>
+    </div>
+    <div class="flex"><div class="sp"></div><button class="btn" onclick="closeM()">取消</button><button class="btn primary" onclick="saveSig('${id}')">保存</button></div>`;
+  $('#mask').classList.add('show');
+  editPad = makeSigPad(m.querySelector('#es_sigpad'));
+  editPad.setNames(spSplitName(s.name));
+  editPad.setSrcImage(sd.image || sd.image_h || sd.image_v || null);
+  editPad.setDir(sd.dir || 'auto');
+  editPad.setAll(Array.isArray(sd.chars) ? sd.chars : []);
+  const nm = m.querySelector('#es_name');
+  let t = null;
+  nm.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => editPad.setNames(spSplitName(nm.value)), 160); });
+}
+async function saveSig(id) {
+  try {
+    toast('正在保存…', '');
+    const pw = $('#es_pw').value, active = $('#es_active').value === '1', name = ($('#es_name').value || '').trim();
+    if (!name) { toast('姓名不能为空', 'err'); return; }
+    const body = { active, name };
+    if (pw) body.password = pw;
+    if (editPad && !editPad.empty()) {
+      const out = await editPad.gen();
+      body.signature_image = out.h || out.v || null;
+      body.signature_image_v = out.v || null;
+      body.sig_chars = editPad.chars();
+      body.sig_dir = editPad.dir();
+    }
+    const r = await api('/api/signers/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.error) { toast(r.error, 'err'); return; }
+    toast('已保存', 'ok'); closeM(); loadSig();
+  } catch (e) {
+    toast('保存失败: ' + e.message, 'err');
+  }
+}
+
+// 记录
+async function loadRec(){
+  const no=$('#r_no').value,date=$('#r_date').value;
+  let q='';if(no)q+='?device_id='+encodeURIComponent(no);if(date)q+=(q?'&':'?')+'date='+date;
+  const rows=await api('/api/inspections'+q);
+  $('#r_stat').textContent=`共 ${rows.length} 条`;
+  $('#r_list').innerHTML=rows.map(r=>`<tr>
+    <td><input type="checkbox" class="rck" value="${r.id}" onchange="updCnt()"></td>
+    <td class="tiny">${r.inspect_date}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td>
+    <td><span class="pill ${r.status}">${r.status==='ok'?'正常':r.status==='ng'?'异常':'—'}</span></td>
+    <td>${r.signed_by||'—'}</td><td class="tiny">${r.abnormal_note||''}</td>
+    <td><button class="btn sm danger" onclick="delRec('${r.id}')">删</button></td></tr>`).join('');
+  updCnt();
+}
+// 更新选中计数；全选勾选态 = 全部可见行都选中
+function updCnt(){
+  const all=document.querySelectorAll('.rck');
+  const n=document.querySelectorAll('.rck:checked').length;
+  const c=$('#r_cnt'); if(c) c.textContent=n;
+  const a=$('#r_all'); if(a) a.checked=n>0&&n===all.length;
+}
+function toggleAll(el){
+  document.querySelectorAll('.rck').forEach(x=>x.checked=el.checked);
+  updCnt();
+}
+$('#r_q').onclick=loadRec;
+$('#r_del').onclick=delRecs;
+async function delRec(id){if(!confirm('确认删除该点检记录？'))return;const r=await api('/api/inspections/'+id,{method:'DELETE'});if(r.error){toast(r.error,'err');return;}toast('已删除','ok');loadRec();}
+async function delRecs(){
+  const ids=[...document.querySelectorAll('.rck:checked')].map(x=>x.value);
+  if(!ids.length){toast('请先勾选要删除的记录','err');return;}
+  if(!confirm(`确认删除选中的 ${ids.length} 条点检记录？\n该操作不可恢复！`))return;
+  const r=await api('/api/inspections/batch-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
+  if(r.error){toast(r.error,'err');return;}
+  toast(`已删除 ${r.deleted} 条`,'ok');
+  loadRec();
+}
+
+// 月度点检（后台）
+function clampEndToMonth(month){
+  if(!month) return;
+  const [yy,mm]=month.split('-');
+  const dim=dimOf(yy,mm);
+  const minDate=`${month}-01`, maxDate=`${month}-${String(dim).padStart(2,'0')}`;
+  $('#m_end').min=minDate;
+  // 截止日期上限：当前月份不超过今天，历史月份为该月最后一天（未来月份不允许选择）
+  const curMonth=localMonth();
+  let maxEnd=maxDate;
+  if(month===curMonth){
+    const t=new Date();
+    maxEnd=`${month}-${String(t.getDate()).padStart(2,'0')}`;
+  }
+  $('#m_end').max=maxEnd;
+  // 如果当前值不在该月份范围内，重置为今天（若今天在该月份内）否则为该月最后一天
+  const cur=$('#m_end').value;
+  const todayStr=localToday();
+  if(!cur || cur<minDate || cur>maxEnd){
+    $('#m_end').value = (month===curMonth && todayStr>=minDate && todayStr<=maxEnd) ? todayStr : minDate;
+  }
+}
+function rejectFutureMonth(month){
+  const cur=localMonth();
+  if(month>cur) return `不能操作未来月份（${month}）的点检`;
+  return null;
+}
+async function loadMonthInspect(){
+  const signers=await api('/api/signers/public');
+  $('#m_signer').innerHTML='<option value="">（请选择）</option>'+signers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const devs=await api('/api/devices');
+  $('#m_dev').innerHTML=devs.map(d=>`<option value="${d.id}">${d.no} ${esc(d.name)}</option>`).join('');
+  // 房间下拉：一次只处理一个房间的设备，避免"一下全厂"
+  const rooms=await api('/api/rooms');
+  $('#m_room').innerHTML=rooms.map(r=>`<option value="${esc(r.name)}">${esc(r.name)}（${r.count} 台）</option>`).join('');
+  const now=new Date();
+  const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  $('#m_month').value=thisMonth;
+  $('#m_month').max=thisMonth;   // 禁止选择未来月份
+  $('#m_end').value=localToday();
+  clampEndToMonth(thisMonth);
+  syncScopeUI();
+}
+// 设备范围联动：按房间 → 显示房间下拉；指定单台 → 显示设备下拉
+function syncScopeUI(){
+  const scope=$('#m_scope').value;
+  $('#m_roomwrap').style.display = scope==='room' ? 'block' : 'none';
+  $('#m_devwrap').style.display  = scope==='one'  ? 'block' : 'none';
+  // 「该设备全部历史记录」只允许在单台模式下用，防止按房间/全部时误删大片数据
+  const optAll=$('#m_delscope').querySelector('option[value="all"]');
+  const solo = scope==='one';
+  optAll.disabled = !solo;
+  if(!solo) $('#m_delscope').value='month';
+  $('#m_delhint').textContent = solo
+    ? '选「全部历史记录」可清掉这台设备之前所有月份的数据与签名'
+    : '按房间/全部时只能删当月；「全部历史」仅限指定单台';
+}
+function mScopeDesc(){
+  const scope=$('#m_scope').value;
+  if(scope==='one') return '所选设备';
+  if(scope==='room') return `房间「${$('#m_room').value||'未选'}」`;
+  return '全部设备';
+}
+$('#m_month').onchange=()=>clampEndToMonth($('#m_month').value);
+$('#m_scope').onchange=syncScopeUI;
+$('#m_go').onclick=async()=>{
+  const month=$('#m_month').value, sid=$('#m_signer').value, pw=$('#m_pw').value;
+  if(!month||!sid){toast('请选择月份与签名人','err');return;}
+  if(!pw){toast('请输入签名密码','err');return;}
+  const fmReject=rejectFutureMonth(month);
+  if(fmReject){toast(fmReject,'err');return;}
+  const scope=$('#m_scope').value;
+  const device_id = scope==='one' ? $('#m_dev').value : null;
+  const room = scope==='room' ? $('#m_room').value : '';
+  if(scope==='one' && !$('#m_dev').value){toast('请选择设备','err');return;}
+  if(scope==='room' && !room){toast('请选择房间','err');return;}
+  const endDate=$('#m_end').value;
+  if(!endDate){toast('请选择截止日期','err');return;}
+  const endDay=parseInt(endDate.split('-')[2],10);
+  if(isNaN(endDay)||endDay<1){toast('截止日期无效','err');return;}
+  const dim=dimOf(month.split('-')[0],month.split('-')[1]);
+  if(endDay>dim){toast(`该月只有 ${dim} 天，截止日期超出范围`,'err');return;}
+  const today=new Date(); const tDay=String(today.getDate()).padStart(2,'0');
+  if(month===localMonth() && endDay>+tDay){toast(`不能点检今天（${tDay} 日）之后的日期`,'err');return;}
+  const sname = $('#m_signer').selectedOptions[0] ? $('#m_signer').selectedOptions[0].text : '';
+  const rangeDesc = endDay===dim ? `整月（${dim} 天）` : `1 日至 ${endDay} 日（共 ${endDay} 天，剩余 ${dim-endDay} 天不点检）`;
+  if(!confirm(`将${mScopeDesc()} ${month} ${rangeDesc} 标记为「正常」并套用「${sname}」的电子签名？`))return;
+  $('#m_go').disabled=true;
+  const r=await api('/api/admin/inspect-month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({month, signer_id:sid, password:pw, device_id, room, end_day:endDay})});
+  $('#m_go').disabled=false;
+  if(r.error){toast(r.error,'err');return;}
+  $('#m_pw').value='';   // 成功后清空签名密码，防止误触重复提交
+  toast(`已点检：${r.devices} 台 × ${r.days} 天`,'ok');
+  $('#m_stat').textContent=`${month} · ${mScopeDesc()}：${r.devices} 台 × ${r.days} 天 · 签名人 ${r.signer}`;
+};
+
+// 打印全部设备整月（打开 print-all.html 新窗口）
+$('#m_print').onclick=()=>{
+  const month=$('#m_month').value||localMonth();
+  let url='/print-all.html?month='+encodeURIComponent(month);
+  if($('#m_scope').value==='room' && $('#m_room').value) url+='&room='+encodeURIComponent($('#m_room').value);
+  window.open(url, '_blank');
+};
+
+// 一键取消当月点检
+$('#m_cancel').onclick=async()=>{
+  const month=$('#m_month').value;
+  if(!month){toast('请选择月份','err');return;}
+  const fmReject=rejectFutureMonth(month);
+  if(fmReject){toast(fmReject,'err');return;}
+  const scope=$('#m_scope').value;
+  const device_id = scope==='one' ? $('#m_dev').value : null;
+  const room = scope==='room' ? $('#m_room').value : '';
+  if(scope==='one' && !$('#m_dev').value){toast('请选择设备','err');return;}
+  if(scope==='room' && !room){toast('请选择房间','err');return;}
+  // 只有单台模式才允许「删除全部历史记录」
+  const delScope = scope==='one' ? $('#m_delscope').value : 'month';
+
+  if(delScope==='all'){
+    const dtext = $('#m_dev').selectedOptions[0] ? $('#m_dev').selectedOptions[0].text : '';
+    if(!confirm(`⚠️ 将永久删除设备「${dtext}」的全部历史点检记录\n（包含所有月份的数据与电子签名，不限当月）\n\n此操作不可恢复，确定继续？`))return;
+    $('#m_cancel').disabled=true;
+    const r=await api('/api/admin/cancel-inspect-month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({month, device_id, scope:'all'})});
+    $('#m_cancel').disabled=false;
+    if(r.error){toast(r.error,'err');return;}
+    toast(`已删除「${r.device}」全部历史记录：${r.deleted} 条`,'ok');
+    $('#m_stat').textContent=`已清空 ${r.device} 的全部历史点检记录（${r.deleted} 条）`;
+    return;
+  }
+
+  const endDate=$('#m_end').value;
+  if(!endDate){toast('请选择截止日期','err');return;}
+  const endDay=parseInt(endDate.split('-')[2],10);
+  if(isNaN(endDay)||endDay<1){toast('截止日期无效','err');return;}
+  const dim=dimOf(month.split('-')[0],month.split('-')[1]);
+  if(endDay>dim){toast(`该月只有 ${dim} 天，截止日期超出范围`,'err');return;}
+  const today=new Date(); const tDay=String(today.getDate()).padStart(2,'0');
+  if(month===localMonth() && endDay>+tDay){toast(`不能取消今天（${tDay} 日）之后的日期`,'err');return;}
+  const rangeDesc = endDay===dim ? `整月（${dim} 天）` : `1 日至 ${endDay} 日（共 ${endDay} 天）`;
+  if(!confirm(`确认取消${mScopeDesc()} ${month} ${rangeDesc} 的点检记录？\n这些记录将被永久删除，不可恢复！`))return;
+  $('#m_cancel').disabled=true;
+  const r=await api('/api/admin/cancel-inspect-month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({month, device_id, room, end_day:endDay})});
+  $('#m_cancel').disabled=false;
+  if(r.error){toast(r.error,'err');return;}
+  toast(`已取消当月点检：删除 ${r.deleted} 条记录`,'ok');
+  $('#m_stat').textContent=`${month} · ${mScopeDesc()}：已取消 ${r.deleted} 条 × ${r.days} 天`;
+};
+
+// 系统
+$('#npw_go').onclick=async()=>{const r=await api('/api/admin/changepw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#npw').value})});if(r.error){toast(r.error,'err');return;}toast('密码已修改','ok');$('#npw').value='';};
+
+function closeM(){$('#mask').classList.remove('show');}
+$('#mask').onclick=e=>{if(e.target.id==='mask')closeM();};
+me().then(r=>{if(r.ok)enter();}).then(async()=>{
+  // 深链支持：/admin?tab=room&room=车间A
+  // 供温湿度页「去后台补填」直达该房间的温湿度表头配置，省去手动找房间
+  const p=new URLSearchParams(location.search);
+  const t=p.get('tab'), rm=p.get('room');
+  if(!t) return;
+  const btn=document.querySelector('.tabs button[data-t="'+t+'"]');
+  if(!btn) return;
+  btn.click();
+  if(t==='room' && rm){
+    await loadRooms();                     // 保证 window.__rooms 就绪
+    if((window.__rooms||[]).some(x=>x.name===rm)) renameRoom(rm,'thermo');
+    else toast('房间「'+rm+'」不存在','err');
+  }
+});
+
+// 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
+fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
+</script>
+</body>
+</html>
