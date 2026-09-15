@@ -1,6 +1,7 @@
 # 运行时数据（含业务数据、密钥，绝不入库）
-data/kv.json
-data/config.json
+# **/ 前缀覆盖各变体子目录（equipment-inspection-server/data、equipment-inspection-win10/data 等）
+**/data/kv.json
+**/data/config.json
 server.log
 
 # 便携运行时（二进制，单独下载，不入库）
