@@ -87,6 +87,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/assets/dept.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const api = (p,opt)=>fetch(p,opt).then(r=>r.json());
@@ -129,7 +130,10 @@ let ROOMS=['车间A','车间B'];
 let CURR_ROOM='';
 async function initRoom(){
   try{
-    const rooms=await api('/api/rooms');
+    // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间
+    try{ if(window.DEPT) await DEPT.load(); }catch(e){}
+    const roomsAll=await api('/api/rooms');
+    const rooms=(window.DEPT ? DEPT.filterRooms(Array.isArray(roomsAll)?roomsAll:[]) : roomsAll);
     if(Array.isArray(rooms)&&rooms.length){
       ROOMS=[]; GROUP_ROOMS={};
       rooms.forEach(r=>{

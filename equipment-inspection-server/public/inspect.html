@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>点检作业</title>
 <link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/dept.js"></script>
 <script src="/assets/sig.js"></script>
 <style>
 :root{ --line:#000; --glass-bd:rgba(255,95,162,.35); --pink:#ff5fa2; --cyan:#1aa6c4; }
@@ -342,16 +343,23 @@ function renderAbnormal(){
 }
 
 // 房间上下文：与温湿度表 / 大屏 / 批量打印共用同一个「当前房间」（?room= 或 sessionStorage）
-let ROOMS=[], CUR_ROOM='';
+let ROOMS=[], CUR_ROOM='', ROOM_SCOPE=null;  // ROOM_SCOPE：本科室房间名集合（null = 不限，看全部）
 function syncRoomLinks(){
   const q=encodeURIComponent(CUR_ROOM||'');
   const a=$('#go_env'); if(a) a.href='/env?room='+q;
   const b=$('#go_all'); if(b) b.href='/print-all?room='+q+'&month='+encodeURIComponent($('#s_month').value||thisMonth())+'&auto=1';
-  const inRoom=d=>!CUR_ROOM||d.location===CUR_ROOM;
+  // 选了具体房间→限该房间；选「全部房间」→仍限于本科室可⻅房间（ROOM_SCOPE），避免越科室看到别人设备
+  const inRoom=d=>CUR_ROOM ? (d.location===CUR_ROOM)
+                            : (!ROOM_SCOPE || ROOM_SCOPE.has(String(d.location||'').trim()));
   $('#devlist').innerHTML=DEVICES.filter(inRoom).map(d=>`<option value="${d.no}">${d.no} ${d.name}</option>`).join('');
 }
 async function initRooms(){
-  try{ ROOMS=await api('/api/rooms'); }catch(e){ ROOMS=[]; }
+  // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间
+  try{ if(window.DEPT) await DEPT.load(); }catch(e){}
+  let _all=[];
+  try{ _all=await api('/api/rooms'); }catch(e){ _all=[]; }
+  ROOMS=(window.DEPT ? DEPT.filterRooms(_all) : _all);
+  ROOM_SCOPE=(window.DEPT && !DEPT.canSeeAll()) ? new Set(ROOMS.map(r=>r.name)) : null;
   const qs=new URLSearchParams(location.search);
   const rp=qs.get('room'); let sr='';
   try{ sr=sessionStorage.getItem('selected_room')||''; }catch(e){}
@@ -426,7 +434,8 @@ $('#s_month').addEventListener('change',()=>{ if(CUR) loadMonth(); });
 
 async function loadMonth(){
   const q=$('#s_search').value.trim();
-  const pool=DEVICES.filter(d=>!CUR_ROOM||d.location===CUR_ROOM);   // 只在本房间内匹配
+  const pool=DEVICES.filter(d=>CUR_ROOM ? (d.location===CUR_ROOM)
+                                        : (!ROOM_SCOPE || ROOM_SCOPE.has(String(d.location||'').trim())));   // 只在本房间（或本科室）内匹配
   const dev=pool.find(d=>String(d.no)===q)
     ||pool.find(d=>String(d.id)===q)
     ||pool.find(d=>(d.name||'')===q)

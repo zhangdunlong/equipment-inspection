@@ -117,10 +117,11 @@
 
   <div id="forms"><div class="empty">选择月份与设备后点击「生成预览」</div></div>
 
+<script src="/assets/dept.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const api = (p,opt)=>fetch(p,opt).then(r=>r.json());
-let DEVICES=[];
+let DEVICES=[], ROOM_SCOPE=null;  // ROOM_SCOPE：本科室房间名集合（null = 不限，看全部）
 
 function initMonth(){
   const now=new Date();
@@ -129,7 +130,14 @@ function initMonth(){
 }
 
 async function loadDevices(){
+  // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间的设备
+  try{ if(window.DEPT) await DEPT.load(); }catch(e){}
   try{ DEVICES = await api('/api/devices'); }catch(e){ DEVICES=[]; }
+  if(window.DEPT && !DEPT.canSeeAll()){
+    let rooms=[]; try{ rooms=DEPT.filterRooms(await api('/api/rooms')); }catch(e){ rooms=[]; }
+    ROOM_SCOPE=new Set(rooms.map(r=>r.name));
+    DEVICES=DEVICES.filter(d=>ROOM_SCOPE.has(String(d.location||'').trim()));
+  }
   const sel=$('#dev');
   sel.innerHTML = '<option value="0">全部设备</option>' +
     DEVICES.map(d=>`<option value="${d.id}">${d.no} · ${esc(d.name)}</option>`).join('');
@@ -146,6 +154,7 @@ async function render(){
   const sel=+$('#dev').value;
   let devs = data.devices||[];
   if(sel) devs = devs.filter(d=>d.id===sel);
+  else if(ROOM_SCOPE) devs = devs.filter(d=>ROOM_SCOPE.has(String(d.location||'').trim()));  // 「全部设备」也限于本科室
   const [yy,mm]=month.split('-');
   const box=$('#forms'); box.innerHTML='';
   if(!devs.length){ box.innerHTML='<div class="empty">该月 / 该设备暂无数据</div>'; return; }

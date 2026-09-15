@@ -123,6 +123,7 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
   .mtable .c-content-monthly{ text-align:center !important; }
 }
 </style>
+<script src="/assets/dept.js"></script>
 <script src="/assets/sig.js"></script>
 </head>
 <body>
@@ -256,7 +257,9 @@ async function loadAll(){
   try{
     const data=await fetch('/api/monthly?month='+encodeURIComponent(month)).then(r=>r.json());
     let devs=data.devices||[];
-    if(CUR_ROOM) devs=devs.filter(d=>d.location===CUR_ROOM);   // 只打印当前房间
+    // 选了具体房间→只打印该房间；「全部房间」→仍限于本科室可见房间，不越科室
+    if(CUR_ROOM) devs=devs.filter(d=>d.location===CUR_ROOM);
+    else if(ROOM_SCOPE) devs=devs.filter(d=>ROOM_SCOPE.has(String(d.location||'').trim()));
     SIG_ASSETS=data.sig_assets||{};
     if(!devs.length){ $('#p_body').innerHTML='<p class="empty-note">该月暂无设备数据</p>'; $('#p_stat').textContent=''; return; }
     $('#p_body').innerHTML=devs.map(d=>renderDevice(d, data.month||month, d)).join('');
@@ -269,13 +272,18 @@ $('#p_load').onclick=loadAll;
 $('#p_print').onclick=()=>{ if(!$('#p_body').innerHTML.trim()){alert('请先生成预览');return;} window.print(); };
 // 支持 ?month= 直链 + 自动生成
 const params=new URLSearchParams(location.search);
-let SIG_ASSETS={}, ROOMS=[], CUR_ROOM='';
+let SIG_ASSETS={}, ROOMS=[], CUR_ROOM='', ROOM_SCOPE=null;  // ROOM_SCOPE：本科室房间名集合（null = 不限）
 function syncRoomLinks(){
   const q=encodeURIComponent(CUR_ROOM||'');
   const a=document.querySelector('#p_goenv'); if(a) a.href='/env?room='+q;
 }
 (async()=>{
-  try{ ROOMS=await fetch('/api/rooms').then(r=>r.json()); }catch(e){ ROOMS=[]; }
+  // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间
+  try{ if(window.DEPT) await DEPT.load(); }catch(e){}
+  let _all=[];
+  try{ _all=await fetch('/api/rooms').then(r=>r.json()); }catch(e){ _all=[]; }
+  ROOMS=(window.DEPT ? DEPT.filterRooms(Array.isArray(_all)?_all:[]) : _all);
+  ROOM_SCOPE=(window.DEPT && !DEPT.canSeeAll()) ? new Set(ROOMS.map(r=>r.name)) : null;
   const rp=params.get('room'); let sr='';
   try{ sr=sessionStorage.getItem('selected_room')||''; }catch(e){}
   if(rp && ROOMS.some(r=>r.name===rp)) CUR_ROOM=rp;

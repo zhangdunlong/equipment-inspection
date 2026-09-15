@@ -103,6 +103,9 @@ body{ background-attachment:scroll; }
 
   <div class="pick-stat" id="pick_stat"></div>
 
+  <!-- 科室提示条：普通用户设了科室时，这里显示「当前科室：X，仅显示本科室房间」 -->
+  <div id="dept_bar" style="display:none"></div>
+
   <!-- 分组房间：后台「房间管理」里填了「分组」的房间，合并到一个面板展示（如 车间A / 室2） -->
   <div id="group_panels"></div>
 
@@ -118,6 +121,7 @@ body{ background-attachment:scroll; }
   </div>
 </div>
 
+<script src="/assets/dept.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -155,14 +159,21 @@ function aggHtml(g,rooms,total){
 }
 
 (async()=>{
-  let list=[];
+  let list=[], allRooms=[];
   try{
+    // 先取当前登录信息（含科室），再按科室过滤房间
+    await DEPT.load();
     const rooms=await fetch('/api/rooms').then(r=>r.json());
-    list=Array.isArray(rooms)?rooms:[];
-  }catch(e){ list=[]; }
+    allRooms=Array.isArray(rooms)?rooms:[];
+  }catch(e){ allRooms=[]; }
+  list=DEPT.filterRooms(allRooms);
+  // 科室提示条（普通用户设了科室时显示；管理员显示「可见全部房间」）
+  DEPT.banner($('#dept_bar'), { count: list.length });
 
   if(!list.length){
-    $('#pick_stat').innerHTML='<span class="st"><i>提示</i><b style="font-size:13px">未读到房间配置</b></span>';
+    $('#pick_stat').innerHTML='<span class="st"><i>提示</i><b style="font-size:13px">'+
+      ((!DEPT.canSeeAll() && allRooms.length) ? ('本科室（'+esc(DEPT.dept)+'）暂无可进入的房间') : '未读到房间配置')+
+      '</b></span>';
     return;
   }
 

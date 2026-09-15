@@ -42,6 +42,49 @@
 .sp-cut-img img{max-width:100%;max-height:158px;object-fit:contain;display:block}
 .sp-cut-tip{display:block;font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
 .sp-cut-ft{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+/* ===== 局域网远程升级（v1.3.0）===== */
+.lan-box{margin-top:10px;padding:14px 16px;border:1px solid var(--glass-bd);border-radius:14px;background:rgba(255,255,255,.04)}
+.lan-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.lan-hd>b{font-size:13.5px;color:var(--cyan)}
+.lan-tbl th{padding:6px 9px;font-size:12px;color:var(--muted);font-weight:600;text-align:left;border-bottom:1px solid var(--glass-bd)}
+.lan-tbl td{padding:7px 9px;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,.06)}
+.lan-tbl tbody tr:last-child td{border-bottom:none}
+.lan-tbl .lan-nm{font-weight:600}
+/* 操作列：三个按钮必须一行排开，否则会被挤到换行、看起来像样式坏了 */
+.lan-ops{white-space:nowrap;text-align:right}
+.lan-ops .btn+.btn{margin-left:5px}
+.lan-addr{font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:12.5px;color:var(--muted)}
+.lan-st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;border-radius:99px;border:1px solid var(--glass-bd);color:var(--muted);white-space:nowrap}
+.lan-st.ok{border-color:rgba(54,211,153,.55);color:var(--ok);background:rgba(54,211,153,.10)}
+.lan-st.bad{border-color:rgba(255,93,108,.5);color:var(--ng);background:rgba(255,93,108,.10)}
+.lan-st.warn{border-color:rgba(255,209,102,.5);color:var(--warn);background:rgba(255,209,102,.10)}
+.lan-st.busy{border-color:rgba(34,193,220,.55);color:var(--cyan);background:rgba(34,193,220,.12)}
+.lan-pkgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.lan-pkg{position:relative;padding:11px 13px;border:1px solid var(--glass-bd);border-radius:12px;background:var(--glass);cursor:pointer;transition:.16s}
+.lan-pkg:hover{border-color:var(--pink);box-shadow:0 0 14px rgba(79,140,255,.22)}
+.lan-pkg.on{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan) inset,0 0 18px rgba(34,193,220,.25)}
+.lan-pkg.bad{opacity:.6;cursor:not-allowed;border-style:dashed}
+.lan-pkg .pk-v{font-size:15px;font-weight:800;color:var(--cyan);display:flex;align-items:center;gap:8px}
+.lan-pkg .pk-n{font-size:12px;margin-top:4px;word-break:break-all;line-height:1.5}
+.lan-pkg .pk-m{font-size:11px;color:var(--muted);margin-top:6px;display:flex;gap:9px;flex-wrap:wrap}
+.lan-pkg .pk-del{position:absolute;top:7px;right:9px;font-size:12px;color:var(--muted);cursor:pointer;padding:1px 5px;border-radius:6px}
+.lan-pkg .pk-del:hover{color:var(--ng);background:rgba(255,93,108,.14)}
+.lan-scan{margin-bottom:10px;padding:10px 13px;border:1px dashed var(--glass-bd);border-radius:12px;font-size:12.5px}
+.lan-scan .sc-row{display:flex;align-items:center;gap:9px;padding:4px 0;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.05)}
+.lan-scan .sc-row:last-child{border-bottom:none}
+.lan-prog{margin-top:12px;padding:12px 15px;border:1px solid var(--glass-bd);border-radius:12px;background:rgba(255,255,255,.04)}
+.lan-prog .pg-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12.5px;border-bottom:1px solid rgba(255,255,255,.05)}
+.lan-prog .pg-row:last-child{border-bottom:none}
+.lan-prog .pg-nm{min-width:118px;font-weight:600}
+.lan-prog .pg-ms{color:var(--muted);flex:1;word-break:break-all}
+.lan-prog .pg-t{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
+.lan-target{margin-top:14px;border:1px solid var(--glass-bd);border-radius:12px;padding:10px 15px;background:rgba(255,255,255,.03)}
+.lan-target>summary{cursor:pointer;font-size:13px;outline:none}
+.lan-tok{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}
+.lan-tok code{padding:5px 9px;border-radius:8px;background:rgba(0,0,0,.34);font-size:12px;word-break:break-all}
+.lan-tip{font-size:12px;line-height:1.8;color:var(--muted);margin-top:9px}
+.lan-tip b{color:var(--warn)}
+.lan-tip code{padding:1px 6px;border-radius:6px;background:rgba(0,0,0,.28)}
 </style>
 </head>
 <body data-page-node-id="RvLgTuOm6uqFgvBLvRkwy0">
@@ -76,7 +119,9 @@
     <button data-t="sig" data-page-node-id="L6hCDQ6RB1eFMCMA5nPN9I">✍️ 签名人员</button>
     <button data-t="rec" data-page-node-id="6Tqm6ScuvPcuX1BsKiyVJs">📑 点检记录</button>
     <button data-t="month" data-page-node-id="LkqgtW5QdjoqB14c2E7rw7">📅 月度点检</button>
+    <button data-t="env" data-page-node-id="EnvFillTab000000000001">🌡 温湿度填充</button>
     <button data-t="user" data-page-node-id="yvGHzG1cgMHBOgFfK5sGF2">👥 用户管理</button>
+    <button data-t="dept" data-page-node-id="pS3QaKz7mNxV2LhRtYb9Wc">🏢 科室管理</button>
     <button data-t="sys" data-page-node-id="2UmR7JEXmVL4svbpwnPS5N">⚙️ 系统</button>
   </div>
 
@@ -123,6 +168,7 @@
       <div class="field" data-page-node-id="TLJ9BHbvww2t7O4FuBx1Nh"><label data-page-node-id="mHci2pXueqA7ThzU1Wc5Z5">房间名称</label><input id="room_name" placeholder="如：车间C" maxlength="40" data-page-node-id="kDgvGTaon4AuSiL8BShfK9"></div>
       <div class="field" data-page-node-id="TmcZT9ebxTPfowgVAuEyhQ"><label data-page-node-id="3LuOBCdkuXzCM9HbGn41SC">描述（可选）</label><input id="room_desc" placeholder="如：设备型号说明" maxlength="60" data-page-node-id="PZFbkr7biT12UsKn09B6UA"></div>
       <div class="field"><label>分组（可选）</label><input id="room_group" placeholder="同组房间会合并显示，如：车间" maxlength="20"></div>
+      <div class="field"><label>科室（可选）</label><select id="room_dept"></select></div>
       <div class="field" style="align-self-end" data-page-node-id="i6XSvBL78sBBhzsGH7i4jD"><button class="btn cyan sm" id="room_add" data-page-node-id="ECSpqgb72VBEuj9ZXyb0Rb">＋ 新增房间</button></div>
     </div>
     <div class="muted tiny" style="margin:2px 0 8px">🌡 温湿度监测配置（可选）——填好后该房间的「温湿度监测记录」表头会自动带出；已建好的房间在列表里点 <b>✏️ 编辑</b>（表头缺项时另有一键 <b>🌡 补填表头</b>）补填即可。</div>
@@ -134,7 +180,7 @@
       <div class="muted tiny" style="margin-top:3px">格式建议：<b>温度：下限℃-上限℃</b> + <b>湿度：≤上限%RH</b>（可再附标准号）。温度/湿度超限自动标红依赖这两行，写不规范则不校验。</div>
     </div>
     <div class="scroll glass" style="max-height:420px" data-page-node-id="yAXJCtDScbs7OGvv6iTKHI">
-      <table data-page-node-id="gjPLFux2Xysx5zwL6DR0TS"><thead data-page-node-id="fzuGyQAKEBCBYZo3HdDB9S"><tr data-page-node-id="RRVrRMTTaAJwTvQXyDmBrv"><th data-page-node-id="o3QHK0L9aC5F1LyLQ3Z0cT">房间名称</th><th data-page-node-id="GIRtdUPHgMKXxSMw3qMsBF">描述</th><th style="width:128px">温湿度表头</th><th style="width:80px" data-page-node-id="zIfiq3QQJ5M1yVTX4DW0Ih">设备数</th><th style="width:300px" data-page-node-id="kchYFK7EMyZE5f3SqOoE0p">关联页面</th></tr></thead>
+      <table data-page-node-id="gjPLFux2Xysx5zwL6DR0TS"><thead data-page-node-id="fzuGyQAKEBCBYZo3HdDB9S"><tr data-page-node-id="RRVrRMTTaAJwTvQXyDmBrv"><th data-page-node-id="o3QHK0L9aC5F1LyLQ3Z0cT">房间名称</th><th data-page-node-id="GIRtdUPHgMKXxSMw3qMsBF">描述</th><th style="width:110px">科室</th><th style="width:128px">温湿度表头</th><th style="width:80px" data-page-node-id="zIfiq3QQJ5M1yVTX4DW0Ih">设备数</th><th style="width:300px" data-page-node-id="kchYFK7EMyZE5f3SqOoE0p">关联页面</th></tr></thead>
       <tbody id="room_list" data-page-node-id="hYrEAwMv9ZhZk6kpBgj39H"></tbody></table>
     </div>
   </div>
@@ -181,8 +227,21 @@
       <span class="muted tiny" data-page-node-id="ERnnknmBPndJP9QgodcR9q">普通用户可登录查看大屏 / 点检 / 打印；管理员才可进入本后台。</span>
     </div>
     <div class="scroll glass" style="max-height:420px" data-page-node-id="dUloCuNeEYIOJLTEqPuU1J">
-      <table data-page-node-id="GGx9FIgYPz2fWEnZkDxbyg"><thead data-page-node-id="LOm7g7Ctl4IaujqCOkRiQe"><tr data-page-node-id="mEiIIFEAkHfnLfNKDBGKJx"><th data-page-node-id="UEk2fB8vdAASCH74aWTdgZ">用户名</th><th data-page-node-id="mNfzLRJsqlw0eO2gY6LBKd">姓名</th><th data-page-node-id="r6aRYH8kJVAjlKX4UfczaR">角色</th><th data-page-node-id="gqL9kleSxviaAX46l2pYpp">状态</th><th data-page-node-id="6GWDAMLoEaWVeFy2D6slOC"></th></tr></thead>
+      <table data-page-node-id="GGx9FIgYPz2fWEnZkDxbyg"><thead data-page-node-id="LOm7g7Ctl4IaujqCOkRiQe"><tr data-page-node-id="mEiIIFEAkHfnLfNKDBGKJx"><th data-page-node-id="UEk2fB8vdAASCH74aWTdgZ">用户名</th><th data-page-node-id="mNfzLRJsqlw0eO2gY6LBKd">姓名</th><th data-page-node-id="r6aRYH8kJVAjlKX4UfczaR">角色</th><th style="width:110px">科室</th><th data-page-node-id="gqL9kleSxviaAX46l2pYpp">状态</th><th data-page-node-id="6GWDAMLoEaWVeFy2D6slOC"></th></tr></thead>
       <tbody id="user_list" data-page-node-id="xFvxHBrMFBRFwds90pYldM"></tbody></table>
+    </div>
+  </div>
+
+  <!-- 科室管理 -->
+  <div class="panel glass" id="p_dept" data-page-node-id="pS3QaKz7mNxV2LhRtYb9Wd">
+    <p class="muted tiny">科室是房间与用户的「归属维度」：给房间 / 用户各选一个科室后，该用户登录只看到本科室的房间；科室留空则不受限（按角色，管理员看全部，普通用户看全部）。被房间 / 用户引用的科室不能删除，需先改派。</p>
+    <div class="row">
+      <div class="field" style="max-width:300px"><label>新增科室</label><input id="dept_name" maxlength="20" placeholder="如：力学性能科"></div>
+      <div class="field" style="align-self:end"><button class="btn cyan sm" id="dept_add">＋ 新增科室</button></div>
+    </div>
+    <div class="scroll glass" style="max-height:420px">
+      <table><thead><tr><th>科室名称</th><th>被引用（房间 / 用户）</th><th style="width:120px"></th></tr></thead>
+        <tbody id="dept_list"></tbody></table>
     </div>
   </div>
 
@@ -205,6 +264,71 @@
     </div>
     <p class="muted tiny" data-page-node-id="SCNR84gTjFykeY9sSibTWa">备份建议每月一次，下载的 JSON 即完整数据库快照，可整份替换 <code data-page-node-id="fJogHBYyETt0dXS6hR9WHN">data/kv.json</code> 恢复。CSV 含全部点检记录（编号/名称/房间/日期/时间/结果/备注），带 BOM 可直接用 Excel 打开。</p>
   
+    <h3 style="margin:18px 0 8px;font-size:15px" id="sys_lan">📡 局域网远程升级</h3>
+    <p class="muted tiny" style="margin-bottom:8px">
+      <b>任意一台电脑</b>，只要用管理员登录它自己的后台，就能给局域网里装了本系统的电脑推送升级 ——
+      没有「中心机」，目标机<b>开箱即可被升级</b>，不需要去它上面开开关或抄令牌。目标机会自动完成
+      <b>备份 → 停服 → 覆盖 → 重启 → 校验</b>，新版本起不来还会<b>自动回滚</b>并重新拉起旧版；
+      目标机的点检数据 <code>data/kv.json</code> 全程不碰。
+      <br>要拒绝接收升级时，到那台电脑的后台·系统页关掉「接受局域网升级」即可（默认开启）。
+    </p>
+
+    <div class="lan-box">
+      <div class="lan-hd">
+        <b>① 电脑清单</b>
+        <span class="muted tiny" id="lan_sum"></span>
+        <span style="flex:1"></span>
+        <button class="btn sm" id="lan_add">＋ 添加电脑</button>
+        <button class="btn sm ghost" id="lan_scan" title="扫描本机所在网段，自动找出装了本系统的电脑">🔍 扫描本网段</button>
+        <button class="btn sm ghost" id="lan_check">⟳ 全部检测</button>
+      </div>
+      <div class="lan-scan" id="lan_scan_out" hidden></div>
+      <table class="lan-tbl">
+        <thead><tr>
+          <th style="width:34px;text-align:center"><input type="checkbox" id="lan_all" title="全选 / 取消全选"></th>
+          <th style="width:146px">电脑</th>
+          <th style="width:180px">地址</th>
+          <th style="width:104px">状态</th>
+          <th style="width:96px">版本</th>
+          <th>说明 / 备注</th>
+          <th style="width:178px;text-align:right">操作</th>
+        </tr></thead>
+        <tbody id="lan_clients"></tbody>
+      </table>
+      <p class="lan-tip" id="lan_empty_hint">
+        还没有登记电脑 —— 点「🔍 扫描本网段」自动发现最省事；也可以「＋ 添加电脑」手填 IP。
+        <br>添加时<b>令牌留空即可</b>（自动用本系统的共享密钥）—— 目标机不用做任何设置，直接推就行。
+        <br>只想升级<b>当前这台电脑</b>？不用登记，选好包后直接点下面的「🖥 升级本机」。
+      </p>
+    </div>
+
+    <div class="lan-box">
+      <div class="lan-hd">
+        <b>② 升级包</b>
+        <span class="muted tiny">自动扫描 <code>部署包/</code>；也可上传 .zip / .bat；本机收到过的版本会自动留存，可继续转推给别的电脑</span>
+        <span style="flex:1"></span>
+        <input type="file" id="lan_file" accept=".zip,.bat" hidden>
+        <button class="btn sm cyan" id="lan_upload">⬆ 上传升级包</button>
+        <button class="btn sm ghost" id="lan_reload">⟳ 重新扫描</button>
+      </div>
+      <div class="lan-pkgs" id="lan_pkgs"></div>
+    </div>
+
+    <div class="flex" style="gap:12px;flex-wrap:wrap;align-items:center;margin-top:14px;padding:12px 14px;border:1px solid var(--glass-bd);border-radius:14px;background:rgba(255,255,255,.04)">
+      <button class="btn primary" id="lan_go" title="把②里选中的升级包推送到①里勾选的电脑；想只升一台，直接点那行右侧的「🚀 升级">🚀 开始升级（推送到选中的电脑）</button>
+      <button class="btn" id="lan_selfgo" title="升级这台电脑自己（页面会断开 20~40 秒）">🖥 升级本机</button>
+      <label class="muted tiny" style="display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="lan_force"> 允许降级（推比目标机更旧的版本）
+      </label>
+      <span class="tiny" id="lan_hint"></span>
+    </div>
+    <div class="lan-prog" id="lan_prog" hidden></div>
+
+    <details class="lan-target">
+      <summary>🔐 本机被升级的设置 <span class="muted tiny" id="lan_self_tag"></span></summary>
+      <div id="lan_self" class="muted tiny" style="margin-top:8px">读取中…</div>
+    </details>
+
     <h3 style="margin:18px 0 8px;font-size:15px" id="sys_about">🔗 关于</h3>
     <div class="flex mb" style="flex-wrap:wrap;gap:10px;align-items:center">
       <a class="btn sm cyan" href="https://github.com/equipment-inspection-demo" target="_blank" rel="noopener">🐙 GitHub 主页</a>
@@ -235,6 +359,25 @@
       <span class="muted tiny" id="m_stat" data-page-node-id="s1BxwNuSQG0qO9NXBlVPWI"></span>
     </div>
   </div>
+
+  <!-- 温湿度一键填充（后台） -->
+  <div class="panel glass" id="p_env" data-page-node-id="EnvFillPanel0000000001">
+    <p class="muted tiny" data-page-node-id="EnvFillDesc00000000001">温湿度表（DEMO-QR-008）是「房间 + 月份」的月表，每天分上午 / 下午 / 晚上三个时段。这里可以一键把 <b>1 日至截止日</b> 之间 <b>还空着</b> 的格子批量补上温度 / 湿度，并套用所选签名人的电子签名 —— 数值按各房间「综合温湿度要求」圈的限定范围自动生成，保证落在范围内；已有数据的格子（含签名、划线）一律不动。</p>
+    <div class="row" data-page-node-id="EnvFillRow000000000001">
+      <div class="field" data-page-node-id="EnvFillFMonth000000001"><label data-page-node-id="EnvFillLMonth000000001">月份</label><input type="month" id="e_month" data-page-node-id="EnvFillIMonth000000001"></div>
+      <div class="field" data-page-node-id="EnvFillFEnd0000000001"><label data-page-node-id="EnvFillLEnd0000000001">截止日期</label><input type="date" id="e_end" data-page-node-id="EnvFillIEnd0000000001"><p class="muted tiny" style="margin-top:2px" data-page-node-id="EnvFillHEnd0000000001">默认截止到今天，只填 1 日至该日的日期</p></div>
+      <div class="field" data-page-node-id="EnvFillFScope00000001"><label data-page-node-id="EnvFillLScope00000001">填充范围</label>
+        <select id="e_scope" data-page-node-id="EnvFillIScope00000001"><option value="all" data-page-node-id="EnvFillScopeAll000001">全部房间</option><option value="room" data-page-node-id="EnvFillScopeRoom00001">指定房间</option></select></div>
+      <div class="field" id="e_roomwrap" style="display:none" data-page-node-id="EnvFillFRoom000000001"><label data-page-node-id="EnvFillLRoom000000001">选择房间</label><select id="e_room" data-page-node-id="EnvFillIRoom000000001"></select></div>
+      <div class="field" data-page-node-id="EnvFillFSigner0000001"><label data-page-node-id="EnvFillLSigner0000001">签名人</label><select id="e_signer" data-page-node-id="EnvFillISigner0000001"></select></div>
+      <div class="field" data-page-node-id="EnvFillFPw00000000001"><label data-page-node-id="EnvFillLPw00000000001">签名密码</label><input type="password" id="e_pw" placeholder="签名人密码" data-page-node-id="EnvFillIPv000000000001"></div>
+    </div>
+    <div class="flex mb" data-page-node-id="EnvFillBtns0000000001">
+      <button class="btn primary" id="e_go" data-page-node-id="EnvFillGo00000000001">🌡 一键填充（1 日 ~ 截止日，只补空格）</button>
+      <span class="muted tiny" id="e_stat" data-page-node-id="EnvFillStat000000001"></span>
+    </div>
+    <div id="e_result" class="muted tiny" style="line-height:1.95" data-page-node-id="EnvFillResult0000001"></div>
+  </div>
 </div>
 
 <div class="mask" id="mask" data-page-node-id="JOttaQEaO3EoOOdhnWoGad"><div class="modal glass" id="modal" data-page-node-id="dk2xTcFkY7LDWyOBVUs0cm"></div></div>
@@ -255,7 +398,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
-  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month')loadMonthInspect();if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='sys')loadSysStat();
+  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month')loadMonthInspect();if(b.dataset.t==='env')loadEnvFill();if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}
 });
 
 $('#l_go').onclick=async()=>{
@@ -278,6 +421,7 @@ async function loadUsers(){
   $('#user_list').innerHTML=users.map(u=>`<tr>
     <td>${esc(u.username)}</td><td>${esc(u.name)}</td>
     <td>${u.role==='admin'?'<span class="tag">管理员</span>':'普通用户'}</td>
+    <td>${u.dept?esc(u.dept):'<span class="muted">—</span>'}</td>
     <td>${u.active?'<span style="color:#0a8f3c">启用</span>':'<span style="color:#d11">停用</span>'}</td>
     <td><button class="btn sm" onclick="editUser('${u.id}')">编辑</button>
         <button class="btn sm ${u.active?'':'cyan'}" onclick="toggleUser('${u.id}',${u.active?0:1})">${u.active?'停用':'启用'}</button>
@@ -289,14 +433,17 @@ $('#user_add').onclick=()=>{
     <div class="field"><label>姓名</label><input id="u_disp" placeholder="仅用于显示，可中文"></div>
     <div class="field"><label>密码</label><input type="password" id="u_pw" placeholder="至少4位"></div>
     <div class="field"><label>角色</label><select id="u_role"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
+    <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
+      <div class="muted tiny" style="margin-top:3px">指定后，该用户登录只看到本科室的房间；留空则按角色（管理员看全部，普通用户看全部）</div></div>
     <div class="flex"><button class="btn primary" onclick="saveUser()">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
+  fillDeptSelect($('#u_dept'));
 };
 async function saveUser(){
-  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value;
+  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
   if(!username||!pw){toast('用户名与密码必填','err');return;}
   if(username.length<2||username.length>32||/\s/.test(username)){toast('用户名需 2-32 位，可中文/英文/数字，不能含空格','err');return;}
-  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name,password:pw,role})});
+  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name,password:pw,role,dept})});
   if(r.error){toast(r.error,'err');return;}
   toast('已新增用户','ok');closeM();loadUsers();
 }
@@ -307,12 +454,15 @@ async function editUser(id){
     <div class="field"><label>姓名</label><input id="u_disp" value="${esc(u.name)}"></div>
     <div class="field"><label>重置密码（留空不修改）</label><input type="password" id="u_pw" placeholder="至少4位"></div>
     <div class="field"><label>角色</label><select id="u_role"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></div>
+    <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
+      <div class="muted tiny" style="margin-top:3px">指定后，该用户登录只看到本科室的房间；留空则按角色（管理员看全部，普通用户看全部）</div></div>
     <div class="flex"><button class="btn primary" onclick="saveUserEdit('${id}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
+  fillDeptSelect($('#u_dept'), u.dept||'');
 }
 async function saveUserEdit(id){
-  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value;
-  const body={username,name,role}; if(pw) body.password=pw;
+  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
+  const body={username,name,role,dept}; if(pw) body.password=pw;
   const r=await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){toast(r.error,'err');return;}
   toast('已保存','ok');closeM();loadUsers();
@@ -345,6 +495,7 @@ async function loadRooms(){
     return `<tr>
     <td><b>${esc(r.name)}</b>${r.group?'<div class="muted tiny" style="margin-top:2px">🧩 分组：'+esc(r.group)+'（合并展示）</div>':''}</td>
     <td class="muted">${esc(r.desc)||'—'}${r.thermo_apparatus?'<br><span class="muted tiny">🌡 仪器：'+esc(r.thermo_apparatus)+(r.thermo_requirement?' · '+esc(r.thermo_requirement.split('\n')[0]):'')+'</span>':''}</td>
+    <td>${r.dept?esc(r.dept):'—'}</td>
     <td>${chip}${missTip}</td>
     <td>${r.count} 台</td>
     <td>
@@ -357,12 +508,13 @@ async function loadRooms(){
         ${miss?`<button class="btn sm cyan" onclick="renameRoom('${key}','thermo')" title="直接定位到温湿度表头三个字段">🌡 补填表头</button>`:''}
         <button class="btn sm danger" onclick="delRoom('${key}')">🗑 删除</button>
       </div>
-    </td></tr>`;}).join('') || '<tr><td colspan="5" class="muted">暂无房间，请先新增</td></tr>';
+    </td></tr>`;}).join('') || '<tr><td colspan="6" class="muted">暂无房间，请先新增</td></tr>';
+  fillDeptSelect($('#room_dept'));
 }
 $('#room_add').onclick=async()=>{
-  const name=$('#room_name').value.trim(), desc=$('#room_desc').value.trim(), group=$('#room_group').value.trim();
+  const name=$('#room_name').value.trim(), desc=$('#room_desc').value.trim(), group=$('#room_group').value.trim(), dept=$('#room_dept').value.trim();
   if(!name){toast('请输入房间名称','err');return;}
-  const r=await api('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,group})});
+  const r=await api('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc,group,dept})});
   if(r.error){toast(r.error,'err');return;}
   // 温湿度表头配置（可选）：新增后再走一次 PUT 写入，避免改动 POST 接口签名
   const app=$('#room_app').value.trim(), eq=$('#room_eq').value.trim(), req=$('#room_req').value.trim();
@@ -372,7 +524,7 @@ $('#room_add').onclick=async()=>{
     if(r2.error) toast('房间已建，但温湿度表头保存失败：'+r2.error,'err');
   }
   toast('已新增房间「'+name+'」'+(app||eq||req?'（含温湿度表头）':''),'ok');
-  $('#room_name').value='';$('#room_desc').value='';$('#room_group').value='';
+  $('#room_name').value='';$('#room_desc').value='';$('#room_group').value='';$('#room_dept').value='';
   $('#room_app').value='';$('#room_eq').value='';$('#room_req').value='';
   loadRooms();
 };
@@ -384,6 +536,8 @@ function renameRoom(name,focus){
     <hr style="border:none;border-top:1px dashed #ccc;margin:10px 0">
     <div class="field"><label>分组（可选）</label><input id="rm_group" maxlength="20" value="${esc(r.group||'')}" placeholder="留空 = 独立房间">
       <div class="muted tiny" style="margin-top:3px">例：给「车间A」「车间B」都填「车间」，两间房就会归到一个组下展示（房间本身仍各自独立，设备和记录不受影响）</div></div>
+    <div class="field"><label>科室（可选）</label><select id="rm_dept"></select>
+      <div class="muted tiny" style="margin-top:3px">该房间归属的科室；留空 = 不限定（全员可见）。用户登录后只看到本科室的房间。</div></div>
     <h4 style="margin:4px 0 8px;font-size:13px">🌡 温湿度监测配置（新建月度记录时自动带出）</h4>
     <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 hx-rtu-t10/DEMO-ZX-882"></div>
     <div class="field"><label>被监测的设备型号和编号</label><input id="rm_eq" maxlength="300" value="${esc(r.thermo_equipment||'')}"></div>
@@ -391,6 +545,7 @@ function renameRoom(name,focus){
     <p class="muted tiny">重命名后该房间下所有设备的位置会同步更新，点检记录不受影响。</p>
     <div class="flex"><button class="btn primary" onclick="saveRoom('${esc(name).replace(/'/g,"\\'")}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
+  fillDeptSelect($('#rm_dept'), r.dept||'');
   // 从列表点「🌡 表头配置」进来时，直接定位并聚焦到监测仪器输入框
   if(focus==='thermo'){ const el=$('#rm_app'); if(el){ el.scrollIntoView({block:'center'}); setTimeout(()=>{ try{el.focus();}catch(e){} },80); } }
 }
@@ -399,6 +554,7 @@ async function saveRoom(oldName){
   if(!name){toast('请输入房间名称','err');return;}
   const body={name,
     group:$('#rm_group').value.trim(),
+    dept:$('#rm_dept').value.trim(),
     thermo_apparatus:$('#rm_app').value.trim(),
     thermo_equipment:$('#rm_eq').value.trim(),
     thermo_requirement:$('#rm_req').value.trim()};
@@ -412,6 +568,38 @@ async function delRoom(name){
   const r=await api('/api/rooms/'+encodeURIComponent(name),{method:'DELETE'});
   if(r.error){toast(r.error,'err');return;}
   toast('已删除','ok');loadRooms();
+}
+
+// ===== 科室管理 =====
+async function loadDepts(){
+  let ds=[]; try{ ds=(await api('/api/depts')).depts||[]; }catch(e){ ds=[]; }
+  const rooms = await api('/api/rooms').catch(()=>[]);
+  const users = await api('/api/users').catch(()=>[]);
+  $('#dept_list').innerHTML = ds.length ? ds.map(d=>{
+    const rc=(rooms||[]).filter(r=>(r.dept||'')===d).length, uc=(users||[]).filter(u=>(u.dept||'')===d).length;
+    return `<tr><td><b>${esc(d)}</b></td><td class="muted">${rc} 个房间 · ${uc} 个用户</td>
+      <td><button class="btn sm danger" onclick="delDept('${esc(d).replace(/'/g,"\\'")}')">🗑 删除</button></td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="muted">暂无科室，请先新增</td></tr>';
+}
+$('#dept_add').onclick=async()=>{
+  const name=$('#dept_name').value.trim();
+  if(!name){ toast('请输入科室名称','err'); return; }
+  const r=await api('/api/depts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('已新增科室「'+name+'」','ok'); $('#dept_name').value=''; loadDepts();
+};
+async function delDept(name){
+  if(!confirm('确定删除科室「'+name+'」？被它引用的房间 / 用户需先改派到其他科室。')) return;
+  const r=await api('/api/depts/'+encodeURIComponent(name),{method:'DELETE'});
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('已删除','ok'); loadDepts();
+}
+// 科室下拉通用填充：首项为「不限制 / 全厂可见」
+async function fillDeptSelect(sel, cur){
+  if(!sel) return;
+  let ds=[]; try{ ds=(await api('/api/depts')).depts||[]; }catch(e){ ds=[]; }
+  sel.innerHTML='<option value="">（不限制 / 全厂可见）</option>'+
+    ds.map(d=>`<option value="${esc(d)}" ${d===cur?'selected':''}>${esc(d)}</option>`).join('');
 }
 
 // ===== 系统：数据统计 / 备份导出 =====
@@ -430,6 +618,402 @@ async function loadSysStat(){
 }
 $('#sys_backup').onclick=()=>{ location.href='/api/admin/backup'; toast('已开始下载 JSON 备份','ok'); };
 $('#sys_csv').onclick=()=>{ location.href='/api/admin/export-inspections-csv'; toast('已开始导出 CSV','ok'); };
+// ===== 局域网远程升级（v1.3.1：任意一台电脑登录后台即可推，目标机零配置）=====
+const LAN={clients:[],pkgs:[],cur:'',sel:new Set(),pkg:localStorage.getItem('lan_pkg')||'',busy:false,jobs:null,timer:null};
+const lanV=v=>String(v||'').replace(/^v/i,'');
+const lanCmp=(a,b)=>{const pa=lanV(a).split('.').map(n=>parseInt(n,10)||0),pb=lanV(b).split('.').map(n=>parseInt(n,10)||0);
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){const d=(pa[i]||0)-(pb[i]||0);if(d)return d>0?1:-1;}return 0;};
+const lanSize=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
+const lanT=s=>{if(!s)return '—';const d=new Date(s);if(isNaN(d))return '—';
+  return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+const lanChip=(c,t)=>`<span class="lan-st ${c}">${t}</span>`;
+const lanNeedManual=v=>lanCmp(v,'v1.3.0')<0;   // v1.3.0 之前根本没有接收接口，必须先手工升一次
+const lanNeedToken=v=>!lanNeedManual(v)&&lanCmp(v,'v1.3.1')<0;   // v1.3.0 认令牌，但还不支持零配置
+
+async function lanLoad(){
+  try{
+    const [c,p]=await Promise.all([api('/api/lan/clients'),api('/api/lan/packages')]);
+    LAN.clients=c.clients||[];LAN.pkgs=p.packages||[];LAN.cur=p.current||'';LAN.self=c.self||null;
+  }catch(e){toast('局域网升级信息加载失败','err');return;}
+  lanRenderClients();lanRenderPkgs();lanUpdBtns();lanRenderSelf();
+}
+
+function lanRenderClients(){
+  const tb=$('#lan_clients');
+  if(!LAN.clients.length){tb.innerHTML='';$('#lan_empty_hint').hidden=false;}
+  else $('#lan_empty_hint').hidden=true;
+  tb.innerHTML=LAN.clients.map(c=>{
+    const on=LAN.sel.has(c.id);
+    const st=c.last_ok===true?lanChip('ok','● 在线'):c.last_ok===false?lanChip('bad','● 离线'):lanChip('','○ 未检测');
+    const ver=c.last_version?lanChip(lanCmp(c.last_version,LAN.cur)>=0?'ok':'warn',esc(c.last_version)):'<span class="muted tiny">—</span>';
+    const note=c.last_error?`<span style="color:var(--ng)">${esc(c.last_error)}</span>`
+      :(c.note?esc(c.note):(c.last_check?`检测于 ${lanTime2(c.last_check)}`:''));
+    const tk=(!c.last_error&&lanNeedToken(c.last_version)&&!c.token)
+      ?'<span style="color:var(--warn)">这台是 v1.3.0，还不支持零配置 → 要么填专用令牌，要么先手工升到 v1.3.1</span><br>':'';
+    return `<tr>
+      <td style="text-align:center"><input type="checkbox" class="lan-cb" data-id="${c.id}" ${on?'checked':''}></td>
+      <td class="lan-nm">${esc(c.name)}</td>
+      <td class="lan-addr">${esc(c.host)}:${c.port||8787}</td>
+      <td>${st}</td>
+      <td>${ver}</td>
+      <td class="muted tiny">${tk}${note}</td>
+      <td class="lan-ops">
+        <button class="btn sm primary lan-one" data-id="${c.id}" title="只升级这一台电脑">🚀 升级</button>
+        <button class="btn sm ghost lan-ck" data-id="${c.id}">检测</button>
+        <button class="btn sm ghost lan-ed" data-id="${c.id}">编辑</button>
+        <button class="btn sm ghost lan-del" data-id="${c.id}" title="从清单移除（不影响目标机本身）">✕</button>
+      </td></tr>`;
+  }).join('');
+}
+const lanTime2=s=>lanT(s);
+
+function lanRenderPkgs(){
+  const box=$('#lan_pkgs');
+  if(!LAN.pkgs.length){box.innerHTML='<span class="muted tiny">没有找到升级包 —— 新版生成后 <code>部署包/</code> 里会出现，也可以点右上角上传。</span>';return;}
+  const ok=LAN.pkgs.filter(p=>p.ok);
+  if(!LAN.pkg||!ok.some(p=>p.id===LAN.pkg)){
+    // 默认选中「版本最高的可用包」：比本机新的优先，没有再退到最高的已解析包。
+    // 不依赖列表顺序 —— 曾经因此把一个 v9.9.9 的坏包选成了默认推送对象。
+    const hi=a=>a.slice().sort((x,y)=>lanCmp(y.version,x.version));
+    const newer=hi(ok.filter(p=>lanCmp(p.version,LAN.cur)>0));
+    LAN.pkg=(newer[0]||hi(ok)[0]||{}).id||'';
+  }
+  box.innerHTML=LAN.pkgs.map(p=>{
+    const on=p.id===LAN.pkg;
+    const isNew=p.ok&&lanCmp(p.version,LAN.cur)>0;
+    return `<div class="lan-pkg ${on?'on':''} ${p.ok?'':'bad'}" data-id="${esc(p.id)}" title="${esc(p.error||p.name)}">
+      ${p.origin==='upload'?`<span class="pk-del" data-del="${esc(p.id)}" title="删除这个上传包">🗑</span>`:''}
+      <div class="pk-v">${p.ok?('v'+lanV(p.version)):'无法解析'} ${isNew?lanChip('ok','比本机新'):''}</div>
+      <div class="pk-n">${esc(p.name)}</div>
+      <div class="pk-m"><span>${lanSize(p.size)}</span><span>${p.files||0} 个文件</span><span>${lanTime2(p.mtime)}</span><span>${p.origin==='dist'?'部署包/':'后台上传'}</span></div>
+      ${p.ok?'':`<div class="pk-m"><span style="color:var(--ng)">${esc(p.error)}</span></div>`}
+    </div>`;
+  }).join('');
+}
+
+function lanUpdBtns(){
+  const n=LAN.sel.size;
+  const pk=LAN.pkgs.find(p=>p.id===LAN.pkg);
+  const ready=!!pk&&pk.ok&&n>0&&!LAN.busy;
+  const selfReady=!!pk&&pk.ok&&!LAN.busy&&!!LAN.self&&!!(LAN.self.ready&&LAN.self.ready.engine);
+  $('#lan_go').disabled=!ready;
+  const sb=$('#lan_selfgo');   // 注意：本按钮 id 是 lan_selfgo —— 不能叫 lan_self，
+                               // 那是下面「本机被升级的设置」面板的 id（重名会让 lanRenderSelf 把按钮写没）
+  sb.disabled=!selfReady;
+  sb.title=!LAN.self||!(LAN.self.ready&&LAN.self.ready.engine)
+    ? '本机缺少升级引擎 tools/deploy/_setup.ps1 —— 请先用一键升级包手工升一次，之后本机也能一键自升级'
+    : '升级这台电脑自己（会重启本机服务，页面断开 20~40 秒；点检数据不会被覆盖）';
+  $('#lan_all').checked=!!LAN.clients.length&&n===LAN.clients.length;
+  $('#lan_sum').textContent=LAN.clients.length?`共 ${LAN.clients.length} 台 · 已选 ${n} 台 · 本机 ${LAN.cur}`:'';
+  // 「开始升级」为什么点不动，必须写在按钮旁边。
+  // 旧版这里只在"包已选好"时写一句「将推送 xx」—— 用户传完包、没勾电脑时，看到的只有一个灰按钮，
+  // 于是反馈"上传升级包后没找到升级按钮"。
+  const hint=$('#lan_hint');
+  let msg='',warn=false;
+  if(LAN.busy) msg='正在升级中，请等进度跑完…';
+  else if(!pk||!pk.ok) { msg='还差一步：先在 ② 里点「⬆ 上传升级包」，或点选一个能用的包'; warn=true; }
+  else if(!n) {
+    msg=LAN.clients.length
+      ? '要升别的电脑：在 ① 里勾选它们，或直接点某行右侧的「🚀 升级」；只升本机就点「🖥 升级本机」'
+      : '要升别的电脑：先在 ① 里「🔍 扫描本网段」或「＋ 添加电脑」；只升本机就点「🖥 升级本机」';
+    warn=true;
+  }
+  else msg=`将推送 ${pk.name}（v${lanV(pk.version)}）到 ${n} 台电脑`;
+  hint.textContent=msg;
+  hint.style.color=warn?'var(--warn)':'';
+}
+
+async function lanCheck(ids){
+  if(!LAN.clients.length)return;
+  const btn=$('#lan_check');btn.disabled=true;const t=btn.textContent;btn.textContent='检测中…';
+  const r=await api('/api/lan/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids||[]})});
+  btn.disabled=false;btn.textContent=t;
+  if(r.error){toast(r.error,'err');return;}
+  const bad=(r.results||[]).filter(x=>!x.ok&&x.error);
+  toast(`检测完成：${(r.results||[]).filter(x=>x.ok).length}/${(r.results||[]).length} 台可用`,bad.length?'err':'ok');
+  await lanLoad();
+}
+
+function lanEdit(c){
+  const isNew=!c,d=c||{name:'',host:'',port:8787,token:'',note:''};
+  $('#modal').innerHTML=`<h3>${isNew?'＋ 添加电脑':'编辑电脑'}</h3>
+    <div class="field"><label>名称（自己认得出就行）</label><input id="lc_name" value="${esc(d.name)}" placeholder="如：二楼车间点检机"></div>
+    <div class="row">
+      <div class="field"><label>IP 或计算机名</label><input id="lc_host" value="${esc(d.host)}" placeholder="127.0.0.1"></div>
+      <div class="field"><label>端口</label><input id="lc_port" value="${d.port||8787}"></div>
+    </div>
+    <div class="field"><label>专用令牌（一般留空）</label><input id="lc_token" value="${esc(d.token)}" placeholder="留空 = 自动用系统共享密钥（推荐）"></div>
+    <div class="field"><label>备注（可空）</label><input id="lc_note" value="${esc(d.note||'')}"></div>
+    <p class="muted tiny">留空即可：目标机开箱就能被升级，不用做任何设置。<b>只有</b>目标机被设成「🔒 只认专用令牌」时，才需要把那台电脑后台里的令牌复制过来填这里。</p>
+    <div class="flex mt"><button class="btn primary" id="lc_ok">保存并检测</button><button class="btn" id="lc_cancel">取消</button></div>`;
+  $('#mask').classList.add('show');
+  $('#lc_cancel').onclick=closeM;
+  $('#lc_ok').onclick=async()=>{
+    const b={name:$('#lc_name').value,host:$('#lc_host').value,port:$('#lc_port').value,token:$('#lc_token').value,note:$('#lc_note').value};
+    const r=await api(isNew?'/api/lan/clients':'/api/lan/clients/'+c.id,{method:isNew?'POST':'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    if(r.error){toast(r.error,'err');return;}
+    closeM();toast(isNew?'已添加':'已保存','ok');
+    await lanLoad();
+    if(r.client&&r.client.id)await lanCheck([r.client.id]);
+  };
+}
+
+async function lanDel(id){
+  const c=LAN.clients.find(x=>x.id===id);if(!c)return;
+  if(!confirm(`从清单里移除「${c.name}」？\n（只删记录，目标机上的系统与数据不受影响）`))return;
+  const r=await api('/api/lan/clients/'+id,{method:'DELETE'});
+  if(r.error){toast(r.error,'err');return;}
+  LAN.sel.delete(id);toast('已移除','ok');await lanLoad();
+}
+
+function lanProgRender(){
+  if(!LAN.jobs)return;
+  const rows=Object.entries(LAN.jobs);
+  $('#lan_prog').innerHTML='<div class="flex" style="margin-bottom:4px"><b style="font-size:13px">推送进度</b>'
+    +'<span class="muted tiny">目标机重启期间它的页面会打不开，属正常</span></div>'
+    +rows.map(([id,j])=>{
+      const el=j.t0?Math.round((Date.now()-j.t0)/1000)+'s':'';
+      const chip=j.state==='done'?lanChip('ok','✔ 升级成功'):j.state==='fail'?lanChip('bad','✖ 失败')
+        :j.state==='warn'?lanChip('warn','⚠ 需人工确认'):j.state==='queued'?lanChip('','排队中'):lanChip('busy','◌ 升级中');
+      return `<div class="pg-row"><span class="pg-nm">${esc(j.name)}</span>${chip}<span class="pg-ms">${esc(j.msg)}</span><span class="pg-t">${el}</span></div>`;
+    }).join('');
+}
+
+async function lanGo(){
+  const ids=[...LAN.sel];
+  if(!ids.length){toast('请先勾选要升级的电脑','err');return;}
+  const pk=LAN.pkgs.find(p=>p.id===LAN.pkg);
+  if(!pk||!pk.ok){toast('请先选一个能用的升级包','err');return;}
+  const names=LAN.clients.filter(c=>ids.includes(c.id)).map(c=>c.name).join('、');
+  const rm=LAN.clients.filter(c=>ids.includes(c.id)&&lanNeedManual(c.last_version));
+  let msg=`确认把 ${pk.name}（v${lanV(pk.version)}）推送到：\n\n${names}\n\n升级期间目标机会停服 20~40 秒。点检数据不会被覆盖，失败会自动回滚。`;
+  if(rm.length)msg+=`\n\n注意：${rm.map(c=>c.name).join('、')} 的版本低于 v1.3.0，还没有接收接口，必须先用手工升级包升一次。`;
+  const rt=LAN.clients.filter(c=>ids.includes(c.id)&&lanNeedToken(c.last_version)&&!c.token);
+  if(rt.length)msg+=`\n\n注意：${rt.map(c=>c.name).join('、')} 是 v1.3.0，还不支持「零配置」接收 —— 请给它填上专用令牌，或先手工升到 v1.3.1。`;
+  if(!confirm(msg))return;
+  LAN.busy=true;lanUpdBtns();
+  LAN.jobs={};ids.forEach(id=>{const c=LAN.clients.find(x=>x.id===id);LAN.jobs[id]={name:c?c.name:id,state:'queued',msg:'等待下发…',t0:null};});
+  $('#lan_prog').hidden=false;lanProgRender();
+  if(LAN.timer)clearInterval(LAN.timer);
+  LAN.timer=setInterval(lanProgRender,1000);
+  const r=await api('/api/lan/upgrade',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids:ids,pkg:LAN.pkg,force:$('#lan_force').checked})});
+  if(r.error){
+    ids.forEach(id=>{LAN.jobs[id].state='fail';LAN.jobs[id].msg=r.error;});
+    lanProgRender();LAN.busy=false;lanUpdBtns();clearInterval(LAN.timer);LAN.timer=null;return;
+  }
+  (r.results||[]).forEach(x=>{
+    const j=LAN.jobs[x.id];if(!j)return;
+    j.t0=Date.now();
+    if(x.ok&&x.skipped){j.state='done';j.msg=x.note||'本来就是该版本，已跳过';}
+    else if(x.ok){j.state='busy';j.msg=`已下发（${x.from||'?'} → ${x.to||lanV(pk.version)}），等待重启完成…`;}
+    else{j.state='fail';j.msg=x.error||'下发失败';}
+  });
+  lanProgRender();
+  await lanPoll(r.results.filter(x=>x.ok&&!x.skipped).map(x=>x.id),lanV(r.version||pk.version));
+}
+
+// 本机自升级：把本机当成一台目标机（后端复用「接收推送」那条流程）
+async function lanSelfGo(){
+  const pk=LAN.pkgs.find(p=>p.id===LAN.pkg);
+  if(!pk||!pk.ok){toast('请先选一个能用的升级包：② 里点「⬆ 上传升级包」','err');return;}
+  if(LAN.busy){toast('正在升级中，等这一轮跑完再点','err');return;}
+  const s=LAN.self||{};
+  const nm=(s.host||'本机')+(s.port?(':'+s.port):'');
+  const addr=(s.addrs||[]).join(' / ');
+  if(!confirm(`确认让【这台电脑自己】升级？\n\n本机：${nm}${addr?('（'+addr+'）'):''}\n安装位置：${s.install_dir||''}\n升级包：${pk.name}（本机 ${LAN.cur} → v${lanV(pk.version)}）\n\n升级期间本机服务会停 20~40 秒，这个页面会断开 —— 等一会儿重新打开或刷新即可。\n点检数据不会被覆盖，失败会自动回滚。`))return;
+  LAN.busy=true;lanUpdBtns();
+  LAN.jobs={self:{name:'本机 '+nm,state:'busy',msg:'正在校验升级包并下发…',t0:Date.now()}};
+  $('#lan_prog').hidden=false;lanProgRender();
+  const r=await api('/api/admin/lan/self-upgrade',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pkg:LAN.pkg,force:$('#lan_force').checked})});
+  if(r.error){
+    LAN.jobs.self.state='fail';LAN.jobs.self.msg=r.error;
+    LAN.busy=false;lanUpdBtns();lanProgRender();return;
+  }
+  LAN.jobs.self.msg=r.note||'已下发，正在停服覆盖并重启…';
+  lanProgRender();
+  lanWaitBack(lanV(r.to||pk.version));
+}
+// 自升级期间本机服务会断开：轮询 /api/version，等它带着新版本回来
+async function lanWaitBack(want){
+  const j=LAN.jobs.self;
+  for(let i=0;i<80;i++){                       // 最多等约 4 分钟
+    await new Promise(r=>setTimeout(r,3000));
+    try{
+      const res=await fetch('/api/version?t='+Date.now(),{credentials:'same-origin'});
+      if(!res.ok)continue;
+      const v=await res.json();
+      if(!v||!v.version)continue;
+      if(lanCmp(v.version,want)>=0){j.state='done';j.msg='已升级到 '+v.version+' —— 刷新页面即可';}
+      else{j.state='busy';j.msg='服务已回来，版本仍是 '+v.version+'（升级可能还在收尾，稍等再刷新看看）';}
+      lanProgRender();LAN.busy=false;lanUpdBtns();return;
+    }catch(e){ /* 服务正停着，属正常，继续等 */ }
+  }
+  j.state='fail';
+  j.msg='等了几分钟没等到服务回来 —— 看本机安装目录里的 _升级日志.txt；实在起不来就双击一键升级包手工升一次（数据不会被覆盖）';
+  lanProgRender();LAN.busy=false;lanUpdBtns();
+}
+
+async function lanPoll(ids,want){
+  const dl=Date.now()+180000,left=new Set(ids);
+  ids.forEach(id=>{const j=LAN.jobs[id];if(j){j.seenDown=false;j.oldCnt=0;j.t1=Date.now();}});
+  while(left.size&&Date.now()<dl){
+    await new Promise(r=>setTimeout(r,3000));
+    const r=await api('/api/lan/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[...left]})});
+    (r.results||[]).forEach(x=>{
+      const j=LAN.jobs[x.id];if(!j)return;
+      if(x.ok&&x.version&&lanCmp(x.version,want)>=0){j.state='done';j.msg=`已升级到 ${x.version}`;left.delete(x.id);return;}
+      if(!x.reachable){j.seenDown=true;j.oldCnt=0;j.msg='目标机正在重启（连不上是正常的）…';return;}
+      if(x.ok&&x.version){
+        // 关键：升级必然先「停服」再「重启」，所以只有见过掉线、且回来后版本仍是旧值，才算真没生效。
+        // 否则说明引擎还在备份/还没停服（老代码仍在跑），此时绝不能判定失败。
+        if(j.seenDown){
+          j.oldCnt++;
+          if(j.oldCnt>=2){j.state='warn';j.msg=`服务已重启，但版本仍是 ${x.version}（未生效或已回滚，请到目标机看 _升级日志.txt）`;left.delete(x.id);}
+          else{j.msg=`目标机已重新上线（${x.version}），正在确认…`;}
+        }else{
+          const w=Math.round((Date.now()-(j.t1||Date.now()))/1000);
+          j.msg=`升级进行中：目标机还没停服（${x.version} → v${want}），已等 ${w}s…`;
+          if(w>90){j.state='warn';j.msg=`目标机一直在线且仍是 ${x.version}，升级似乎没开始 —— 请到目标机查看 _升级日志.txt`;left.delete(x.id);}
+        }
+        return;
+      }
+      j.msg=x.error||'等待目标机响应…';
+    });
+    lanProgRender();
+  }
+  left.forEach(id=>{const j=LAN.jobs[id];if(j&&j.state==='busy'){j.state='warn';j.msg='等待超时（3 分钟）——请到目标机查看 _升级日志.txt 与 server.log';}});
+  LAN.busy=false;lanUpdBtns();
+  if(LAN.timer){clearInterval(LAN.timer);LAN.timer=null;}
+  lanProgRender();await lanLoad();
+  const ok=Object.values(LAN.jobs||{}).filter(j=>j.state==='done').length;
+  toast(`推送结束：成功 ${ok} / 共 ${ids.length} 台`,ok===ids.length?'ok':'err');
+}
+
+async function lanScan(){
+  const btn=$('#lan_scan');btn.disabled=true;const t=btn.textContent;btn.textContent='扫描中…';
+  const out=$('#lan_scan_out');out.hidden=false;out.innerHTML='<span class="muted tiny">正在扫描本机所在网段（约 10 秒）…</span>';
+  const r=await api('/api/lan/scan');
+  btn.disabled=false;btn.textContent=t;
+  if(r.error){out.innerHTML=lanChip('bad',esc(r.error));return;}
+  const found=r.found||[];
+  if(!found.length){out.innerHTML=`<span class="muted tiny">在 ${esc((r.subnets||[]).join(' / '))} 网段、端口 ${r.port} 上没有发现装了本系统的电脑（扫了 ${r.scanned} 个地址）。</span>`;return;}
+  out.innerHTML=`<div class="muted tiny" style="margin-bottom:4px">扫了 ${r.scanned} 个地址，发现 <b>${found.length}</b> 台：</div>`
+    +found.map(f=>`<div class="sc-row">
+        <span class="lan-addr">${esc(f.host)}:${f.port}</span>
+        ${lanChip(lanCmp(f.version,LAN.cur)>=0?'ok':'warn',esc(f.version))}
+        <span class="muted tiny">${f.ms}ms</span>
+        ${f.self?lanChip('','本机'):''}
+        ${f.known?lanChip('','已在清单'):''}
+        ${f.self?'':lanChip('','')}:${''}
+        ${(!f.self&&!f.known)?`<button class="btn sm ghost sc-add" data-host="${esc(f.host)}" data-port="${f.port}">＋ 加入清单</button>`:''}
+        ${lanNeedManual(f.version)&&!f.known?'<span class="muted tiny" style="color:var(--warn)">（旧版本，需先手工升一次）</span>':''}
+      </div>`).join('');
+}
+
+async function lanRenderSelf(){
+  const c=await api('/api/lan-upgrade/config');
+  if(c.error)return;
+  const rd=c.ready||{};
+  LAN.self=c;
+  $('#lan_self_tag').textContent=c.enabled?(c.open?'· 接受升级（零配置）':'· 接受升级（仅专用令牌）'):'· 已关闭，拒绝远程升级';
+  $('#lan_self').innerHTML=`
+    <p class="lan-tip">本机 ${esc(c.version)} · ${esc(c.host)}:${c.port} · 安装目录 <code>${esc(c.install_dir)}</code><br>
+      本机默认<b>接受</b>局域网里其它电脑发来的升级推送，<b>不需要任何预先设置</b>；不想被推时关掉即可。</p>
+    <div class="flex" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
+      ${c.enabled?lanChip('ok','● 接受局域网升级'):lanChip('bad','○ 已关闭')}
+      ${c.open?lanChip('ok','🔓 零配置（认系统共享密钥）'):lanChip('warn','🔒 只认专用令牌')}
+      ${rd.engine?'':lanChip('bad','缺少升级引擎')}
+      ${rd.win?'':lanChip('warn','非 Windows，不支持被远程升级')}
+      ${rd.writable?'':lanChip('bad','安装目录不可写')}
+    </div>
+    <div class="lan-tok" style="margin-bottom:8px">
+      <span class="muted tiny">专用令牌</span>
+      <code id="ls_tok">${c.token?esc(c.token):'（未生成）'}</code>
+      ${c.token?'<button class="btn sm ghost" id="ls_copy">📋 复制</button>':''}
+      ${c.token?'<button class="btn sm ghost" id="ls_regen">↻ 重置</button>':''}
+    </div>
+    <div class="flex" style="flex-wrap:wrap;gap:8px">
+      <button class="btn sm ${c.enabled?'danger':'primary'}" id="ls_toggle">${c.enabled?'关闭「接受局域网升级」':'开启「接受局域网升级」'}</button>
+      <button class="btn sm ghost" id="ls_mode">${c.open?'🔒 改为只认专用令牌':'🔓 恢复零配置接受'}</button>
+    </div>`;
+  if($('#ls_toggle'))$('#ls_toggle').onclick=async()=>{
+    const r=await api('/api/lan-upgrade/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!c.enabled})});
+    if(r.error){toast(r.error,'err');return;}
+    toast(r.enabled?'已开启：本机可以接受局域网升级了':'已关闭：本机拒绝一切远程升级推送','ok');lanRenderSelf();
+  };
+  if($('#ls_mode'))$('#ls_mode').onclick=async()=>{
+    const to=!c.open;
+    if(to&&!confirm('改为「只认专用令牌」？\n\n改完后，别的电脑推本机必须先在它那边填上本机令牌，否则一律 401 拒绝。'))return;
+    const r=await api('/api/lan-upgrade/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({open:to})});
+    if(r.error){toast(r.error,'err');return;}
+    toast(to?'已切换：只认专用令牌':'已切换：恢复零配置接受','ok');lanRenderSelf();
+  };
+  if($('#ls_copy'))$('#ls_copy').onclick=async()=>{
+    try{await navigator.clipboard.writeText(c.token);toast('令牌已复制','ok');}
+    catch(e){window.prompt('手动复制令牌：',c.token);}
+  };
+  if($('#ls_regen'))$('#ls_regen').onclick=async()=>{
+    if(!confirm('重置专用令牌？\n\n只有本机被设成「只认专用令牌」时才用得到它；重置后旧令牌立刻失效。'))return;
+    const r=await api('/api/lan-upgrade/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({regenerate:true})});
+    if(r.error){toast(r.error,'err');return;}
+    toast('令牌已重置','ok');lanRenderSelf();
+  };
+}
+$('#lan_add').onclick=()=>lanEdit(null);
+$('#lan_reload').onclick=()=>{toast('已重新扫描升级包','ok');lanLoad();};
+$('#lan_check').onclick=()=>lanCheck(null);
+$('#lan_scan').onclick=lanScan;
+$('#lan_go').onclick=lanGo;
+$('#lan_selfgo').onclick=lanSelfGo;
+$('#lan_upload').onclick=()=>$('#lan_file').click();
+$('#lan_all').onchange=e=>{LAN.sel.clear();if(e.target.checked)LAN.clients.forEach(c=>LAN.sel.add(c.id));lanRenderClients();lanUpdBtns();};
+$('#lan_clients').onchange=e=>{
+  const cb=e.target.closest('.lan-cb');if(!cb)return;
+  cb.checked?LAN.sel.add(cb.dataset.id):LAN.sel.delete(cb.dataset.id);lanUpdBtns();
+};
+$('#lan_clients').onclick=e=>{
+  const el=e.target.closest('button');if(!el)return;
+  const id=el.dataset.id;if(!id)return;
+  if(el.classList.contains('lan-one')){            // 只升这一台：勾上它再走同一个推送流程
+    LAN.sel=new Set([id]);lanRenderClients();lanUpdBtns();lanGo();return;
+  }
+  if(el.classList.contains('lan-ck'))lanCheck([id]);
+  else if(el.classList.contains('lan-ed'))lanEdit(LAN.clients.find(c=>c.id===id));
+  else if(el.classList.contains('lan-del'))lanDel(id);
+};
+$('#lan_pkgs').onclick=e=>{
+  const del=e.target.closest('.pk-del');
+  if(del){
+    const id=del.dataset.del,name=id.slice(id.indexOf(':')+1);
+    if(!confirm(`删除上传的升级包「${name}」？`))return;
+    api('/api/lan/packages/'+encodeURIComponent(name)+'?origin=upload',{method:'DELETE'}).then(r=>{
+      if(r.error){toast(r.error,'err');return;}toast('已删除','ok');if(LAN.pkg===id)LAN.pkg='';lanLoad();
+    });
+    return;
+  }
+  const box=e.target.closest('.lan-pkg');if(!box||box.classList.contains('bad'))return;
+  LAN.pkg=box.dataset.id;localStorage.setItem('lan_pkg',LAN.pkg);
+  lanRenderPkgs();lanUpdBtns();
+};
+$('#lan_scan_out').onclick=e=>{
+  const el=e.target.closest('.sc-add');if(!el)return;
+  lanEdit({name:'',host:el.dataset.host,port:el.dataset.port,token:'',note:''});
+};
+$('#lan_file').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  const btn=$('#lan_upload');btn.disabled=true;const t=btn.textContent;btn.textContent='上传中…';
+  try{
+    const buf=await f.arrayBuffer();
+    const r=await fetch('/api/lan/packages/upload',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/octet-stream','X-EQ-Filename':encodeURIComponent(f.name)},body:buf}).then(x=>x.json());
+    if(r.error)toast(r.error,'err');
+    else{LAN.pkg=r.id;localStorage.setItem('lan_pkg',r.id);
+      toast(`已上传 ${r.name}（v${lanV(r.version)}${r.converted_from_bat?'，已从 .bat 取出内嵌包':''}）`,'ok');await lanLoad();}
+  }catch(err){toast('上传失败：'+err.message,'err');}
+  btn.disabled=false;btn.textContent=t;e.target.value='';
+};
 
 // 设备
 async function loadDev(){
@@ -892,7 +1476,23 @@ function spLoadImg(src) {
     im.src = src;
   });
 }
-// 规整为「透明底 + 按墨迹裁边」的小画布；返回 canvas 或 null
+// 签名图尺寸上限（最长边，像素）。签名最终要落进窄小的签名格（打印约 190px 宽），
+// 存两三千像素的原图毫无意义，却会让 base64 体量暴涨（一张 2400×2400 照片 ≈1MB）：
+// 体量一涨就会撞上服务端请求体上限或签名字段的截断线 —— 那正是「上传成功了却显示不出来」的根源。
+const SP_SIG_MAX_PX = 520;
+function spShrink(canvas, maxSide) {
+  const w = canvas.width, h = canvas.height, m = Math.max(w, h);
+  if (!m || m <= maxSide) return canvas;
+  const s = maxSide / m;
+  const out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(w * s));
+  out.height = Math.max(1, Math.round(h * s));
+  const x = out.getContext('2d');
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+  x.drawImage(canvas, 0, 0, out.width, out.height);
+  return out;
+}
+// 规整为「透明底 + 按墨迹裁边 + 缩到 SP_SIG_MAX_PX」的小画布；返回 canvas 或 null
 async function spPrepared(dataUrl) {
   const im = await spLoadImg(dataUrl);
   if (!im) return null;
@@ -922,7 +1522,7 @@ async function spPrepared(dataUrl) {
   const ow = x1 - x0 + 1, oh = y1 - y0 + 1;
   const out = document.createElement('canvas'); out.width = ow; out.height = oh;
   out.getContext('2d').drawImage(c, x0, y0, ow, oh, 0, 0, ow, oh);
-  return out;
+  return spShrink(out, SP_SIG_MAX_PX);   // 上传的照片动辄两三千像素，必须收到签名格真正需要的尺寸
 }
 // ===== 上传整张签名图 · 自动剪切 =====
 // 与 spPrepared 的分工：
@@ -948,7 +1548,67 @@ function spQuantile(hist, total, q) {
   for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= total * q) return i; }
   return 255;
 }
-// 返回 { canvas, thr, w, h, mode } 或 null（没识别到笔迹）
+// 去噪：删掉面积过小的孤立墨迹（纸纹、噪点、反光点、灰尘）。
+// 不去噪的话，包围盒会被远处一个小斑点撑大、投影分段也会被碎点打散 ——
+// 那正是「整条签名被横着切成三段」这类怪结果的温床。
+function spDenoise(id, w, h) {
+  const d = id.data, n = w * h;
+  const seen = new Uint8Array(n), stack = new Int32Array(n);
+  const comps = [];
+  for (let s = 0; s < n; s++) {
+    if (seen[s] || d[s * 4 + 3] <= 28) continue;
+    let top = 0, area = 0;
+    stack[top++] = s; seen[s] = 1;
+    const px = [];
+    while (top) {                                   // 4 邻域连通域（用栈迭代，避免递归爆栈）
+      const p = stack[--top];
+      px.push(p); area++;
+      const cx = p % w, cy = (p - cx) / w;
+      for (let k = 0; k < 4; k++) {
+        const nx = cx + (k === 0 ? -1 : k === 1 ? 1 : 0), ny = cy + (k === 2 ? -1 : k === 3 ? 1 : 0);
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const q = ny * w + nx;
+        if (seen[q] || d[q * 4 + 3] <= 28) continue;
+        seen[q] = 1; stack[top++] = q;
+      }
+    }
+    comps.push({ area: area, px: px });
+  }
+  if (!comps.length) return 0;
+  let maxA = 0;
+  for (const c of comps) if (c.area > maxA) maxA = c.area;
+  const keepMin = Math.max(10, Math.round(maxA * .01));   // 小于最大墨迹 1% 的碎点一律剔除
+  let removed = 0;
+  for (const c of comps) {
+    if (c.area >= keepMin) continue;
+    removed++;
+    for (const p of c.px) d[p * 4 + 3] = 0;
+  }
+  return removed;
+}
+// 去噪 + 按墨迹裁边（留 4% 余量）；两条抠底分支共用。返回 { canvas, w, h, specks } 或 null
+function spFinishMask(c, x, id, w, h) {
+  const specks = spDenoise(id, w, h);
+  const d = id.data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let p = 0; p < w * h; p++) {
+    if (d[p * 4 + 3] <= 28) continue;
+    const px = p % w, py = (p - px) / w;
+    if (px < x0) x0 = px; if (px > x1) x1 = px;
+    if (py < y0) y0 = py; if (py > y1) y1 = py;
+  }
+  if (x1 < 0) return null;
+  x.putImageData(id, 0, 0);                         // 必须先写回画布，下面 drawImage 取的是它
+  const padX = Math.max(2, Math.round((x1 - x0 + 1) * .04)),
+        padY = Math.max(2, Math.round((y1 - y0 + 1) * .04));
+  x0 = Math.max(0, x0 - padX); y0 = Math.max(0, y0 - padY);
+  x1 = Math.min(w - 1, x1 + padX); y1 = Math.min(h - 1, y1 + padY);
+  const ow = x1 - x0 + 1, oh = y1 - y0 + 1;
+  const out = document.createElement('canvas'); out.width = ow; out.height = oh;
+  out.getContext('2d').drawImage(c, x0, y0, ow, oh, 0, 0, ow, oh);
+  return { canvas: out, w: ow, h: oh, specks: specks };
+}
+// 返回 { canvas, thr, w, h, mode, specks } 或 null（没识别到笔迹）
 async function spAutoCut(dataUrl, thrSet) {
   const im = await spLoadImg(dataUrl);
   if (!im) return null;
@@ -966,6 +1626,26 @@ async function spAutoCut(dataUrl, thrSet) {
     const i = p * 4;
     const g = (d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114) | 0;
     gray[p] = g; hist[g]++;
+  }
+  // --- 分支 A：图里大部分像素是全透明的，说明这本身就是一张「已抠底的签名图」
+  //     （本系统生成的签名图、拆字重排的素材、用抠图工具处理过的 PNG 都长这样）。
+  //     这类图笔迹信息在 alpha 通道里，RGB 往往是全 0 —— 绝不能走灰度阈值：
+  //     透明区域算出来的灰度是"纯黑"，背景归一化随之失效，阈值会一路退化到 0，
+  //     最后一个像素都留不下（旧版就是在这里直接报「没识别出笔迹」）。
+  let aZero = 0;
+  for (let p = 0; p < w * h; p++) if (d[p * 4 + 3] <= 8) aZero++;
+  if (aZero / (w * h) > .5) {
+    for (let p = 0; p < w * h; p++) {
+      const i = p * 4;
+      if (d[i + 3] <= 28) { d[i + 3] = 0; continue; }
+      d[i + 3] = 255;
+      const k = .30 + .70 * Math.min(1, gray[p] / 150);        // 顺带压暗一点，打印更实
+      d[i] = Math.round(d[i] * k); d[i + 1] = Math.round(d[i + 1] * k);
+      d[i + 2] = Math.round(d[i + 2] * k);
+    }
+    const fin0 = spFinishMask(c, x, id, w, h);
+    if (!fin0) return null;
+    return { canvas: fin0.canvas, thr: 0, w: fin0.w, h: fin0.h, mode: 'alpha', specks: fin0.specks };
   }
   // --- 背景估计：缩到 1/22 再放大回来 ≈ 一次超大口径均值滤波。
   //     结果只剩「周围一大片区域的整体亮度」，笔迹这种细节被抹掉。
@@ -1029,63 +1709,163 @@ async function spAutoCut(dataUrl, thrSet) {
     if (py < y0) y0 = py; if (py > y1) y1 = py;
   }
   if (x1 < 0) return null;                             // 全被剔除 → 没识别到笔迹
-  x.putImageData(id, 0, 0);
-  const padX = Math.max(2, Math.round((x1 - x0 + 1) * .04)),
-        padY = Math.max(2, Math.round((y1 - y0 + 1) * .04));
-  x0 = Math.max(0, x0 - padX); y0 = Math.max(0, y0 - padY);
-  x1 = Math.min(w - 1, x1 + padX); y1 = Math.min(h - 1, y1 + padY);
-  const ow = x1 - x0 + 1, oh = y1 - y0 + 1;
-  const out = document.createElement('canvas'); out.width = ow; out.height = oh;
-  out.getContext('2d').drawImage(c, x0, y0, ow, oh, 0, 0, ow, oh);
-  return { canvas: out, thr: thr, w: ow, h: oh, mode: useRel ? 'rel' : 'abs' };
+  const fin = spFinishMask(c, x, id, w, h);            // 去噪 + 按墨迹裁边（两条分支共用）
+  if (!fin) return null;
+  return { canvas: fin.canvas, thr: thr, w: fin.w, h: fin.h,
+           mode: useRel ? 'rel' : 'abs', specks: fin.specks };
 }
-// 笔迹投影：竖图按行投影、横图按列投影，连续非零区间即一段笔迹
-function spProjection(canvas) {
+// 双向笔迹投影：一次遍历同时算出「按列」（横排用）与「按行」（竖排用）两个方向的墨迹量。
+// 另外把行方向的连续段收拾成「横带」（band），带上带下各自留墨量、左右范围 —— 用来识别干扰笔迹。
+function spProjection2(canvas, yRange) {
   const w = canvas.width, h = canvas.height;
+  const yLo = yRange ? Math.max(0, yRange[0]) : 0;
+  const yHi = yRange ? Math.min(h - 1, yRange[1]) : h - 1;
   const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
-  const vertical = h >= w;
-  const n = vertical ? h : w;
-  const proj = new Array(n).fill(0);
-  for (let p = 0; p < w * h; p++) {
-    if (d[p * 4 + 3] <= 28) continue;
-    const px = p % w, py = (p - px) / w;
-    proj[vertical ? py : px]++;
-  }
-  const segs = [];
-  let st = -1;
-  for (let i = 0; i < n; i++) {
-    const on = proj[i] > 0;
-    if (on && st < 0) st = i;
-    if (!on && st >= 0) { segs.push([st, i - 1]); st = -1; }
-  }
-  if (st >= 0) segs.push([st, n - 1]);
-  return { vertical, n, w, h, segs };
-}
-// 把一张（已去背景的）签名图按笔迹投影切成 expectN 个字；粘连/碎片时按字数均分兜底
-async function spProjectCut(canvas, expectN) {
-  const { vertical, n, w, h, segs } = spProjection(canvas);
-  if (!w || !h || expectN < 1) return [];
-  let ranges = segs;
-  if (segs.length !== expectN) {
-    ranges = [];
-    for (let i = 0; i < expectN; i++) {
-      ranges.push([Math.round(i * n / expectN), Math.round((i + 1) * n / expectN) - 1]);
+  const col = new Array(w).fill(0), row = new Array(h).fill(0);
+  for (let py = yLo; py <= yHi; py++) {
+    const base = py * w;
+    for (let px = 0; px < w; px++) {
+      if (d[(base + px) * 4 + 3] <= 28) continue;
+      col[px]++; row[py]++;
     }
   }
-  const cutOne = (a, b) => {
-    const cv = document.createElement('canvas');
-    if (vertical) {
-      cv.width = w; cv.height = b - a + 1;
-      cv.getContext('2d').drawImage(canvas, 0, a, w, cv.height, 0, 0, w, cv.height);
-    } else {
-      cv.width = b - a + 1; cv.height = h;
-      cv.getContext('2d').drawImage(canvas, a, 0, cv.width, h, 0, 0, cv.width, h);
+  const segOf = arr => {
+    const out = []; let st = -1;
+    for (let i = 0; i < arr.length; i++) {
+      const on = arr[i] > 0;
+      if (on && st < 0) st = i;
+      if (!on && st >= 0) { out.push([st, i - 1]); st = -1; }
     }
-    return cv;
+    if (st >= 0) out.push([st, arr.length - 1]);
+    return out;
   };
+  const cols = segOf(col), rows = segOf(row);
+  const ofRow = new Int32Array(h).fill(-1);
+  rows.forEach((r, i) => { for (let y = r[0]; y <= r[1]; y++) ofRow[y] = i; });
+  const bands = rows.map(r => ({ y0: r[0], y1: r[1], ink: 0, x0: w, x1: -1 }));
+  for (let py = yLo; py <= yHi; py++) {
+    const bi = ofRow[py]; if (bi < 0) continue;
+    const b = bands[bi], base = py * w;
+    for (let px = 0; px < w; px++) {
+      if (d[(base + px) * 4 + 3] <= 28) continue;
+      b.ink++;
+      if (px < b.x0) b.x0 = px;
+      if (px > b.x1) b.x1 = px;
+    }
+  }
+  bands.forEach(b => { b.w = b.x1 - b.x0 + 1; b.h = b.y1 - b.y0 + 1; });
+  return { w, h, col, row, cols, rows, bands };
+}
+// 墨迹最多的那条横带（签名本体的可能性最大；日期、表格线这类干扰笔迹墨量通常远小于它）
+function spMainBand(P) {
+  let best = null;
+  for (const b of P.bands) if (!best || b.ink > best.ink) best = b;
+  return best;
+}
+// 选切分轴 —— 这一步是整个功能的命门。
+// 只按「包围盒是横是竖」判断会翻车：照片里带上日期、表格线，或背景没抠干净时，
+// 包围盒会变成竖长，整条签名就会被「横着切成三段」（一格是残片、一格是整条签名、一格空）。
+// 判据优先级：行列能否正好对上字数 → 主笔迹带是不是横长 → 哪个方向连续。
+// 返回 { axis:'col' 竖着切/横排签名 ｜ 'row' 横着切/竖排名字, segs, proj, band, why }
+function spPickAxis(P, canvas, N) {
+  const cs = P.cols, rs = P.rows;
+  if (N > 1) {
+    if (rs.length === N && cs.length === 1)
+      return { axis: 'row', segs: rs, proj: P.row, band: null, why: '竖排：行方向正好 ' + N + ' 段、列方向是连续一条' };
+    if (cs.length === N)
+      return { axis: 'col', segs: cs, proj: P.col, band: null, why: '横排：列方向正好 ' + N + ' 段笔迹' };
+  }
+  const band = spMainBand(P);
+  if (band && (band.w / Math.max(1, band.h)) >= 1.15 && band.h < P.h * .95) {
+    const BP = spProjection2(canvas, [band.y0, band.y1]);
+    return { axis: 'col', segs: BP.cols, proj: BP.col, band: [band.y0, band.y1],
+             why: '横排：按墨迹最多的那条横带切（带外的笔迹视为干扰）' };
+  }
+  if (rs.length === 1 && cs.length > 1)
+    return { axis: 'col', segs: cs, proj: P.col, band: null, why: '横排：整幅只有一行笔迹' };
+  if (cs.length === 1 && rs.length > 1)
+    return { axis: 'row', segs: rs, proj: P.row, band: null, why: '竖排：整幅只有一列笔迹' };
+  return (P.w / P.h >= 1.15)
+    ? { axis: 'col', segs: cs, proj: P.col, band: null, why: '按整体长宽比判为横排' }
+    : { axis: 'row', segs: rs, proj: P.row, band: null, why: '按整体长宽比判为竖排' };
+}
+// 段数多于字数（断笔被切成好几段）：在最大的 N-1 个间隙处切开，其余相邻段合成一个字
+function spClusterSegs(segs, N) {
+  if (segs.length <= N) return null;
+  const gaps = [];
+  for (let i = 1; i < segs.length; i++) gaps.push({ i: i, g: segs[i][0] - segs[i - 1][1] - 1 });
+  gaps.sort((p, q) => (q.g - p.g) || (p.i - q.i));
+  const cuts = gaps.slice(0, N - 1).map(g => g.i).sort((p, q) => p - q);
+  const out = [];
+  let s = 0;
+  for (const c of cuts) { out.push([segs[s][0], segs[c - 1][1]]); s = c; }
+  out.push([segs[s][0], segs[segs.length - 1][1]]);
+  return out;
+}
+// 段数少于字数（连笔把两个字连成一段）：在墨迹范围内找投影谷底切；谷底不够就等分
+function spValleyCuts(proj, a, b, N) {
+  const len = b - a + 1;
+  if (len < N) return null;
+  const sm = new Array(len);
+  for (let i = 0; i < len; i++) {
+    const v = proj[a + i] || 0, l = proj[a + i - 1] || 0, r = proj[a + i + 1] || 0;
+    sm[i] = (v * 2 + l + r) / 4;
+  }
+  const cand = [];
+  for (let i = 1; i < len - 1; i++) if (sm[i] <= sm[i - 1] && sm[i] <= sm[i + 1]) cand.push(i);
+  if (cand.length < N - 1) return null;
+  cand.sort((p, q) => (sm[p] - sm[q]) || (p - q));
+  const pick = cand.slice(0, N - 1).sort((p, q) => p - q);
+  const minGap = Math.max(2, Math.round(len / (N * 4)));
+  if (pick[0] < minGap) return null;
+  if (len - 1 - pick[pick.length - 1] < minGap) return null;
+  for (let i = 1; i < pick.length; i++) if (pick[i] - pick[i - 1] < minGap) return null;
+  const out = [];
+  let s = a;
+  for (const c of pick) { out.push([s, a + c - 1]); s = a + c; }
+  out.push([s, b]);
+  return out;
+}
+function spEvenCuts(a, b, N) {
+  const len = b - a + 1, out = [];
+  for (let i = 0; i < N; i++) {
+    out.push([a + Math.round(i * len / N), a + Math.round((i + 1) * len / N) - 1]);
+  }
+  return out.filter(r => r[1] >= r[0]);
+}
+// 由「轴 + 该轴上的分段」定出 N 个切分区间
+function spRanges(pick, N) {
+  const segs = (pick.segs || []).filter(s => s[1] >= s[0]);
+  if (!segs.length) return [];
+  const a = segs[0][0], b = segs[segs.length - 1][1];
+  if (N <= 1) return [[a, b]];
+  if (segs.length === N) return segs;
+  if (segs.length > N) return spClusterSegs(segs, N) || spEvenCuts(a, b, N);
+  return spValleyCuts(pick.proj, a, b, N) || spEvenCuts(a, b, N);
+}
+function spCutOne(canvas, pick, a, b) {
+  const cv = document.createElement('canvas');
+  if (pick.axis === 'col') {
+    const y0 = pick.band ? pick.band[0] : 0;
+    const y1 = pick.band ? pick.band[1] : canvas.height - 1;
+    cv.width = b - a + 1; cv.height = y1 - y0 + 1;
+    cv.getContext('2d').drawImage(canvas, a, y0, cv.width, cv.height, 0, 0, cv.width, cv.height);
+  } else {
+    cv.width = canvas.width; cv.height = b - a + 1;
+    cv.getContext('2d').drawImage(canvas, 0, a, cv.width, cv.height, 0, 0, cv.width, cv.height);
+  }
+  return cv;
+}
+// 把一张（已去背景的）签名图切成 expectN 个字。
+// 先判断字是横着排还是竖着排，再按字与字之间「真实的间隙」切 —— 不再一遇到段数对不上就等分硬切。
+async function spProjectCut(canvas, expectN) {
+  if (!canvas || !canvas.width || !canvas.height || expectN < 1) return [];
+  const P = spProjection2(canvas);
+  const pick = spPickAxis(P, canvas, expectN);
+  const ranges = spRanges(pick, expectN);
   const out = [];
   for (const [a, b] of ranges) {
-    const t = await spPrepared(cutOne(a, b).toDataURL());
+    const t = await spPrepared(spCutOne(canvas, pick, a, b).toDataURL());
     out.push(t ? t.toDataURL() : '');
   }
   return out;
@@ -1125,9 +1905,12 @@ function spAutoDir(cs) {
   const rs = cs.map(c => c.width / c.height).sort((a, b) => a - b);
   return rs[Math.floor(rs.length / 2)] < 0.9 ? 'v' : 'h';
 }
-// 把一整张签名图按墨迹投影切成 expectN 个字（老数据「拆字重排」用）
+// 把一整张签名图按笔迹切成 expectN 个字（老数据「拆字重排」用）
+// 与「自动剪切」共用同一套抠底：现有签名图多是透明底的 PNG，必须走 alpha 分支才取得出笔迹。
 async function spSplitImage(dataUrl, expectN) {
-  const im = await spLoadImg(dataUrl);
+  const r = await spAutoCut(dataUrl, 0);
+  if (r) return spProjectCut(r.canvas, expectN);
+  const im = await spLoadImg(dataUrl);              // 抠底失败就退回「只去白底」，仍按投影切
   if (!im || expectN < 1) return [];
   const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
   if (!w || !h) return [];
@@ -1145,6 +1928,27 @@ async function spSplitImage(dataUrl, expectN) {
 // 姓名拆字：中文按字拆，空白剔除，上限 SP_MAX_CHARS
 function spSplitName(name) {
   return Array.from(String(name || '').replace(/[\s\u3000]+/g, '')).slice(0, SP_MAX_CHARS);
+}
+// 提交前把「逐字图」统一规整：抠白底 + 裁边 + 缩到 SP_SIG_MAX_PX。
+// 上传的原图（手机拍照常见 2~4MB）若不缩，光 sig_chars 就有几 MB，
+// 会直接撞上服务端请求体上限（旧版 5MB 时必炸）或签名字段的截断线 → 保存失败 / 存进坏图。
+async function spCharsForSubmit(chars) {
+  const out = [];
+  for (const u of (chars || [])) {
+    if (!u) { out.push(''); continue; }
+    try { const c = await spPrepared(u); out.push(c ? c.toDataURL('image/png') : ''); }
+    catch (e) { out.push(''); }
+  }
+  return out;
+}
+// 提交前的体量兜底：距服务端上限（20MB）留足余量，超了就地给出可读提示，不让请求白跑一趟
+function sigBodyTooBig(body) {
+  const n = JSON.stringify(body).length;
+  if (n > 15e6) {
+    toast('签名数据约 ' + Math.round(n / 1024 / 1024) + 'MB，超出上限：请减少签名字数，或改用更小的图片', 'err');
+    return true;
+  }
+  return false;
 }
 
 // 挂载一个签名书写面板；返回控制对象
@@ -1211,7 +2015,15 @@ function makeSigPad(root) {
     const url = st.chars[i]; if (!url) return;
     const cell = cellsBox.querySelector('.sp-cell[data-i="' + i + '"]'); if (!cell) return;
     const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
-    spLoadImg(url).then(im => { if (im) ctx.drawImage(im, 0, 0, cv.width, cv.height); });
+    // 保持长宽比居中显示：旧版是拉伸铺满整格，切错的图（一格塞进两三个字）会被拉得"看着挺正常"，看不出问题
+    spLoadImg(url).then(im => {
+      if (!im) return;
+      const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
+      if (!iw || !ih) return;
+      const s = Math.min(cv.width / iw, cv.height / ih);
+      const dw = iw * s, dh = ih * s;
+      ctx.drawImage(im, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
+    });
   }
   function bindCell(cell, i) {
     const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -1310,14 +2122,25 @@ function makeSigPad(root) {
     st.cut = r.canvas; st.cutThr = r.thr;
     cutImg.src = r.canvas.toDataURL('image/png');
     thrR.value = r.thr; thrV.textContent = r.thr;
-    const n = st.names.length, seg = spProjection(r.canvas).segs.length;
-    segsEl.textContent = '笔迹 ' + seg + ' 段' + (n ? ' / 姓名 ' + n + ' 字' + (seg === n ? ' ✓' : '') : '');
-    segsEl.dataset.mode = r.mode || '';            // rel=背景归一化 / abs=绝对灰度（排查用）
-    cutTip.textContent = n
-      ? (seg === n
-          ? '识别到 ' + seg + ' 段笔迹，与姓名 ' + n + ' 个字正好对应，点「应用到书写格」即可。'
-          : '识别到 ' + seg + ' 段笔迹，与姓名 ' + n + ' 个字不一致 —— 应用时会按 ' + n + ' 等分（连笔或断笔常见，可先调阈值再应用）。')
-      : '请先在上面输入姓名 —— 系统按字拆格，需要知道要切成几个字。';
+    const n = st.names.length;
+    const P = spProjection2(r.canvas);
+    if (!n) {
+      segsEl.textContent = '笔迹 列 ' + P.cols.length + ' 段 / 行 ' + P.rows.length + ' 段';
+      segsEl.dataset.mode = r.mode || '';
+      cutTip.textContent = '请先在上面输入姓名 —— 系统按字拆格，需要知道要切成几个字。';
+      return;
+    }
+    const pick = spPickAxis(P, r.canvas, n);
+    const okCut = pick.segs.length === n;
+    segsEl.textContent = '笔迹 列 ' + P.cols.length + ' 段 / 行 ' + P.rows.length + ' 段 · ' +
+      (pick.axis === 'col' ? '竖切' : '横切') + (pick.band ? '(取主笔迹带)' : '') + (okCut ? ' ✓' : ' ⚠');
+    segsEl.dataset.mode = r.mode || '';              // alpha=已抠底图 / rel=背景归一化 / abs=绝对灰度（排查用）
+    const notes = [];
+    if (r.mode === 'alpha') notes.push('这是已抠底的签名图（透明背景），按 alpha 通道取笔迹');
+    if (!okCut) notes.push('笔迹段数与姓名 ' + n + ' 字不一致，已按' + (pick.segs.length > n ? '最大间隙归并' : '墨迹谷底') + '切成 ' + n + ' 格，出来不对就调阈值或改用逐格上传');
+    if (pick.band) notes.push('图中还有其它笔迹（日期、表格线之类），已忽略');
+    if (r.specks) notes.push('滤掉 ' + r.specks + ' 处碎点');
+    cutTip.textContent = '识别：' + pick.why + '。' + (notes.length ? notes.join('；') + '。' : '') + '点「应用到书写格」即可。';
   }
   q('autocut').onclick = () => {
     if (!st.names.length) { toast('请先输入姓名，再上传整张签名图（要按字数切分）', 'err'); return; }
@@ -1348,7 +2171,9 @@ function makeSigPad(root) {
     if (!got) { toast('剪切结果为空，请调整阈值后重试', 'err'); return; }
     st.chars = arr.concat(st.chars.slice(arr.length)).slice(0, st.names.length);
     buildCells();
-    toast('已自动剪切并填入 ' + got + ' 个字', 'ok');
+    toast(got < st.names.length
+      ? '已填入 ' + got + '/' + st.names.length + ' 个字，有格子没切出内容，可调阈值再试或逐格上传'
+      : '已自动剪切并填入 ' + got + ' 个字', got < st.names.length ? '' : 'ok');
     closeCut();
   };
   return {
@@ -1387,14 +2212,22 @@ $('#sg_add').onclick = async () => {
   const name = ($('#sg_name').value || '').trim(), pw = $('#sg_pw').value;
   if (!name || !pw) { toast('姓名与密码必填', 'err'); return; }
   if (addPad.empty()) { toast('请至少写一个字或上传单字图片', 'err'); return; }
-  const out = await addPad.gen();
-  if (!out.h && !out.v) { toast('签名内容为空，请检查书写格', 'err'); return; }
-  const body = { name, password: pw, sig_chars: addPad.chars(), sig_dir: addPad.dir(),
-    signature_image: out.h || out.v, signature_image_v: out.v };
-  const r = await api('/api/signers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (r.error) { toast(r.error, 'err'); return; }
-  toast('已添加签名人员', 'ok');
-  $('#sg_name').value = ''; $('#sg_pw').value = ''; addPad.reset(); loadSig();
+  const btn = $('#sg_add'); btn.disabled = true;      // 大图规整要花点时间，顺手防重复点击
+  try {
+    const out = await addPad.gen();
+    if (!out.h && !out.v) { toast('签名内容为空，请检查书写格', 'err'); return; }
+    const body = { name, password: pw, sig_chars: await spCharsForSubmit(addPad.chars()), sig_dir: addPad.dir(),
+      signature_image: out.h || out.v, signature_image_v: out.v };
+    if (sigBodyTooBig(body)) return;
+    const r = await api('/api/signers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.error) { toast(r.error, 'err'); return; }
+    toast('已添加签名人员', 'ok');
+    $('#sg_name').value = ''; $('#sg_pw').value = ''; addPad.reset(); loadSig();
+  } catch (e) {
+    // 旧版这里没有 try/catch：请求一旦失败（例如图片过大被服务端掐断连接），
+    // 界面上不会有任何反应，用户只觉得「点了没动静、上传没成功」。
+    toast('保存失败：' + ((e && e.message) ? e.message : e) + '（图片较大时请先裁小再上传）', 'err');
+  } finally { btn.disabled = false; }
 };
 
 // ---- 列表 / 编辑 ----
@@ -1409,10 +2242,26 @@ async function loadSig() {
   const rows = await api('/api/signers');
   $('#sg_list').innerHTML = rows.map(s => `<tr>
     <td>${esc(s.name)}</td>
-    <td>${(s.has_sig || s.has_sig_v) ? '<img src="/api/signers/' + s.id + '/sig?t=' + Date.now() + '" style="height:30px;max-width:190px;object-fit:contain;background:#fff;border-radius:4px;padding:1px 3px">' : '<span class="muted tiny">未上传</span>'}</td>
+    <td>${(s.has_sig || s.has_sig_v) ? '<img data-sigimg="' + s.id + '" alt="签名" style="height:30px;max-width:190px;object-fit:contain;background:#fff;border-radius:4px;padding:1px 3px">' : '<span class="muted tiny">未上传</span>'}</td>
     <td>${sigVerTag(s)}${s.chars ? ' <span class="muted tiny">逐字 ' + s.chars + '</span>' : ''}</td>
     <td>${s.active ? '<span class="pill ok">启用</span>' : '<span class="pill ng">停用</span>'}</td>
     <td><button class="btn sm" onclick="editSig('${s.id}')">编辑</button> <button class="btn sm danger" onclick="delSig('${s.id}')">删除</button></td></tr>`).join('');
+  fillSigThumbs(rows);
+}
+// 缩略图必须经 JSON 接口取回 data URL 再赋给 img.src。
+// 旧版把 /api/signers/:id/sig 直接写进 <img src>，而该接口返回的是 JSON（Content-Type: application/json），
+// 浏览器无法当图片解码 → 缩略图永远是破图。表现就是「签名上传成功了，但列表里看不到」。
+async function fillSigThumbs(rows) {
+  for (const s of (rows || [])) {
+    if (!s.has_sig && !s.has_sig_v) continue;
+    const img = document.querySelector('#sg_list img[data-sigimg="' + s.id + '"]');
+    if (!img) continue;
+    try {
+      const d = await api('/api/signers/' + s.id + '/sig');
+      const src = d.image_h || d.image_v || '';
+      if (src) img.src = src;
+    } catch (e) { /* 单张取不到不影响列表其它行 */ }
+  }
 }
 async function delSig(id) { if (!confirm('确认删除该签名人员？')) return; const r = await api('/api/signers/' + id, { method: 'DELETE' }); if (r.error) { toast(r.error, 'err'); return; } toast('已删除', 'ok'); loadSig(); }
 async function editSig(id) {
@@ -1450,9 +2299,10 @@ async function saveSig(id) {
       const out = await editPad.gen();
       body.signature_image = out.h || out.v || null;
       body.signature_image_v = out.v || null;
-      body.sig_chars = editPad.chars();
+      body.sig_chars = await spCharsForSubmit(editPad.chars());
       body.sig_dir = editPad.dir();
     }
+    if (sigBodyTooBig(body)) return;
     const r = await api('/api/signers/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (r.error) { toast(r.error, 'err'); return; }
     toast('已保存', 'ok'); closeM(); loadSig();
@@ -1460,6 +2310,79 @@ async function saveSig(id) {
     toast('保存失败: ' + e.message, 'err');
   }
 }
+
+// ===== 温湿度一键填充（后台）=====
+// 只补空格：1 日 ~ 截止日之间「还没有内容」的格子才会被填，已有数据（含签名、划线）一律不动。
+// 温度/湿度由各房间「综合温湿度要求」解析出的限定范围生成，保证落在范围内；
+// 解析不出范围的房间整间跳过并列出原因 —— 不知道范围就不填，绝不猜。
+async function loadEnvFill(){
+  const signers=await api('/api/signers/public');
+  $('#e_signer').innerHTML='<option value="">（请选择）</option>'+signers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const rooms=await api('/api/rooms');
+  const hasReq=r=>{
+    const t=String(r.thermo_requirement||'');
+    return /温度(?:要求)?\s*[：:]\s*-?\d/.test(t) && /湿度(?:要求)?\s*[：:]\s*(≤|<=|<|不超过)\s*\d/.test(t);
+  };
+  $('#e_room').innerHTML=rooms.map(r=>`<option value="${esc(r.name)}">${esc(r.name)}${hasReq(r)?'':'（未配要求，会被跳过）'}</option>`).join('');
+  $('#e_scope').value='all';
+  $('#e_roomwrap').style.display='none';
+  const tm=localMonth();
+  $('#e_month').value=tm;
+  $('#e_month').max=tm;                     // 不允许未来月份
+  $('#e_end').value=localToday();
+  clampEnvEnd(tm);
+  $('#e_pw').value='';
+  $('#e_stat').textContent='';
+  $('#e_result').innerHTML='';
+}
+// 截止日期的可选范围：月初 ~ min(今天, 月末)
+function clampEnvEnd(month){
+  if(!month) return;
+  const [yy,mm]=month.split('-');
+  const dim=dimOf(yy,mm);
+  const minDate=month+'-01';
+  const maxEnd=(month===localMonth())?localToday():`${month}-${String(dim).padStart(2,'0')}`;
+  const el=$('#e_end');
+  el.min=minDate; el.max=maxEnd;
+  const cur=el.value;
+  if(!cur||cur<minDate||cur>maxEnd) el.value=maxEnd;
+}
+$('#e_scope').onchange=()=>{ $('#e_roomwrap').style.display=($('#e_scope').value==='room')?'block':'none'; };
+$('#e_month').onchange=()=>clampEnvEnd($('#e_month').value);
+$('#e_go').onclick=async()=>{
+  const month=$('#e_month').value, end=$('#e_end').value, scope=$('#e_scope').value,
+        room=$('#e_room').value, sid=$('#e_signer').value, pw=$('#e_pw').value;
+  if(!month){toast('请选择月份','err');return;}
+  if(!sid){toast('请选择签名人','err');return;}
+  if(!pw){toast('请输入签名密码','err');return;}
+  const rej=rejectFutureMonth(month); if(rej){toast(rej,'err');return;}
+  if(scope==='room'&&!room){toast('请选择房间','err');return;}
+  if(!end){toast('请选择截止日期','err');return;}
+  if(end<month+'-01'||end>localToday()){toast('截止日期需在所选月份的 1 日至今天之间','err');return;}
+  const endDay=parseInt(end.slice(8,10),10);
+  const who=$('#e_signer').selectedOptions[0]?$('#e_signer').selectedOptions[0].textContent:'';
+  const desc=(scope==='room')?('房间「'+room+'」'):'全部房间';
+  if(!confirm('将把 '+month+' 月 1 日 ~ '+endDay+' 日之间【还空着】的温湿度格子填满（'+desc+'），并套用「'+who+'」的电子签名。\n\n· 已有数据的格子（含签名、划线）一律不动\n· 温度 / 湿度按各房间的温湿度要求生成，保证在范围内\n· 未配置温湿度要求的房间会整间跳过\n\n确定继续吗？')) return;
+  const btn=$('#e_go'); btn.disabled=true; $('#e_stat').textContent='填充中…'; $('#e_result').innerHTML='';
+  let r;
+  try{
+    r=await api('/api/admin/env-fill',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ym:month,end_day:endDay,scope,room,signer_id:sid,password:pw})});
+  }catch(e){ btn.disabled=false; $('#e_stat').textContent=''; toast('填充失败：'+((e&&e.message)?e.message:e),'err'); return; }
+  btn.disabled=false;
+  if(r.error){ $('#e_stat').textContent=''; toast(r.error,'err'); return; }
+  $('#e_stat').textContent='已填 '+r.cells+' 格 / '+r.days+' 天，涉及 '+r.rooms+' 个房间';
+  let h='<div>✅ '+(r.signer?esc(r.signer.name):'')+'：已填 <b>'+r.cells+'</b> 格（'+r.days+' 天），涉及 <b>'+r.rooms+'</b> 个房间</div>';
+  if(!r.signer_has_sig) h+='<div style="color:var(--warn)">⚠ 该签名人还没有电子签名图，记录员格只有名字、不会有签名</div>';
+  const filled=(r.detail||[]).filter(d=>d.cells>0);
+  if(filled.length) h+='<div>填写明细（就是取值区间，可据此核对是否在范围内）：<br>· '+filled.map(d=>esc(d.room)+' '+d.cells+' 格 · 温 '+d.temp_band+'℃ / 湿 '+d.hum_band+'%RH').join('<br>· ')+'</div>';
+  const none=(r.detail||[]).filter(d=>!d.cells);
+  if(none.length) h+='<div class="muted">· 已无空格、无需填充：'+none.map(d=>esc(d.room)).join('、')+'</div>';
+  if(r.skipped&&r.skipped.length) h+='<div style="color:var(--warn)">⚠ 已跳过 '+r.skipped.length+' 个房间：<br>· '+r.skipped.map(s=>esc(s.room)+'：'+esc(s.reason)).join('<br>· ')+'</div><div><a href="/admin?tab=room" target="_blank" rel="noopener">→ 去「房间管理」补填温湿度要求</a></div>';
+  h+='<div class="muted" style="margin-top:4px">填完可到「温湿度」页面直接核对 / 手工微调。</div>';
+  $('#e_result').innerHTML=h;
+  toast('温湿度已填充 '+r.cells+' 格','ok');
+};
 
 // 记录
 async function loadRec(){

@@ -22,7 +22,11 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const zlib = require('zlib');
+const { Readable } = require('stream');      // 本机自升级要造一个「内部请求」喂给接收流程
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const { webcrypto } = crypto;
 const subtle = webcrypto.subtle;
 
@@ -35,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.2.7';
-const APP_VERSION_DATE = '2026-09-14';
+const APP_VERSION = 'v1.4.0';
+const APP_VERSION_DATE = '2026-09-15';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -61,7 +65,7 @@ function ensureConfig() {
 // ===================== 数据存储（模拟 KV） =====================
 // store 结构与原 Cloudflare KV 命名空间 INSPECTION_DATA 保持一致：
 // { admin, devices, templates, signers, inspections }
-let store = { admin: null, devices: [], templates: [], signers: [], inspections: [], abnormalRecords: [], rooms: [], envRecords: [] };
+let store = { admin: null, devices: [], templates: [], signers: [], inspections: [], abnormalRecords: [], rooms: [], depts: [], envRecords: [] };
 
 function loadStore() {
   try {
@@ -194,6 +198,8 @@ async function ensureUsers() {
 const allDevices = () => kvget('devices', []);
 const allTemplates = () => kvget('templates', []);
 const allSigners = () => kvget('signers', []);
+// 科室清单（后台维护）：房间与用户都从这里选。默认空数组，老库无 depts 键时不报错
+const allDepts = () => kvget('depts', []);
 const allInspections = () => kvget('inspections', []);
 const allAbnormal = () => kvget('abnormalRecords', []);
 
@@ -203,11 +209,30 @@ async function deviceItems(dev) {
   const t = tpls.find(t => t.id === dev.template_id);
   return t ? (t.items || []) : [];
 }
-function readBody(req) {
+// 请求体上限（字符数）。签名图的 base64 是主要体量来源，20M 对正常使用足够宽松。
+const BODY_LIMIT = 2e7;
+function readBody(req, res) {
   return new Promise((resolve) => {
-    let buf = '';
-    req.on('data', c => { buf += c; if (buf.length > 5e6) req.destroy(); });
-    req.on('end', () => { try { resolve(buf ? JSON.parse(buf) : {}); } catch { resolve({}); } });
+    let buf = '', tooBig = false;
+    req.on('data', c => {
+      if (tooBig) return;
+      buf += c;
+      if (buf.length > BODY_LIMIT) {
+        // 关键：这里「不能 destroy」。destroy 会让客户端直接收到连接重置，
+        // fetch 抛异常而前端拿不到任何响应 —— 表现就是「点了按钮毫无反应」。
+        // 改为立刻回 413，并把剩余数据读掉丢弃，前端才能拿到可读的错误提示。
+        tooBig = true; buf = '';
+        try {
+          sendJson(res, { error: '上传内容过大（超过 ' + Math.round(BODY_LIMIT / 1024 / 1024) +
+            'MB）。请压缩签名图片，或减少签名字数后重试' }, 413);
+        } catch (e) { }
+        req.resume();
+      }
+    });
+    req.on('end', () => {
+      if (tooBig) return resolve({});
+      try { resolve(buf ? JSON.parse(buf) : {}); } catch { resolve({}); }
+    });
     req.on('error', () => resolve({}));
   });
 }
@@ -303,7 +328,7 @@ function replaceMonthAbnormal(deviceId, month, abnList) {
 // GET /api/admin/me —— 当前登录信息（未登录返回 ok:false）
 async function handleMe(ctx) {
   const u = await getLoginUser(ctx.req);
-  return sendJson(ctx.res, { ok: !!u, username: u ? u.username : '', name: u ? u.name : '', role: u ? u.role : '' });
+  return sendJson(ctx.res, { ok: !!u, username: u ? u.username : '', name: u ? u.name : '', role: u ? u.role : '', dept: u ? (u.dept || '') : '' });
 }
 // POST /api/admin/login —— 登录（成功后种 cookie）
 async function handleLogin(ctx) {
@@ -338,7 +363,7 @@ async function handleChangePw(ctx) {
 // GET /api/users —— 用户列表（不含敏感字段）
 async function handleListUsers(ctx) {
   const users = kvget('users', []);
-  return sendJson(ctx.res, users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active })));
+  return sendJson(ctx.res, users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active, dept: u.dept || '' })));
 }
 // POST /api/users —— 新增用户
 async function handleCreateUser(ctx) {
@@ -352,6 +377,7 @@ async function handleCreateUser(ctx) {
   users.push({ id: uuid(), username, name: (b.name || '').trim() || username,
     password_hash: await sha256(b.password + PEPPER),
     role: b.role === 'admin' ? 'admin' : 'user', active: b.active === false ? false : true,
+    dept: (b.dept || '').toString().trim(),
     created_at: new Date().toISOString() });
   kvset('users', users);
   return sendJson(ctx.res, { ok: true });
@@ -376,6 +402,7 @@ async function handleUpdateUser(ctx) {
     u.password_hash = await sha256(b.password + PEPPER);
   }
   if (b.role === 'admin' || b.role === 'user') u.role = b.role;
+  if ('dept' in b) u.dept = (b.dept || '').toString().trim();
   if (typeof b.active === 'boolean') u.active = b.active;
   kvset('users', users);
   return sendJson(ctx.res, { ok: true });
@@ -397,13 +424,28 @@ async function handleDeleteUser(ctx) {
 //   sig_dir            默认方向 'h' | 'v'（用于展示与回退）
 // 约定：写入点检记录时只落一份快照（横版优先），避免 kv.json 体积翻倍。
 const SIG_MAX_CHARS = 12;
-function normSigChars(v) {
-  if (!Array.isArray(v)) return null;
-  return v.slice(0, SIG_MAX_CHARS).map(x =>
-    (typeof x === 'string' && /^data:image\//.test(x)) ? x.slice(0, 200000) : '');
+// 单张签名图上限（base64 字符数）。超限一律「拒绝并报错」，绝不静默截断 ——
+// 被截断的 base64 是坏数据：浏览器渲染必破图，调用方却以为保存成功了，
+// 排查起来极难（2026-09-15 定位到：上传大图后签名显示不出来就是这个原因）。
+const SIG_IMG_MAX = 2000000;   // ≈1.5MB 图片，够放下高清手写/扫描签名
+function sigImageNorm(v, label) {
+  if (v == null || v === '') return { value: null };
+  if (typeof v !== 'string' || !/^data:image\//.test(v)) return { value: null };
+  if (v.length > SIG_IMG_MAX) {
+    return { error: (label || '电子签名图') + '过大（约 ' + Math.round(v.length / 1024) +
+      'KB，上限 ' + Math.round(SIG_IMG_MAX / 1024) + 'KB）。请把图片裁小/压缩后再上传，或减少签名字数' };
+  }
+  return { value: v };
 }
-function normSigImage(v) {
-  return (typeof v === 'string' && /^data:image\//.test(v)) ? v.slice(0, 200000) : null;
+function sigCharsNorm(v) {
+  if (!Array.isArray(v)) return { value: null };
+  const out = [];
+  for (let i = 0; i < Math.min(v.length, SIG_MAX_CHARS); i++) {
+    const r = sigImageNorm(v[i], '第 ' + (i + 1) + ' 个字的签名图');
+    if (r.error) return { error: r.error };
+    out.push(r.value || '');
+  }
+  return { value: out };
 }
 function normSigDir(v) { return v === 'v' ? 'v' : (v === 'h' ? 'h' : 'auto'); }
 // 落记录快照时用：横版优先，没有横版才退回竖版（老数据）
@@ -430,11 +472,17 @@ async function handleListSigners(ctx) {
 async function handleCreateSigner(ctx) {
   const b = ctx.body;
   if (!b.name || !b.password) return fail(ctx.res, '姓名与密码必填');
+  const him = sigImageNorm(b.signature_image, '横版签名图');
+  if (him.error) return fail(ctx.res, him.error, 413);
+  const vim = sigImageNorm(b.signature_image_v, '竖版签名图');
+  if (vim.error) return fail(ctx.res, vim.error, 413);
+  const chk = sigCharsNorm(b.sig_chars);
+  if (chk.error) return fail(ctx.res, chk.error, 413);
   const list = allSigners();
   list.push({ id: uuid(), name: b.name, active: true, password_hash: await sha256(b.password + PEPPER),
-    signature_image: normSigImage(b.signature_image),
-    signature_image_v: normSigImage(b.signature_image_v),
-    sig_chars: normSigChars(b.sig_chars) || [],
+    signature_image: him.value,
+    signature_image_v: vim.value,
+    sig_chars: chk.value || [],
     sig_dir: normSigDir(b.sig_dir) });
   kvset('signers', list);
   return sendJson(ctx.res, { ok: true });
@@ -457,12 +505,20 @@ async function handleUpdateSigner(ctx) {
   const list = allSigners();
   const s = list.find(x => x.id === ctx.params.id);
   if (!s) return fail(ctx.res, '签名人不存在', 404);
+  // 先做体量校验、再改内存：allSigners() 返回的是 store 内的引用，
+  // 若中途 return 失败，内存对象已被改而磁盘未落盘 → 内存与磁盘不一致，故校验必须前置。
+  const him = ('signature_image' in b) ? sigImageNorm(b.signature_image, '横版签名图') : {};
+  if (him.error) return fail(ctx.res, him.error, 413);
+  const vim = ('signature_image_v' in b) ? sigImageNorm(b.signature_image_v, '竖版签名图') : {};
+  if (vim.error) return fail(ctx.res, vim.error, 413);
+  const chk = ('sig_chars' in b) ? sigCharsNorm(b.sig_chars) : {};
+  if (chk.error) return fail(ctx.res, chk.error, 413);
   if (typeof b.name === 'string' && b.name.trim()) s.name = b.name.trim().slice(0, 40);
   if (typeof b.active === 'boolean') s.active = b.active;
   if (b.password) s.password_hash = await sha256(b.password + PEPPER);
-  if ('signature_image' in b) s.signature_image = normSigImage(b.signature_image);
-  if ('signature_image_v' in b) s.signature_image_v = normSigImage(b.signature_image_v);
-  if ('sig_chars' in b) s.sig_chars = normSigChars(b.sig_chars) || [];
+  if ('signature_image' in b) s.signature_image = him.value;
+  if ('signature_image_v' in b) s.signature_image_v = vim.value;
+  if ('sig_chars' in b) s.sig_chars = chk.value || [];
   if ('sig_dir' in b) s.sig_dir = normSigDir(b.sig_dir);
   kvset('signers', list);
   return sendJson(ctx.res, { ok: true });
@@ -979,7 +1035,18 @@ async function handleDashboard(ctx) {
   //   都不传 → 全部房间（仅在确实需要"全厂设备"时才这样调用）
   // 顺序沿用「设备台账.xlsx」导入的原始顺序（devices 数组即台账顺序）
   const grpRooms = grp ? new Set(kvget('rooms', []).filter(r => String(r.group || '').trim() === grp).map(r => r.name)) : null;
-  const devices = allDevices().filter(d => grpRooms ? grpRooms.has(d.location) : (!loc || d.location === loc));
+  // 科室作用域（服务端兜底）：普通用户设了科室时，最多只能看到本科室房间的设备。
+  // 这样即使前端被绕过、或某个分组跨越了多个科室（如 室1 属 A 科、室2 属 B 科），
+  // 普通用户也不会通过 group 视图看到别的科室设备。管理员 / 未登录（老行为）不受限。
+  const me = await getLoginUser(ctx.req);
+  let deptRooms = null;
+  if (me && me.role !== 'admin' && String(me.dept || '').trim()) {
+    deptRooms = new Set(kvget('rooms', []).filter(r => (r.dept || '') === me.dept).map(r => r.name));
+  }
+  const devices = allDevices().filter(d => {
+    if (deptRooms && !deptRooms.has(String(d.location || '').trim())) return false;
+    return grpRooms ? grpRooms.has(d.location) : (!loc || d.location === loc);
+  });
   const dmap = {}; devices.forEach(d => dmap[d.id] = d);
   const insp = allInspections();
   const month = date ? date.slice(0, 7) : '';
@@ -1045,6 +1112,7 @@ async function handleListRooms(ctx) {
   return sendJson(ctx.res, rooms.map(r => ({
     name: r.name, desc: r.desc || '', count: c[r.name] || 0,
     group: r.group || '',   // 分组：同组房间在前端（大屏/房间选择页/下拉）合并到一个组名之下展示
+    dept: r.dept || '',     // 科室：该房间归属的科室（空 = 不限定，全厂可见）
     thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '', thermo_requirement: r.thermo_requirement || ''
   })));
 }
@@ -1057,7 +1125,7 @@ async function handleCreateRoom(ctx) {
   if (name.length > 40) return fail(ctx.res, '房间名称不能超过 40 字');
   const rooms = kvget('rooms', []);
   if (rooms.some(r => r.name === name)) return fail(ctx.res, '房间「' + name + '」已存在');
-  rooms.push({ name, desc: String(b.desc || '').trim(), group: String(b.group || '').trim() });
+  rooms.push({ name, desc: String(b.desc || '').trim(), group: String(b.group || '').trim(), dept: String(b.dept || '').trim() });
   kvset('rooms', rooms);
   return sendJson(ctx.res, { ok: true });
 }
@@ -1076,6 +1144,8 @@ async function handleUpdateRoom(ctx) {
   if (b.desc != null) r.desc = String(b.desc).trim();
   // 分组只影响展示：同组房间（如 车间A/2）在大屏与下拉里合并到组名之下，房间本身仍各自独立
   if (b.group != null) r.group = String(b.group).trim();
+  // 科室：该房间归属的科室（留空 = 不限定，全员可见）
+  if (b.dept != null) r.dept = String(b.dept).trim();
   // 温湿度监测配置（管理员在后台「房间管理」维护，新建月度记录时自动带出）
   if (b.thermo_apparatus != null) r.thermo_apparatus = String(b.thermo_apparatus);
   if (b.thermo_equipment != null) r.thermo_equipment = String(b.thermo_equipment);
@@ -1088,6 +1158,34 @@ async function handleUpdateRoom(ctx) {
     kvset('devices', devs);
   }
   kvset('rooms', rooms);
+  return sendJson(ctx.res, { ok: true });
+}
+
+// ---- 科室管理（管理员维护清单） ----
+// GET /api/depts —— 科室清单（登录用户可读，用于房间/用户表单的下拉）
+async function handleListDepts(ctx) {
+  return sendJson(ctx.res, { depts: allDepts() });
+}
+// POST /api/depts —— 新增科室（管理员）
+async function handleCreateDept(ctx) {
+  const name = String(ctx.body.name || '').trim();
+  if (!name) return fail(ctx.res, '科室名称必填');
+  if (name.length > 20) return fail(ctx.res, '科室名称不能超过 20 字');
+  const depts = allDepts();
+  if (depts.includes(name)) return fail(ctx.res, '科室「' + name + '」已存在');
+  depts.push(name);
+  kvset('depts', depts);
+  return sendJson(ctx.res, { ok: true });
+}
+// DELETE /api/depts/:name —— 删除科室（管理员）；被房间/用户引用时拒绝，避免产生孤儿数据
+async function handleDeleteDept(ctx) {
+  const name = decodeURIComponent(ctx.params.name);
+  const depts = allDepts();
+  if (!depts.includes(name)) return fail(ctx.res, '科室不存在', 404);
+  const roomCnt = kvget('rooms', []).filter(r => (r.dept || '') === name).length;
+  const userCnt = kvget('users', []).filter(u => (u.dept || '') === name).length;
+  if (roomCnt || userCnt) return fail(ctx.res, '该科室仍被 ' + roomCnt + ' 个房间 / ' + userCnt + ' 个用户引用，请先改派后再删除');
+  kvset('depts', depts.filter(d => d !== name));
   return sendJson(ctx.res, { ok: true });
 }
 
@@ -1148,11 +1246,18 @@ async function handleSaveEnvRecord(ctx) {
     const day = parseInt(m[1], 10);
     if (day < 1 || day > 31) continue;
     const c = cells[k] || {};
+    // 签名图不再静默截断：超限就报 413 让用户去换张小图。
+    // （旧的 slice(0, 200000) 会把签名存成半截 base64 → 表格里签名显示残缺，且接口照样返回 ok）
+    const sigRaw = (typeof c.signature_image === 'string') ? c.signature_image : '';
+    if (sigRaw.length > SIG_IMG_MAX) {
+      return fail(ctx.res, day + ' 日的签名图过大（约 ' + Math.round(sigRaw.length / 1024) +
+        'KB，上限 ' + Math.round(SIG_IMG_MAX / 1024) + 'KB）。请重新上传更小的签名图', 413);
+    }
     clean[k] = {
       temp: String(c.temp != null ? c.temp : '').slice(0, 8),
       humidity: String(c.humidity != null ? c.humidity : '').slice(0, 8),
       recorder: String(c.recorder || '').slice(0, 64),
-      signature_image: typeof c.signature_image === 'string' ? c.signature_image.slice(0, 200000) : '',
+      signature_image: sigRaw,
       strike: c.strike ? 1 : 0   // 该日无需记录：整行划线（温度/湿度/记录员三格都带此标记）
     };
   }
@@ -1190,6 +1295,135 @@ async function handleExportEnvCsv(ctx) {
   const csv = '﻿' + lines.join('\r\n'); // BOM 供 Excel 直开
   ctx.res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="env_' + encodeURIComponent(room) + '_' + ym + '.csv"' });
   ctx.res.end(csv);
+}
+
+// ---- 温湿度一键填充（管理员）----
+// 把某月 1 日 ~ 截止日之间「还没填」的格子批量补上温湿度，并套用所选签名人的电子签名。
+// 三条硬约束：
+//   1) 数值必须落在该房间「综合温湿度要求」解析出的范围内 —— 解析不出来就整间跳过，不猜；
+//   2) 只补空格：任何已有内容的格子（含签名、划线）一律不动，重复点也不会破坏已录数据；
+//   3) 绝不为未来日期生成记录：截止日上限就是今天。
+// 限值解析必须与 public/env.html 的 parseLimits 保持一致（改一边就要同步另一边），
+// 否则会出现「后台填进去的值，在温湿度页反而被标红」这种自相矛盾的结果。
+function parseEnvLimits(txt) {
+  const s = String(txt || '');
+  const t = s.match(/温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C)?\s*[-~—～]\s*(-?\d+(?:\.\d+)?)/);
+  const h = s.match(/湿度(?:要求)?\s*[：:]\s*(≤|<=|<|不超过)\s*(\d+(?:\.\d+)?)/);
+  if (!t && !h) return null;
+  return { tMin: t ? parseFloat(t[1]) : null, tMax: t ? parseFloat(t[2]) : null, hMax: h ? parseFloat(h[2]) : null };
+}
+// 在 [lo,hi] 内取一个「留了余量」的安全区间：两端各退让 max(绝对余量, 跨度×比例)。
+// 为什么要留余量：填出来的值若贴着边界（10℃ 房间填 10.0），打印评审时容易被质疑是不是超了；
+// 同时给随机波动留出空间，波动后再夹取也不会总撞边界。
+function safeBand(lo, hi, absMargin, ratio) {
+  const span = hi - lo;
+  const m = Math.max(absMargin, span * ratio);
+  let a = lo + m, b = hi - m;
+  if (a > b) { const mid = (lo + hi) / 2; const half = Math.min(0.3, span / 4); a = mid - half; b = mid + half; }
+  if (b < a) { a = lo; b = hi; }
+  return [a, b];
+}
+// 由房间要求推出「温度取值区间」「湿度取值区间」；任一项缺失就返回 error（整间跳过，不填）
+function envBands(lim) {
+  lim = lim || {};
+  if (lim.tMin == null || lim.tMax == null) return { error: '未配置温度范围（应形如「温度：10℃-35℃」）' };
+  if (!(lim.tMax > lim.tMin)) return { error: '温度范围写法有误（下限不小于上限）' };
+  if (lim.hMax == null) return { error: '未配置湿度上限（应形如「湿度：≤80%RH」）' };
+  if (!(lim.hMax > 0)) return { error: '湿度上限写法有误' };
+  const temp = safeBand(lim.tMin, lim.tMax, 0.5, 0.10);
+  // 湿度只有上限 → 下限取上限的一半（且不低于 30%RH），上限再退让 3~6 个点
+  const hl = Math.max(30, lim.hMax * 0.5);
+  const hh = lim.hMax - Math.max(3, lim.hMax * 0.06);
+  const hum = hh > hl ? [hl, hh]
+            : [Math.max(1, lim.hMax * 0.4), Math.max(2, lim.hMax - Math.max(1, lim.hMax * 0.05))];
+  return { temp, hum };
+}
+// 一天三个时段共用一条「基准值」，各自在基准上小幅波动（温度 ±0.8℃ / 湿度 ±3.5%RH 以内），
+// 再夹进安全区间 —— 同一天的上午/下午/晚上读数因而连贯可信，不像三个互不相干的随机数。
+function envDayValues(band, jitter) {
+  const a = band[0], b = band[1];
+  const base = a + Math.random() * (b - a);
+  const out = [];
+  for (let i = 0; i < ENV_PERIODS.length; i++) {
+    const v = base + (Math.random() * 2 - 1) * jitter;
+    out.push((v < a ? a : (v > b ? b : v)).toFixed(1));
+  }
+  return out;
+}
+// 该格是否已有内容：任一项非空即视为已录入（填充时一律跳过，保证只补空格）
+function envCellHasData(c) {
+  if (!c) return false;
+  return !!(String(c.temp || '').trim() || String(c.humidity || '').trim() || c.recorder || c.signature_image || c.strike);
+}
+const fmtBand = b => b[0].toFixed(1) + '~' + b[1].toFixed(1);
+
+// POST /api/admin/env-fill —— 一键填充温湿度（管理员；需签名人密码）
+async function handleEnvFill(ctx) {
+  const b = ctx.body || {};
+  const ym = String(b.ym || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(ym)) return fail(ctx.res, '月份格式应为 YYYY-MM');
+  const cur = currentMonthStr();
+  if (ym > cur) return fail(ctx.res, '不能填充未来月份（' + ym + '）');
+  const [yy, mm] = ym.split('-').map(Number);
+  const dim = new Date(yy, mm, 0).getDate();
+  // 截止日：默认「今天」（历史月份则取该月最后一天）；上限不超过今天 —— 不为未来日期生成记录
+  const maxDay = (ym === cur) ? Number(todayStr().slice(8, 10)) : dim;
+  let endDay = (b.end_day == null || b.end_day === '') ? maxDay : parseInt(b.end_day, 10);
+  if (!Number.isFinite(endDay)) endDay = maxDay;
+  endDay = Math.min(Math.max(endDay, 1), maxDay);
+
+  const { signer, error } = await verifySigner(b);
+  if (error) return fail(ctx.res, error, error === '签名密码错误' ? 401 : 400);
+  const sigImg = pickSigImage(signer);   // 温湿度记录员格是横向格 → 横版签名
+
+  const rooms = kvget('rooms', []);
+  let targets = rooms;
+  if (b.scope === 'room') {
+    const name = String(b.room || '').trim();
+    if (!name) return fail(ctx.res, '请选择房间');
+    const hit = rooms.filter(r => r.name === name);
+    if (!hit.length) return fail(ctx.res, '房间不存在：' + name, 404);
+    targets = hit;
+  }
+  if (!targets.length) return fail(ctx.res, '没有可填充的房间');
+
+  const list = allEnvRecords();
+  const detail = [], skipped = [];
+  let cells = 0, days = 0, touched = 0;
+  for (const r of targets) {
+    const bands = envBands(parseEnvLimits(r.thermo_requirement));
+    if (bands.error) { skipped.push({ room: r.name, reason: bands.error }); continue; }
+    let rec = list.find(x => x.room === r.name && x.ym === ym);
+    if (rec && !rec.cells) rec.cells = {};
+    let nCells = 0, nDays = 0;
+    for (let day = 1; day <= endDay; day++) {
+      const temps = envDayValues(bands.temp, 0.8);
+      const hums = envDayValues(bands.hum, 3.5);
+      let dayFilled = false;
+      for (let i = 0; i < ENV_PERIODS.length; i++) {
+        const k = day + '_' + ENV_PERIODS[i];
+        if (envCellHasData(rec && rec.cells[k])) continue;   // 只补空格
+        if (!rec) {
+          rec = { id: 'env_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                  room: r.name, ym, cells: {}, updated_at: null };
+          list.push(rec);
+        }
+        rec.cells[k] = { temp: temps[i], humidity: hums[i], recorder: signer.id, signature_image: sigImg || '', strike: 0 };
+        nCells++; dayFilled = true;
+      }
+      if (dayFilled) nDays++;
+    }
+    if (nCells) { rec.updated_at = new Date().toISOString(); touched++; }
+    detail.push({ room: r.name, cells: nCells, days: nDays,
+      temp_band: fmtBand(bands.temp), hum_band: fmtBand(bands.hum) });
+    cells += nCells; days += nDays;
+  }
+  if (cells) kvset('envRecords', list);   // 一格都没填就别白写一次全量数据
+  return sendJson(ctx.res, {
+    ok: true, ym, end_day: endDay, cells, days, rooms: touched,
+    signer: { id: signer.id, name: signer.name }, signer_has_sig: !!sigImg,
+    detail, skipped
+  });
 }
 
 // ===================== 数据备份 / 导出（管理员） =====================
@@ -1242,6 +1476,709 @@ async function handleExportCsv(ctx) {
 
 // ===================== 路由表 =====================
 // 每个条目：method + (path 精确匹配 | pattern 正则匹配 + paramNames 命名)
+// ===================== 局域网远程升级 =====================
+// 同一份代码承担两种角色，而且每台机器两种能力都有：
+//   · 发起端：后台维护「电脑清单」，把升级包推送给局域网内其它装了本系统的机器
+//   · 目标端：接受推送，复用 _setup.ps1 完成
+//     备份 → 停服 → 覆盖 → 重启 → 校验 → 失败自动回滚（与 U 盘一键升级同一套引擎）
+// 没有「中心机」：任意一台电脑只要管理员登录它自己的后台，就能给清单里任意一台电脑推升级；
+// 目标端默认接受（零配置），不需要预先开开关或抄令牌。
+//
+// 硬约束（安全底线）：升级包只允许含程序文件，一旦出现 data/ 一律拒收 ——
+// 点检记录 / 电子签名 / 房间配置都在 data/kv.json 里，绝不能远程被覆盖。
+const UPGRADE_DIR   = path.join(DATA_DIR, '_lan_upgrade');   // 收到的包：暂存 + 解压
+const LAN_PKG_DIR   = path.join(DATA_DIR, 'lan_packages');   // 后台上传的升级包仓库
+const DIST_DIR      = path.join(ROOT, '部署包');              // build-deploy.py 的产物目录（自动扫描）
+const SETUP_ENGINE  = path.join(ROOT, 'tools', 'deploy', '_setup.ps1');
+// 升级引擎用的 PowerShell 解释器：优先绝对路径 —— spawn 裸名在 PATH 异常时会失败，
+// 而这一步失败意味着远程目标机永远收不到升级，属于必须规避的静默故障。
+const PSEXE = (() => {
+  for (const p of [
+    path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'powershell.exe'),
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe'),
+  ]) { try { if (fs.existsSync(p)) return p; } catch { } }
+  return 'powershell.exe';
+})();
+const DEFAULT_PORT_ = 8787;
+const MAX_PKG_BYTES = 96 * 1024 * 1024;
+const PAYLOAD_MARK  = '__PAYLOAD__';
+const PKG_ALLOW = ['server.js', 'public', 'tools', 'runtime', '启动.bat', '停止.bat',
+                   '_run_hidden.vbs', 'setup.ps1', 'version.txt', '安装.bat', '安装说明.txt'];
+
+// ---------- 通用小工具 ----------
+function verCmp(a, b) {
+  const pa = String(a || '').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b || '').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d > 0 ? 1 : -1;
+  }
+  return 0;
+}
+function readRawBody(req, max) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let n = 0; let done = false;
+    req.on('data', c => {
+      if (done) return;
+      n += c.length;
+      if (n > max) { done = true; reject(new Error('内容超过 ' + Math.round(max / 1048576) + ' MB 上限')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => { if (!done) { done = true; resolve(Buffer.concat(chunks)); } });
+    req.on('error', e => { if (!done) { done = true; reject(e); } });
+  });
+}
+// 零依赖 zip 解包：读中央目录 + zlib.inflateRaw。仅支持本系统生成的包（stored / deflate）。
+function unzip(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 30) throw new Error('文件太小，不是有效的 ZIP');
+  let eocd = -1;
+  const low = Math.max(0, buf.length - 22 - 65535);
+  for (let i = buf.length - 22; i >= low; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('找不到 ZIP 结尾标记（文件可能不完整）');
+  const count = buf.readUInt16LE(eocd + 10);
+  let off = buf.readUInt32LE(eocd + 16);
+  if (!count) throw new Error('ZIP 里没有任何文件');
+  const out = [];
+  for (let n = 0; n < count; n++) {
+    if (off + 46 > buf.length || buf.readUInt32LE(off) !== 0x02014b50) throw new Error('ZIP 目录项损坏（第 ' + (n + 1) + ' 项）');
+    const method = buf.readUInt16LE(off + 10);
+    const csize  = buf.readUInt32LE(off + 20);
+    const usize  = buf.readUInt32LE(off + 24);
+    const nlen   = buf.readUInt16LE(off + 28);
+    const elen   = buf.readUInt16LE(off + 30);
+    const clen   = buf.readUInt16LE(off + 32);
+    const lho    = buf.readUInt32LE(off + 42);
+    const name   = buf.toString('utf8', off + 46, off + 46 + nlen);
+    if (lho + 30 > buf.length || buf.readUInt32LE(lho) !== 0x04034b50) throw new Error('ZIP 数据头损坏：' + name);
+    const lnlen = buf.readUInt16LE(lho + 26);
+    const lelen = buf.readUInt16LE(lho + 28);
+    const start = lho + 30 + lnlen + lelen;
+    const raw   = buf.subarray(start, start + csize);
+    let data;
+    if (method === 0) data = Buffer.from(raw);
+    else if (method === 8) data = zlib.inflateRawSync(raw);
+    else throw new Error('不支持的压缩方式 ' + method + '（' + name + '）');
+    if (usize && data.length !== usize) throw new Error('解压后大小不符：' + name);
+    out.push({ name: name.replace(/\\/g, '/'), data });
+    off += 46 + nlen + elen + clen;
+  }
+  return out;
+}
+// 校验升级包内容（白名单 + 必须有 server.js/public + 读出版本号）
+function inspectEntries(entries) {
+  const names = entries.map(e => e.name);
+  const bad = [];
+  for (const n of names) {
+    if (n.startsWith('/') || /^[A-Za-z]:/.test(n) || n.split('/').includes('..')) bad.push('含非法路径：' + n);
+    else if (n === 'data' || n.startsWith('data/')) bad.push('包内含 data/（点检数据），已拒收：' + n);
+    else if (!PKG_ALLOW.some(pre => n === pre || n.startsWith(pre + '/'))) bad.push('含白名单外的文件：' + n);
+  }
+  if (bad.length) return { ok: false, error: bad[0] + (bad.length > 1 ? '（共 ' + bad.length + ' 处问题）' : '') };
+  if (!names.includes('server.js')) return { ok: false, error: '不是本系统的升级包：缺少 server.js' };
+  if (!names.some(n => n.startsWith('public/'))) return { ok: false, error: '不是本系统的升级包：缺少 public/' };
+  let version = '';
+  const vt = entries.find(e => e.name === 'version.txt');
+  if (vt) version = vt.data.toString('utf8').split(/\r?\n/)[0].trim();
+  if (!version) {
+    const sj = entries.find(e => e.name === 'server.js');
+    const m = sj && sj.data.toString('utf8').match(/APP_VERSION\s*=\s*'([^']+)'/);
+    if (m) version = m[1];
+  }
+  if (!version) return { ok: false, error: '升级包里读不到版本号（缺 version.txt，server.js 里也没有 APP_VERSION）' };
+  return { ok: true, version, files: entries.length };
+}
+// 一键升级 .bat 里内嵌的 base64 → zip Buffer
+function extractBatPayload(buf) {
+  const txt = buf.toString('latin1');
+  const i = txt.lastIndexOf(PAYLOAD_MARK);
+  if (i < 0) throw new Error('不是本系统的一键升级包（找不到内嵌数据标记）');
+  const b64 = txt.slice(i + PAYLOAD_MARK.length).replace(/[^A-Za-z0-9+/=]/g, '');
+  if (b64.length < 100) throw new Error('升级包内嵌数据不完整，请重新获取');
+  const out = Buffer.from(b64, 'base64');
+  if (out.length < 30) throw new Error('内嵌数据解码后不是有效的 ZIP');
+  return out;
+}
+// 读磁盘上的升级包（.zip 直读；.bat 取出内嵌 zip）
+function readPkgFile(p) {
+  const buf = fs.readFileSync(p);
+  return /\.bat$/i.test(p) ? extractBatPayload(buf) : buf;
+}
+// 请求另一台机器（绕开系统代理；Node 原生 http 本就不走系统代理）
+function httpJson(host, port, p, opt = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    let req;
+    try {
+      req = http.request({
+        host, port, path: p, method: opt.method || 'GET',
+        headers: opt.headers || {}, timeout: opt.timeout || 5000,
+      }, (r) => {
+        let s = '';
+        r.setEncoding('utf8');
+        r.on('data', c => { s += c; if (s.length > 2e6) req.destroy(); });
+        r.on('end', () => { let j = null; try { j = JSON.parse(s); } catch { } finish({ status: r.statusCode, json: j, text: s }); });
+      });
+    } catch (e) { return finish({ status: 0, json: null, text: '', error: String(e.message || e) }); }
+    req.on('timeout', () => { try { req.destroy(); } catch { } finish({ status: 0, json: null, text: '', error: '连接超时' }); });
+    req.on('error', e => finish({ status: 0, json: null, text: '', error: String(e.message || e) }));
+    if (opt.body) req.write(opt.body);
+    req.end();
+  });
+}
+function localAddrs() {
+  const out = [];
+  const ifs = os.networkInterfaces();
+  for (const k in ifs) for (const a of (ifs[k] || [])) if (a.family === 'IPv4') out.push(a.address);
+  return out;
+}
+// 发起端绝不能给自己推送 —— setup.ps1 会把本服务杀掉，页面跟着断
+function isSelfTarget(host, port) {
+  if (parseInt(port, 10) !== PORT) return false;
+  const h = String(host || '').trim().toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
+         h === String(os.hostname() || '').toLowerCase() || localAddrs().includes(h);
+}
+
+// ---------- 系统级共享密钥：目标端「零配置」的前提 ----------
+// 装了本系统的电脑之间要能互相认证，而现场没人愿意去每台机器后台各抄一遍令牌。
+// 于是由源码派生一把「所有同版本机器都一样」的钥匙：推送端自动带上、目标端自动认，
+// 管理员在任意一台电脑登录后台即可直接推。
+// 安全边界（须知情）：它随源码下发 —— 能拿到升级包/server.js 的人就能算出来。所以它挡的是
+// 「误推」和「乱调接口」，不是「拿到源码的内行」。要更严的隔离时，到目标机后台点
+// 「🔒 只认专用令牌」即可切回逐机专用令牌模式（open=false）——零配置只影响默认值。
+const LAN_CLUSTER_KEY = crypto.createHash('sha256')
+  .update('equipment-inspection/lan-upgrade/cluster-key/v1')
+  .digest('base64url');
+
+// ---------- 本机作为「被升级目标」 ----------
+function lanCfg() {
+  const c = kvget('lanUpgrade', null) || {};
+  // enabled：本机是否接受局域网升级 —— 默认 true，开箱即可被升级，只有管理员显式关过才是 false
+  // open   ：是否接受系统级共享密钥 —— 默认 true（零配置）；显式关掉后只认下面的专用令牌
+  // 用 hasOwnProperty 区分「从没配过」（→ 默认 true）和「配过并关掉」（→ false）；
+  // 早期写的是 !!c.enabled，把「没配过」也当成关闭，导致每台机器都得手工开一次。
+  const has = k => Object.prototype.hasOwnProperty.call(c, k);
+  return {
+    enabled: has('enabled') ? !!c.enabled : true,
+    open: has('open') ? !!c.open : true,
+    token: String(c.token || ''), name: String(c.name || ''),
+  };
+}
+function lanName() { const c = lanCfg(); return c.name || os.hostname() || '未命名电脑'; }
+function tokenEq(a, b) {
+  const x = Buffer.from(String(a == null ? '' : a)), y = Buffer.from(String(b == null ? '' : b));
+  return !!y.length && x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+// 目标机自检：环境是否具备被远程升级的条件
+function lanReady() {
+  return {
+    platform: process.platform,
+    win: process.platform === 'win32',
+    engine: fs.existsSync(SETUP_ENGINE),
+    writable: (() => { try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.accessSync(ROOT, fs.constants.W_OK); return true; } catch { return false; } })(),
+  };
+}
+// 目标端收包校验。发起端接口是 adminOnly（必须管理员登录才能发起），所以这里只判断两件事：
+// 「本机是否允许被升级」+「来源是不是本系统的分发端」。两种凭据都收：
+//   · 专用令牌（老方式；显式开 open=false 后是唯一方式）—— 逐台配置，最严
+//   · 系统级共享密钥（默认）—— 零配置，任意一台机器登录后台即可推
+function lanAccept(given) {
+  const c = lanCfg();
+  if (!c.enabled) {
+    return { ok: false, code: 403, msg: '目标机已关闭「接受局域网升级」。要远程升它，请先到那台电脑的后台·系统页把它打开。' };
+  }
+  if (c.token && tokenEq(given, c.token)) return { ok: true };
+  if (c.open && tokenEq(given, LAN_CLUSTER_KEY)) return { ok: true };
+  return { ok: false, code: 401, msg: c.open
+    ? '升级凭据不正确。目标机接受系统共享密钥，这次却没对上 —— 多半两边版本不一致，请到目标机确认它已升到 ' + APP_VERSION + ' 或更高。'
+    : '目标机被设成「只认专用令牌」。请到那台电脑的后台复制令牌，填到本机电脑清单里再推。' };
+}
+async function handleLanTargetConfig(ctx) {
+  const c = lanCfg(), r = lanReady();
+  return sendJson(ctx.res, {
+    ok: true, enabled: c.enabled, open: c.open, token: c.token, name: c.name || os.hostname(),
+    host: os.hostname(), version: APP_VERSION, date: APP_VERSION_DATE,
+    install_dir: ROOT, port: PORT, ready: r, can_push: true,
+  });
+}
+async function handleLanTargetConfigPut(ctx) {
+  const b = ctx.body || {};
+  // 从原始对象上改，不拿 lanCfg() 的结果 —— 否则「默认值」会被当成用户的显式选择写进库，
+  // 以后改默认值就改不动这些机器了。
+  const c = kvget('lanUpgrade', null) || {};
+  if (typeof b.enabled === 'boolean') c.enabled = b.enabled;
+  if (typeof b.open === 'boolean') c.open = b.open;
+  if (typeof b.name === 'string') c.name = b.name.trim().slice(0, 40);
+  if (b.regenerate || !c.token) c.token = crypto.randomBytes(24).toString('base64url');
+  // 只在「这一次是显式打开」时校验引擎：默认开启的机器不该因为缺引擎就连名字都改不动
+  if (b.enabled === true) {
+    const r = lanReady();
+    if (!r.win) return fail(ctx.res, '本机不是 Windows，无法使用一键升级引擎', 400);
+    if (!r.engine) return fail(ctx.res, '本机缺少升级引擎 tools/deploy/_setup.ps1，请先用一键升级包升到 ' + APP_VERSION, 400);
+  }
+  kvset('lanUpgrade', c);
+  const nc = lanCfg();
+  return sendJson(ctx.res, { ok: true, enabled: nc.enabled, open: nc.open, token: nc.token,
+    name: nc.name || os.hostname(), port: PORT, ready: lanReady() });
+}
+// 「检测」用：一次拿到在线 + 版本 + 是否允许被升级
+async function handleLanPing(ctx) {
+  const c = lanCfg();
+  const a = lanAccept(ctx.req.headers['x-eq-token']);
+  if (!a.ok) return fail(ctx.res, a.msg, a.code);
+  const r = lanReady();
+  return sendJson(ctx.res, {
+    ok: true, name: lanName(), host: os.hostname(),
+    version: APP_VERSION, date: APP_VERSION_DATE,
+    enabled: c.enabled, open: c.open, engine: r.engine, win: r.win, writable: r.writable,
+    install_dir: ROOT, port: PORT,
+  });
+}
+// 接收推送的升级包 → 落盘 → 交给 _setup.ps1
+async function handleLanApply(ctx) {
+  const req = ctx.req, res = ctx.res;
+  // req.__eqSelf = 本机自升级（见 handleLanSelfUpgrade）：那条路径已经过了管理员登录鉴权，
+  // 不再校验集群令牌 —— 否则把机器设成「只认专用令牌」后，本机反而升不了自己。
+  const self = !!req.__eqSelf;
+  const who = self ? '本机' : '目标机';
+  if (!self) {
+    const a = lanAccept(req.headers['x-eq-token']);
+    if (!a.ok) return fail(res, a.msg, a.code);
+  }
+  const r0 = lanReady();
+  if (!r0.win) return fail(res, who + '不是 Windows，暂不支持远程一键升级', 400);
+  if (!r0.engine) return fail(res, who + '缺少升级引擎 tools/deploy/_setup.ps1，请先用一键升级包升级一次', 400);
+
+  let raw;
+  try { raw = await readRawBody(req, MAX_PKG_BYTES); }
+  catch (e) { return fail(res, String((e && e.message) || e), 413); }
+  if (!raw || !raw.length) return fail(res, '没有收到升级包内容', 400);
+
+  let entries;
+  try { entries = unzip(raw); } catch (e) { return fail(res, '升级包无法解析：' + e.message, 400); }
+  const info = inspectEntries(entries);
+  if (!info.ok) return fail(res, info.error, 400);
+
+  const force = String(req.headers['x-eq-force'] || '') === '1';
+  if (!force && verCmp(info.version, APP_VERSION) < 0) {
+    return fail(res, '升级包版本 ' + info.version + ' 低于本机 ' + APP_VERSION + '（确实要降级请勾选「允许降级」）', 409);
+  }
+
+  const stage = path.join(UPGRADE_DIR, 'stage');
+  try {
+    fs.rmSync(stage, { recursive: true, force: true });
+    for (const e of entries) {
+      if (e.name.endsWith('/')) continue;
+      const dst = path.join(stage, e.name);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.writeFileSync(dst, e.data);
+    }
+    fs.writeFileSync(path.join(UPGRADE_DIR, 'receipt.json'), JSON.stringify({
+      received_at: new Date().toISOString(), from_version: APP_VERSION, to_version: info.version,
+      pushed_by: String(req.headers['x-eq-from'] || 'unknown'), files: entries.length,
+    }, null, 2), 'utf8');
+  } catch (e) {
+    return fail(res, '写入暂存目录失败：' + e.message, 500);
+  }
+
+  const engine = path.join(stage, 'setup.ps1');
+  if (!fs.existsSync(engine)) return fail(res, '升级包里没有 setup.ps1 安装引擎（请用 build-deploy.py 生成的包）', 400);
+  // 引擎能力自检（两项都必须过，否则宁可拒收）：
+  //  ① 认 -Port —— 老包（v1.3.0 之前）端口写死 8787，拿它去停自定义端口的服务会误杀别的 node 进程；
+  //  ② 会「自派独立进程」—— 否则它作为本服务进程的子进程，会在停服那一刻被一起杀掉，
+  //     升级永远卡在第 4 步「停止服务」（实测踩过：日志停在那里，后面什么都没执行）。
+  let engineSrc = '', engineRaw = null;
+  try { engineRaw = fs.readFileSync(engine); engineSrc = engineRaw.toString('utf8'); } catch { }
+  // 包内引擎必须带 UTF-8 BOM：中文 Windows 的代码页是 GBK(936)，Windows PowerShell 5.1
+  // 读「无 BOM 的 UTF-8 .ps1」会按 GBK 解码 —— 实测结果是脚本连一行都跑不出来。
+  // 与其让目标机静默失败（人不在现场，最难查），不如在这里直接拒收说清原因。
+  if (!engineRaw || !(engineRaw[0] === 0xEF && engineRaw[1] === 0xBB && engineRaw[2] === 0xBF)) {
+    return fail(res, '这个升级包内置的安装引擎没有 UTF-8 BOM，在中文 Windows 上 PowerShell 会读成乱码、'
+      + '根本跑不起来。请改用最新生成的升级包（v1.3.0 及以上）。', 400);
+  }
+  if (!/\[int\]\s*\$Port/.test(engineSrc)) {
+    return fail(res, '这个升级包内置的安装引擎较旧、不支持自定义端口，而本机服务跑在 ' + PORT
+      + ' 端口，用它升级会误杀其它进程。请改用最新生成的升级包（v1.3.0 及以上）。', 400);
+  }
+  if (!/\$Detached/.test(engineSrc)) {
+    return fail(res, '这个升级包内置的安装引擎不会「自派独立进程」，被远程拉起后会在停服那一刻被一起杀掉、'
+      + '升级永远卡在第 4 步。请改用最新生成的升级包（v1.3.0 及以上）。', 400);
+  }
+
+  // 收到的包顺手留一份进本机包仓库（同版本覆盖）—— 这样这台机器升完之后，它自己也能把这个
+  // 版本继续推给别的电脑。现场常见情况是只有一台机器拿 U 盘里的包，链式分发能省掉逐台拷包；
+  // 少了这一步，「任意一台电脑都能选包升级」在没拷过包的机器上就是句空话（部署包/ 目录不进升级包）。
+  try {
+    const keep = '收到_' + String(info.version).replace(/^v?/i, 'v').replace(/[^\w.\-]/g, '_') + '.zip';
+    fs.mkdirSync(LAN_PKG_DIR, { recursive: true });
+    fs.writeFileSync(path.join(LAN_PKG_DIR, keep), raw);
+  } catch { /* 留档失败不影响升级本身 */ }
+
+  // 先回响应，再拉起独立的升级进程 —— 它随后会停掉本进程，必须等响应发完
+  sendJson(res, {
+    ok: true, upgrading: true, from: APP_VERSION, to: info.version,
+    files: entries.length, install_dir: ROOT,
+    note: self
+      ? '本机即将停服并覆盖文件，约 20 秒后自动重启 —— 这个页面会断开，等一会儿刷新即可（日志 _升级日志.txt）'
+      : '目标机即将停服并覆盖文件，约 20 秒后自动重启，请到目标机查看 _升级日志.txt',
+  });
+  setTimeout(() => {
+    try {
+      const applyLog = path.join(UPGRADE_DIR, 'apply.log');
+      const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', engine,
+        '-Source', stage, '-Target', ROOT, '-Port', String(PORT), '-LogFile', applyLog];
+      // 引擎输出必须落盘：远程升级失败时人不在现场，这份日志是唯一的线索。
+      // 这里【不预先往 apply.log 写头部】—— 引擎用 Start-Process 的重定向（覆盖写）
+      // 打开它，预写内容会被冲掉；日志头部改由引擎自己输出（参数、时间、PID 一应俱全）。
+      //
+      // 【踩过坑·关键】为什么这里只要把引擎拉起来就行、停服不再需要本进程配合：
+      // 三组对照实验实测（Windows）—— node 直接 spawn 出来的子进程会被「连坐」：
+      //   · 本进程被外部杀掉       → 子 PowerShell 约 1 秒后一起消失；
+      //   · 子 PowerShell 亲手 Stop-Process 杀掉本进程 → 它自己在 1 秒后也消失
+      //     （现场日志正好停在「④ 停止服务」，后面的覆盖 / 重启 / 写日志全都没执行）；
+      //   · 由 PowerShell 再用 Start-Process 派生出的「孙进程」→ 完全不受影响，跑完全程。
+      // 所以引擎第一步会把自己重新派生成独立进程再交棒，本进程怎么死都不影响它。
+      // 另外【绝不能】在这里用 detached:true —— 与 windowsHide 同用时进程会被创建出来
+      // 但 PowerShell 完全不执行（无输出、无报错、无副作用，看起来像"升级没反应"）。
+      const child = spawn(PSEXE, args, { windowsHide: true, stdio: 'ignore' });
+      child.on('error', (e) => {
+        try { fs.appendFileSync(applyLog, '[失败] 启动升级引擎出错：' + ((e && e.message) || e) + '\r\n'); } catch { }
+        console.error('[远程升级] 启动升级引擎出错：', e && e.message);
+      });
+      child.unref();
+      // 这里【不再做】「5 秒兜底重试」：引擎交棒后启动器进程会立刻退出，退出状态说明不了任何问题；
+      // 而此刻引擎的重定向文件未必已建好，"零输出"极易误判 → 拉出第二个引擎 → 两个进程同时升级。
+      // 静默失败的风险，改由「引擎自己写日志 + 前端读 receipt/日志」来兜。
+      console.log('[远程升级] 已拉起升级进程（端口 ' + PORT + '），本机即将被停止并重启');
+    } catch (e) {
+      try {
+        fs.appendFileSync(path.join(ROOT, '_升级日志.txt'),
+          new Date().toLocaleString() + '  [远程升级] 拉起升级进程失败：' + e.message + '\r\n');
+        fs.appendFileSync(path.join(UPGRADE_DIR, 'apply.log'),
+          new Date().toLocaleString() + '  [失败] 拉起升级进程失败：' + e.message + '\r\n');
+      } catch { }
+      console.error('[远程升级] 拉起升级进程失败：', e && e.message);
+    }
+  }, 700);
+  return;
+}
+
+// ---------- 本机自升级（这台电脑升它自己） ----------
+// 现场最常见的其实是「工厂只有这一台机器跑系统」：包已经在这台机器上，但页面是在别处
+// （另一台电脑的浏览器，或远程桌面）打开的，不想为了双击一个 .bat 特地跑一趟机器前。
+// 做法是【把本机当成一台目标机】—— 直接复用上面那套已实测的接收流程
+// （校验包 → 解到 UPGRADE_DIR/stage → 拉起独立安装引擎），不新增任何危险逻辑。
+// 与远程推送只有两点差别：① 鉴权走管理员登录（adminOnly 路由），不校验集群令牌，否则
+// 把机器设成「只认专用令牌」后本机反而升不了自己；② 包直接来自本机磁盘，不走网络。
+// 引擎会先把自己派生成独立进程，所以本服务随后停掉不会把引擎连坐杀掉，升级能跑完。
+async function handleLanSelfUpgrade(ctx) {
+  const b = ctx.body || {};
+  const r0 = lanReady();
+  if (!r0.win) return fail(ctx.res, '本机不是 Windows，暂不支持一键自升级', 400);
+  if (!r0.engine) return fail(ctx.res, '本机缺少升级引擎 tools/deploy/_setup.ps1，请先用一键升级包手工升一次', 400);
+  let p;
+  try { p = resolvePkg(b.pkg); } catch (e) { return fail(ctx.res, e.message, 400); }
+  let raw;
+  try { raw = fs.readFileSync(p.path); } catch (e) { return fail(ctx.res, '读不到升级包：' + e.message, 500); }
+  if (!raw.length) return fail(ctx.res, '升级包是空的', 400);
+  // 造一个「内部请求」喂给接收流程：包体来自磁盘，响应用真实的 res（页面那边能拿到统一的回执）
+  const fake = new Readable({ read() { } });
+  fake.__eqSelf = true;
+  fake.headers = { 'x-eq-force': b.force ? '1' : '', 'x-eq-from': '本机后台' };
+  fake.push(raw); fake.push(null);
+  return handleLanApply({ req: fake, res: ctx.res });
+}
+
+// ---------- 电脑清单（发起端维护） ----------
+const allLanClients = () => kvget('lanClients', []);
+function findLanClient(id) { return allLanClients().find(c => c.id === id) || null; }
+function normClient(b, base) {
+  const c = Object.assign({ id: uuid(), name: '', host: '', port: DEFAULT_PORT_, token: '', note: '',
+    created_at: new Date().toISOString(), last_ok: null, last_version: '', last_check: '', last_error: '' }, base || {});
+  if (typeof b.name === 'string') c.name = b.name.trim().slice(0, 40);
+  if (typeof b.host === 'string') c.host = b.host.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  if (b.port !== undefined && b.port !== '') {
+    const p = parseInt(b.port, 10);
+    if (!(p > 0 && p < 65536)) throw new Error('端口号不正确');
+    c.port = p;
+  }
+  if (typeof b.token === 'string') c.token = b.token.trim();
+  if (typeof b.note === 'string') c.note = b.note.trim().slice(0, 80);
+  if (!c.host) throw new Error('请填写目标机的 IP 或计算机名');
+  if (!/^[A-Za-z0-9._:\-\[\]]+$/.test(c.host)) throw new Error('IP / 计算机名格式不正确');
+  if (!c.name) c.name = c.host;
+  return c;
+}
+async function handleLanClients(ctx) {
+  return sendJson(ctx.res, { ok: true, clients: allLanClients(),
+    self: { host: os.hostname(), port: PORT, addrs: localAddrs(),
+            version: APP_VERSION, install_dir: ROOT, ready: lanReady() } });
+}
+async function handleLanClientCreate(ctx) {
+  let c;
+  try { c = normClient(ctx.body || {}); } catch (e) { return fail(ctx.res, e.message); }
+  if (isSelfTarget(c.host, c.port)) return fail(ctx.res, '这就是本机（' + c.host + ':' + c.port + '）—— 不用加进清单：要升级这台电脑自己，请在系统页点「🖥 升级本机」', 400);
+  const list = allLanClients();
+  if (list.some(x => x.host === c.host && x.port === c.port)) return fail(ctx.res, '这台电脑已经在清单里了', 409);
+  list.push(c);
+  kvset('lanClients', list);
+  return sendJson(ctx.res, { ok: true, client: c });
+}
+async function handleLanClientUpdate(ctx) {
+  const list = allLanClients();
+  const i = list.findIndex(x => x.id === ctx.params.id);
+  if (i < 0) return fail(ctx.res, '这台电脑不在清单里', 404);
+  let c;
+  try { c = normClient(ctx.body || {}, list[i]); } catch (e) { return fail(ctx.res, e.message); }
+  c.id = list[i].id; c.created_at = list[i].created_at;
+  if (isSelfTarget(c.host, c.port)) return fail(ctx.res, '这就是本机，不能加进待升级清单', 400);
+  list[i] = c;
+  kvset('lanClients', list);
+  return sendJson(ctx.res, { ok: true, client: c });
+}
+async function handleLanClientDelete(ctx) {
+  const list = allLanClients();
+  const n = list.length;
+  const next = list.filter(x => x.id !== ctx.params.id);
+  if (next.length === n) return fail(ctx.res, '这台电脑不在清单里', 404);
+  kvset('lanClients', next);
+  return sendJson(ctx.res, { ok: true, removed: 1 });
+}
+// 探测单台：拿到版本 / 可用性 / 失败原因
+async function probeClient(c, timeout) {
+  const port = c.port || DEFAULT_PORT_;
+  const t0 = Date.now();
+  const r = await httpJson(c.host, port, '/api/lan-upgrade/ping',
+    { headers: { 'X-EQ-Token': c.token || LAN_CLUSTER_KEY }, timeout: timeout || 5000 });
+  const ms = Date.now() - t0;
+  if (r.status === 200 && r.json && r.json.ok) {
+    return { ok: true, ms, reachable: true, version: r.json.version, date: r.json.date,
+      peer: r.json.name, enabled: r.json.enabled, engine: r.json.engine,
+      install_dir: r.json.install_dir, peer_port: r.json.port };
+  }
+  if (r.status === 401) return { ok: false, ms, reachable: true, code: 401, version: '', error: '目标机不认这次的升级凭据 —— 它可能被设成了「只认专用令牌」（若是，请到那台电脑后台复制令牌填到这里），也可能两边版本差得太多' };
+  if (r.status === 403) return { ok: false, ms, reachable: true, code: 403, version: '', error: '目标机已连上，但它关掉了「接受局域网升级」—— 要到那台电脑的后台·系统页打开' };
+  if (r.status === 404) {
+    const v = await httpJson(c.host, port, '/api/version', { timeout: 3000 });
+    const ver = (v.json && v.json.version) || '';
+    return { ok: false, ms, reachable: true, code: 404, version: ver,
+      error: '目标是旧版本' + (ver ? '（' + ver + '）' : '') + '，还不支持远程升级 —— 先用一键升级包升级一次' };
+  }
+  if (r.status === 0) return { ok: false, ms, reachable: false, code: 0, version: '', error: '连不上：' + (r.error || '超时') };
+  return { ok: false, ms, reachable: true, code: r.status, version: '', error: '目标机返回异常：HTTP ' + r.status };
+}
+async function handleLanCheck(ctx) {
+  const b = ctx.body || {};
+  let list = allLanClients();
+  if (Array.isArray(b.ids) && b.ids.length) list = list.filter(c => b.ids.includes(c.id));
+  if (!list.length) return sendJson(ctx.res, { ok: true, results: [], at: new Date().toISOString() });
+  const results = [];
+  const CONC = 6;
+  for (let i = 0; i < list.length; i += CONC) {
+    const chunk = list.slice(i, i + CONC);
+    const rs = await Promise.all(chunk.map(c => probeClient(c)));
+    chunk.forEach((c, k) => results.push(Object.assign({ id: c.id, name: c.name, host: c.host, port: c.port }, rs[k])));
+  }
+  // 回写最近状态，清单里直接能看到
+  const all = allLanClients(); let dirty = false;
+  for (const r of results) {
+    const c = all.find(x => x.id === r.id);
+    if (!c) continue;
+    c.last_ok = !!r.ok;
+    if (r.version) c.last_version = r.version;
+    c.last_check = new Date().toISOString();
+    c.last_error = r.ok ? '' : (r.error || '');
+    dirty = true;
+  }
+  if (dirty) kvset('lanClients', all);
+  return sendJson(ctx.res, { ok: true, results, at: new Date().toISOString() });
+}
+// ---------- 升级包仓库（扫 部署包/ + 后台上传 + 本机收包留档） ----------
+function listPackages() {
+  const out = [];
+  const scan = (dir, origin) => {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch { return; }
+    for (const n of names) {
+      if (!/\.(zip|bat)$/i.test(n)) continue;
+      const p = path.join(dir, n);
+      let st; try { st = fs.statSync(p); } catch { continue; }
+      if (!st.isFile()) continue;
+      const item = { id: origin + ':' + n, name: n, origin, size: st.size, mtime: st.mtime.toISOString(),
+        version: '', files: 0, ok: false, error: '' };
+      try {
+        const entries = unzip(readPkgFile(p));
+        const info = inspectEntries(entries);
+        item.ok = info.ok; item.error = info.error || '';
+        item.version = info.version || ''; item.files = entries.length;
+      } catch (e) { item.error = String((e && e.message) || e); }
+      out.push(item);
+    }
+  };
+  scan(DIST_DIR, 'dist');       // build-deploy.py 生成的成品包
+  scan(LAN_PKG_DIR, 'upload');  // 后台上传的包
+  out.sort((a, b) => verCmp(b.version, a.version) || String(b.mtime).localeCompare(String(a.mtime)));
+  return out;
+}
+function resolvePkg(id) {
+  const s = String(id || '');
+  const i = s.indexOf(':');
+  if (i < 0) throw new Error('升级包标识不正确');
+  const origin = s.slice(0, i), name = s.slice(i + 1);
+  if (origin !== 'dist' && origin !== 'upload') throw new Error('升级包来源不正确');
+  if (!name || /[\\/]/.test(name) || name.includes('..')) throw new Error('升级包文件名不合法');
+  const p = path.join(origin === 'dist' ? DIST_DIR : LAN_PKG_DIR, name);
+  if (!fs.existsSync(p)) throw new Error('升级包不存在：' + name);
+  return { path: p, origin, name, id: origin + ':' + name };
+}
+async function handleLanPackages(ctx) {
+  // 排序规则：能解析的在前，然后版本号从高到低。
+  // 【踩过坑】原来直接返回目录遍历顺序，界面又默认选中「第一个比本机新的包」——
+  // 实测一个 v9.9.9 的坏包被排在前面并自动选中，现场手一抖点「推送」就把它推了出去。
+  // 固定成「版本最高优先」后，默认选中的永远是当前可用的最新版本。
+  const pkgs = listPackages().sort((a, b) => {
+    if (!!a.ok !== !!b.ok) return a.ok ? -1 : 1;
+    return verCmp(b.version || '0', a.version || '0');
+  });
+  const cur = pkgs.filter(p => p.ok && verCmp(p.version, APP_VERSION) > 0);
+  return sendJson(ctx.res, {
+    ok: true, packages: pkgs, current: APP_VERSION,
+    dist_dir: DIST_DIR, upload_dir: LAN_PKG_DIR, dist_exists: fs.existsSync(DIST_DIR),
+    newest: cur.length ? cur[0].version : '',
+  });
+}
+async function handleLanPackageUpload(ctx) {
+  const req = ctx.req, res = ctx.res;
+  let raw;
+  try { raw = await readRawBody(req, MAX_PKG_BYTES); }
+  catch (e) { return fail(res, String((e && e.message) || e), 413); }
+  if (!raw || !raw.length) return fail(res, '没有收到文件内容', 400);
+  let rawName = '';
+  try { rawName = decodeURIComponent(String(req.headers['x-eq-filename'] || '')); } catch { rawName = String(req.headers['x-eq-filename'] || ''); }
+  let name = path.basename(rawName).replace(/[\\/:*?"<>|]/g, '_').trim();
+  if (!name) name = 'upload.zip';
+  let buf, isBat = /\.bat$/i.test(name);
+  try { buf = isBat ? extractBatPayload(raw) : raw; }
+  catch (e) { return fail(res, e.message, 400); }
+  let entries;
+  try { entries = unzip(buf); } catch (e) { return fail(res, '文件不是有效的升级包：' + e.message, 400); }
+  const info = inspectEntries(entries);
+  if (!info.ok) return fail(res, '升级包校验失败：' + info.error, 400);
+  if (!/\.zip$/i.test(name)) name = name.replace(/\.(bat)?$/i, '') + '.zip';
+  try {
+    fs.mkdirSync(LAN_PKG_DIR, { recursive: true });
+    fs.writeFileSync(path.join(LAN_PKG_DIR, name), buf);
+  } catch (e) { return fail(res, '保存失败：' + e.message, 500); }
+  return sendJson(res, {
+    ok: true, id: 'upload:' + name, name, version: info.version, files: entries.length,
+    size: buf.length, converted_from_bat: isBat,
+  });
+}
+async function handleLanPackageDelete(ctx) {
+  const origin = ctx.query.get('origin') || 'upload';
+  let p;
+  let pname = ctx.params.name;
+  try { pname = decodeURIComponent(pname); } catch { }
+  try { p = resolvePkg(origin + ':' + pname); } catch (e) { return fail(ctx.res, e.message, 404); }
+  try { fs.unlinkSync(p.path); } catch (e) { return fail(ctx.res, '删除失败：' + e.message, 500); }
+  return sendJson(ctx.res, { ok: true, removed: 1 });
+}
+// ---------- 推送升级（任意一台电脑都能当发起端） ----------
+async function handleLanUpgrade(ctx) {
+  const b = ctx.body || {};
+  const ids = Array.isArray(b.ids) ? b.ids : [];
+  if (!ids.length) return fail(ctx.res, '请先勾选要升级的电脑');
+  let pkg, buf, info;
+  try {
+    pkg = resolvePkg(b.pkg);
+    buf = readPkgFile(pkg.path);
+    info = inspectEntries(unzip(buf));
+  } catch (e) { return fail(ctx.res, '升级包不可用：' + e.message); }
+  if (!info.ok) return fail(ctx.res, '升级包校验失败：' + info.error);
+
+  const all = allLanClients();
+  const targets = ids.map(id => all.find(c => c.id === id)).filter(Boolean);
+  if (!targets.length) return fail(ctx.res, '选中的电脑不在清单里');
+
+  const force = !!b.force;
+  const skipSame = b.skip_same !== false;   // 已经同版本的默认跳过，避免白折腾
+  const results = [];
+  for (const c of targets) {   // 串行推送：一次只让一台机器重启，网络与日志都清爽
+    const base = { id: c.id, name: c.name, host: c.host, port: c.port };
+    if (isSelfTarget(c.host, c.port)) { results.push(Object.assign(base, { ok: false, error: '这就是本机 —— 已跳过（要升这一台自己，请点下面的「🖥 升级本机」）' })); continue; }
+    // 没填专用令牌就用系统级共享密钥：目标端默认就认它，这才是「管理员登录即可推」的支点。
+    // 原来这里在没填令牌时直接拒发，等于每加一台机器都得先去它后台抄一次令牌。
+    const pre = await probeClient(c, 6000);
+    if (!pre.ok) { results.push(Object.assign(base, { ok: false, from: pre.version || '', error: pre.error || '目标机不可用' })); continue; }
+    if (skipSame && !force && verCmp(pre.version, info.version) === 0) {
+      results.push(Object.assign(base, { ok: true, from: pre.version, to: pre.version, skipped: true, note: '本来就是 ' + pre.version + '，已跳过' }));
+      continue;
+    }
+    const r = await httpJson(c.host, c.port || DEFAULT_PORT_, '/api/lan-upgrade/apply', {
+      method: 'POST', timeout: 180000,
+      headers: {
+        'Content-Type': 'application/zip',
+        'X-EQ-Token': c.token || LAN_CLUSTER_KEY,
+        'X-EQ-From': lanName(),
+        ...(force ? { 'X-EQ-Force': '1' } : {}),
+      },
+      body: buf,
+    });
+    if (r.status === 200 && r.json && r.json.ok) {
+      results.push(Object.assign(base, { ok: true, from: r.json.from || pre.version, to: r.json.to || info.version,
+        note: '已下发，目标机正在重启' }));
+    } else {
+      results.push(Object.assign(base, { ok: false, from: pre.version, code: r.status,
+        error: (r.json && r.json.error) || r.error || ('HTTP ' + r.status) }));
+    }
+  }
+  return sendJson(ctx.res, {
+    ok: results.every(x => x.ok), pkg: pkg.name, version: info.version,
+    results, at: new Date().toISOString(),
+  });
+}
+// ---------- 分发中心：扫描本网段 ----------
+function localSubnets() {
+  const out = [];
+  const ifs = os.networkInterfaces();
+  for (const k in ifs) for (const a of (ifs[k] || [])) {
+    if (a.family !== 'IPv4' || a.internal) continue;
+    if (a.address.startsWith('169.254.')) continue;
+    const p = a.address.split('.');
+    if (p.length !== 4) continue;
+    const pre = p.slice(0, 3).join('.');
+    if (!out.includes(pre)) out.push(pre);
+  }
+  return out.slice(0, 4);
+}
+async function handleLanScan(ctx) {
+  const port = parseInt(ctx.query.get('port') || DEFAULT_PORT_, 10) || DEFAULT_PORT_;
+  const subnets = localSubnets();
+  const hosts = [];
+  for (const s of subnets) for (let i = 1; i <= 254; i++) hosts.push(s + '.' + i);
+  const found = [];
+  const CONC = 64;
+  for (let i = 0; i < hosts.length; i += CONC) {
+    const chunk = hosts.slice(i, i + CONC);
+    const rs = await Promise.all(chunk.map(async (h) => {
+      const t0 = Date.now();
+      const r = await httpJson(h, port, '/api/version', { timeout: 700 });
+      if (r.json && r.json.version) return { host: h, port, version: r.json.version, date: r.json.date || '', ms: Date.now() - t0 };
+      return null;
+    }));
+    for (const x of rs) if (x) found.push(x);
+  }
+  const known = new Set(allLanClients().map(c => c.host + ':' + (c.port || DEFAULT_PORT_)));
+  const self = new Set(localAddrs());
+  for (const f of found) { f.known = known.has(f.host + ':' + f.port); f.self = self.has(f.host) && f.port === PORT; }
+  found.sort((a, b) => a.host.localeCompare(b.host, undefined, { numeric: true }));
+  return sendJson(ctx.res, { ok: true, port, subnets, scanned: hosts.length, found, at: new Date().toISOString() });
+}
+
 // adminOnly: true 表示该接口需要管理员登录（未登录返回 401）
 // 路由顺序即匹配优先级：精确路径在前，参数路径在后
 const routes = [
@@ -1309,13 +2246,37 @@ const routes = [
   { method: 'PUT', pattern: /^\/api\/rooms\/([^/]+)$/, paramNames: ['id'], handler: handleUpdateRoom, adminOnly: true },
   { method: 'DELETE', pattern: /^\/api\/rooms\/([^/]+)$/, paramNames: ['id'], handler: handleDeleteRoom, adminOnly: true },
 
+  // ---- 科室管理（后台维护清单：房间 / 用户下拉共用）----
+  { method: 'GET', path: '/api/depts', handler: handleListDepts },
+  { method: 'POST', path: '/api/depts', handler: handleCreateDept, adminOnly: true },
+  { method: 'DELETE', pattern: /^\/api\/depts\/([^/]+)$/, paramNames: ['name'], handler: handleDeleteDept, adminOnly: true },
+
   // ---- 温湿度点检记录（按房间 + 年月；任意登录用户可录入） ----
   { method: 'GET', path: '/api/env-records', handler: handleGetEnvRecord },
   { method: 'POST', path: '/api/env-records', handler: handleSaveEnvRecord },
   { method: 'POST', path: '/api/env-records/sign-cell', handler: handleSignEnvCell },
+  { method: 'POST', path: '/api/admin/env-fill', handler: handleEnvFill, adminOnly: true },
   { method: 'GET', path: '/api/admin/env-records/export-csv', handler: handleExportEnvCsv, adminOnly: true },
 
   // ---- 数据备份 / 导出（管理员） ----
+  // ---- 局域网远程升级（分发中心，管理员） ----
+  { method: 'GET',    path: '/api/lan/clients',            handler: handleLanClients, adminOnly: true },
+  { method: 'POST',   path: '/api/lan/clients',            handler: handleLanClientCreate, adminOnly: true },
+  { method: 'PUT',    pattern: /^\/api\/lan\/clients\/([^/]+)$/, paramNames: ['id'], handler: handleLanClientUpdate, adminOnly: true },
+  { method: 'DELETE', pattern: /^\/api\/lan\/clients\/([^/]+)$/, paramNames: ['id'], handler: handleLanClientDelete, adminOnly: true },
+  { method: 'POST',   path: '/api/lan/check',              handler: handleLanCheck, adminOnly: true },
+  { method: 'GET',    path: '/api/lan/scan',               handler: handleLanScan, adminOnly: true },
+  { method: 'GET',    path: '/api/lan/packages',           handler: handleLanPackages, adminOnly: true },
+  { method: 'POST',   path: '/api/lan/packages/upload',    handler: handleLanPackageUpload, adminOnly: true, raw: true },
+  { method: 'DELETE', pattern: /^\/api\/lan\/packages\/([^/]+)$/, paramNames: ['name'], handler: handleLanPackageDelete, adminOnly: true },
+  { method: 'POST',   path: '/api/lan/upgrade',            handler: handleLanUpgrade, adminOnly: true },
+  { method: 'POST',   path: '/api/admin/lan/self-upgrade', handler: handleLanSelfUpgrade, adminOnly: true },
+
+  // ---- 本机作为被升级目标（令牌认证，不走管理员会话） ----
+  { method: 'GET',    path: '/api/lan-upgrade/config',     handler: handleLanTargetConfig, adminOnly: true },
+  { method: 'PUT',    path: '/api/lan-upgrade/config',     handler: handleLanTargetConfigPut, adminOnly: true },
+  { method: 'GET',    path: '/api/lan-upgrade/ping',       handler: handleLanPing },
+  { method: 'POST',   path: '/api/lan-upgrade/apply',      handler: handleLanApply, raw: true },
   { method: 'GET', path: '/api/admin/backup', handler: handleBackup, adminOnly: true },
   { method: 'GET', path: '/api/admin/export-inspections-csv', handler: handleExportCsv, adminOnly: true },
 ];
@@ -1323,13 +2284,13 @@ const routes = [
 function matchRoute(method, p) {
   for (const r of routes) {
     if (r.method !== method) continue;
-    if (r.path === p) return { handler: r.handler, params: {}, adminOnly: !!r.adminOnly };
+    if (r.path === p) return { handler: r.handler, params: {}, adminOnly: !!r.adminOnly, raw: !!r.raw };
     if (r.pattern) {
       const m = p.match(r.pattern);
       if (m) {
         const params = {};
         if (r.paramNames) r.paramNames.forEach((name, i) => { params[name] = m[i + 1]; });
-        return { handler: r.handler, params, adminOnly: !!r.adminOnly };
+        return { handler: r.handler, params, adminOnly: !!r.adminOnly, raw: !!r.raw };
       }
     }
   }
@@ -1345,7 +2306,8 @@ async function handleApi(req, res) {
     const route = matchRoute(method, p);
     if (!route) return fail(res, '接口不存在: ' + method + ' ' + p, 404);
     if (route.adminOnly && !(await isAdmin(req))) return fail(res, '未登录或登录已失效', 401);
-    const body = (method === 'POST' || method === 'PUT') ? await readBody(req) : {};
+    // raw:true 的路由（升级包上传）自己读原始字节，这里不能先吞掉请求流
+    const body = (!route.raw && (method === 'POST' || method === 'PUT')) ? await readBody(req, res) : {};
     return await route.handler({ req, res, params: route.params, query: url.searchParams, body });
   } catch (e) {
     return fail(res, String((e && e.message) || e), 500);
