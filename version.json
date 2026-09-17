@@ -1,0 +1,22 @@
+{
+  "name": "设备点检巡检系统",
+  "name_en": "Equipment Inspection & Patrol System",
+  "version": "v1.29.0",
+  "date": "2026-09-15",
+  "edition": "开源脱敏版 / Open-Source Desensitized Edition",
+  "repo": "https://github.com/zhangdunlong/equipment-inspection",
+  "demo": "https://equipment-inspection-cp0.pages.dev",
+  "demoReadonly": true,
+  "apiVersionEndpoint": "/api/version",
+  "features": [
+    "设备台账与模板管理",
+    "按日/按月点检与电子签名确认",
+    "多用户角色权限（管理员/普通用户）与细粒度功能权限",
+    "月度点检表 A4 打印与 CSV 导出",
+    "房间温湿度监测记录、报警配置与告警",
+    "独立检查项目（programs）与点检记录（checkRecords）",
+    "通知（notifs）与科室维度管理",
+    "LIMS 对接 / 局域网远程升级（接口保留、默认关闭、占位配置）",
+    "三套发布形态：Cloudflare Pages 只读演示站 / Node 服务版 / Windows 便携版"
+  ]
+}

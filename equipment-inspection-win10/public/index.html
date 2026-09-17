@@ -4,289 +4,648 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>设备点检大屏</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/v2/theme.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
 <style>
-.histq{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; margin-bottom:14px; }
-.histq select{ padding:6px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; background:#fff; color:#222; max-width:220px; }
-.histq select:focus{ outline:none; border-color:#36d399; }
-.roomq{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; margin-bottom:14px; }
-.roomq select{ padding:6px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; background:#fff; color:#222; min-width:150px; }
-.roomq select:focus{ outline:none; border-color:#36d399; }
-.roomq .badges{ display:flex; gap:6px; flex-wrap:wrap; }
-.roomq .badges span{ font-size:11px; color:#666; background:#f0f0f5; border:1px solid #ddd; border-radius:4px; padding:2px 6px; }
-.card{ position:relative; }
-.card-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px; }
-.card .room-badge{ font-size:10px; color:#666; background:#f0f0f5; border:1px solid #ddd; border-radius:4px; padding:0 5px; line-height:1.7; white-space:nowrap; }
+    /* ===== 全屏展示（v1.26.0）=====
+     进全屏 = 上墙当看板看，右上角那排按钮（时钟 / 刷新 / 全屏）自动隐去，不占地方也不刺眼；
+     鼠标（或手指）移到顶部 96px 以内临时唤出 2.8 秒，够点「退出全屏」；Esc 也能退出。 */
+  .page-head .flex { transition:opacity .35s var(--t-base), transform .35s var(--t-base); }
+  html.fs-mode .page-head .flex { opacity:0; transform:translateY(-10px); pointer-events:none; }
+  html.fs-mode.fs-reveal .page-head .flex { opacity:1; transform:none; pointer-events:auto; }
+  /* 光标也一起藏掉：安静 3 秒不动鼠标就恢复系统行为（看板场景不该一直杵着个箭头） */
+  html.fs-mode.fs-reveal { cursor:default; }
+
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--s-3); margin-bottom:var(--s-5); }
+  .kpi { padding:var(--s-4) var(--s-5); background:var(--bg-2); border:1px solid var(--line-1);
+    border-left:3px solid var(--line-2); border-radius:var(--r-lg); }
+  .kpi.ok{border-left-color:var(--ok)} .kpi.ng{border-left-color:var(--ng)} .kpi.warn{border-left-color:var(--warn)}
+  .kpi .l { font-size:var(--fs-sm); color:var(--tx-3); }
+  .kpi .v { font-size:var(--fs-4xl); font-weight:800; line-height:1.1; margin-top:6px; font-variant-numeric:tabular-nums; }
+  .kpi.ok .v{color:var(--ok)} .kpi.ng .v{color:var(--ng)} .kpi.warn .v{color:var(--warn)}
+  .kpi .s { font-size:var(--fs-xs); color:var(--tx-4); margin-top:4px; }
+  .prog { height:6px; border-radius:var(--r-full); background:var(--bg-4); overflow:hidden; margin-top:var(--s-3); }
+  .prog > i { display:block; height:100%; width:0; border-radius:var(--r-full);
+    background:linear-gradient(90deg,var(--cyan),var(--accent)); transition:width .5s var(--t-base); }
+
+  .toolbar { display:flex; align-items:center; gap:var(--s-3); flex-wrap:wrap;
+    padding:var(--s-3) var(--s-4); margin-bottom:var(--s-4);
+    background:var(--bg-2); border:1px solid var(--line-1); border-radius:var(--r-lg); }
+  .toolbar .sep { width:1px; height:22px; background:var(--line-1); }
+  .seg { display:inline-flex; background:var(--bg-1); border:1px solid var(--line-1); border-radius:var(--r-md); overflow:hidden; }
+  .seg button { padding:6px 13px; font-size:var(--fs-sm); font-weight:600; color:var(--tx-3);
+    background:transparent; border:none; border-right:1px solid var(--line-1); }
+  .seg button:last-child { border-right:none; }
+  .seg button:hover { background:var(--bg-3); color:var(--tx-1); }
+  .seg button[aria-pressed="true"] { background:var(--accent-soft); color:#fff; }
+  .toolbar input[type=text] { width:180px; min-height:32px; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(158px,1fr)); gap:var(--s-3); }
+  .card { position:relative; display:flex; flex-direction:column; gap:2px; width:100%; text-align:left;
+    padding:var(--s-3); min-height:118px; text-decoration:none; cursor:pointer;
+    background:var(--bg-2); border:1px solid var(--line-1); border-radius:var(--r-md); color:var(--tx-1);
+    transition:border-color var(--t-fast), background var(--t-fast), transform var(--t-fast); }
+  .card:hover { background:var(--bg-3); border-color:var(--accent); transform:translateY(-2px); text-decoration:none; }
+  .card.is-ok   { border-left:3px solid var(--ok-line); }
+  .card.is-ng   { border-left:3px solid var(--ng); background:var(--ng-soft); }
+  .card.is-none { border-left:3px solid var(--idle); opacity:.8; }
+  .card .hd { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+  .card .loc { font-size:var(--fs-xs); color:var(--tx-4); background:var(--bg-1);
+    border:1px solid var(--line-1); border-radius:var(--r-sm); padding:1px 6px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1; }
+  /* 检查表类型标签：一台设备可能同时有「点检表」和「专项表」，卡片上要能一眼分开 */
+  .card .ktag { flex:none; font-size:10px; font-weight:700; border-radius:var(--r-sm); padding:1px 5px;
+    border:1px solid var(--line-1); background:var(--bg-1); color:var(--tx-4); }
+  .card .ktag.kt-d { color:var(--cyan); border-color:var(--cyan); }
+  .card .ktag.kt-p { color:var(--warn); border-color:var(--warn); }
+  .card .no { font-size:var(--fs-xs); color:var(--tx-4); }
+  .card .nm { font-size:var(--fs-md); font-weight:700; line-height:1.35; margin:2px 0;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .card .md { font-size:var(--fs-xs); color:var(--tx-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card .ft { display:flex; align-items:center; gap:6px; margin-top:auto; padding-top:6px; }
+  .card .who { font-size:var(--fs-xs); color:var(--tx-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card .sig { height:20px; max-width:46px; background:#fff; border-radius:3px; padding:0 2px; }
+  .card .tm { font-size:10px; color:var(--tx-4); font-variant-numeric:tabular-nums; }
+
+  .badge-ng { position:absolute; top:8px; right:8px; }
+
+  .sect { display:flex; align-items:center; gap:var(--s-2); margin:var(--s-6) 0 var(--s-3); }
+  .sect h2 { font-size:var(--fs-lg); }
+  .sect .sp { flex:1; }
+
+  @media (max-width:900px){ .kpis { grid-template-columns:repeat(2,1fr); } }
+  /* ===== 历史点检查询 · 检查表搜索（v1.28.0）=====
+     可选检查表有 130+ 张（124 台设备点检 + 若干专项表），原生 select 只能一条条滚。
+     这里改成「输入即过滤」的可搜索下拉：多关键字（空格分隔，需全部命中）、命中高亮、
+     ↑↓ 选择 / Enter 确认 / Esc 关闭。原生 select(#h_dev) 仍留在 DOM 里当值容器，
+     既保持既有查询逻辑不变，也方便自动化测试直接断言选中的值。 */
+  .h-srch { position:relative; min-width:260px; }
+  .h-box { position:relative; display:flex; align-items:center; }
+  .h-box .h-ico { position:absolute; left:10px; font-size:var(--fs-sm); opacity:.55; pointer-events:none; }
+  .h-srch #h_q { width:100%; padding-left:30px; padding-right:32px; }
+  .h-box .h-clr { position:absolute; right:8px; width:20px; height:20px; padding:0; line-height:1;
+    border:none; border-radius:var(--r-full); background:var(--bg-4); color:var(--tx-3); font-size:11px; }
+  .h-box .h-clr:hover { background:var(--ng); color:#fff; }
+  .h-dd { position:absolute; z-index:60; left:0; right:0; top:calc(100% + 6px); max-height:330px; overflow:auto;
+    padding:4px; background:var(--bg-2); border:1px solid var(--line-2);
+    border-radius:var(--r-md); box-shadow:var(--sh-3); }
+  .h-dd[hidden] { display:none; }
+  .h-dd .it { display:flex; flex-direction:column; gap:1px; padding:7px 9px; cursor:pointer;
+    border:1px solid transparent; border-radius:var(--r-sm); }
+  .h-dd .it.on { background:var(--accent-soft); border-color:var(--accent-line); }
+  .h-dd .it:hover { background:var(--bg-3); }
+  .h-dd .it .l1 { display:flex; align-items:center; gap:7px; font-size:var(--fs-sm); }
+  .h-dd .it .l1 .no { font-weight:800; color:var(--tx-1); font-variant-numeric:tabular-nums; }
+  .h-dd .it .l1 .nm { font-weight:600; color:var(--tx-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .h-dd .it .l2 { font-size:var(--fs-xs); color:var(--tx-4); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .h-dd .kt { flex:none; font-size:10px; font-weight:700; padding:1px 5px; border-radius:var(--r-sm);
+    border:1px solid var(--line-1); background:var(--bg-1); color:var(--tx-4); }
+  .h-dd .kt.d { color:var(--cyan); border-color:var(--cyan); }
+  .h-dd .kt.p { color:var(--warn); border-color:var(--warn); }
+  .h-dd mark { background:transparent; color:var(--warn); font-weight:800; }
+  .h-dd .empty { padding:14px 10px; text-align:center; font-size:var(--fs-sm); color:var(--tx-3); line-height:1.7; }
+  .h-dd .more { margin-top:4px; padding:6px 10px; text-align:center; font-size:var(--fs-xs); color:var(--tx-4);
+    border-top:1px solid var(--line-1); }
+  #h_sel { max-width:46%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body>
-<nav class="nav">
-  <div class="brand">⚡ 设备点检中心</div>
+
+<nav class="app-nav" data-nav>
+  <div class="brand"><span class="brand-text">设备点检系统</span></div>
   <div class="sp"></div>
-  <a href="/" class="active">设备大屏</a>
-  <a href="/inspect">点检作业</a>
-  <a href="/env.html" id="nav_env">温湿度</a>
-  <a href="/admin" id="nav_admin" style="display:none">管理后台</a>
-  <a href="/logout">退出</a>
+  <span class="ver" data-appver></span>
+  <button class="nav-toggle" aria-label="展开菜单" aria-expanded="false">☰</button>
+  <div class="links"></div>
 </nav>
 
-<div class="wrap">
-  <div class="topbar">
-    <h1>📟 设备维护保养 · 实时大屏</h1>
-    <div class="clock" id="clock"></div>
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1 id="ttl">设备维护保养 · 实时大屏</h1>
+      <div class="sub" id="scope">加载中…</div>
+    </div>
     <div class="sp"></div>
-    <button class="btn sm" id="fsBtn">⛶ 全屏</button>
-    <button class="btn sm" id="refreshBtn">🔄 刷新</button>
+    <div class="flex">
+      <span class="mono sm muted" id="clock">--:--:--</span>
+      <button class="btn btn-sm btn-ghost" id="refresh" title="立即刷新">🔄 刷新</button>
+      <button class="btn btn-sm btn-ghost" id="fs" title="全屏显示">⛶ 全屏</button>
+    </div>
   </div>
 
-  <div class="kpis" id="kpis">
-    <div class="kpi glass"><div class="label">设备总数</div><div class="val" id="k_total">–</div><div class="sub">台在册设备</div></div>
-    <div class="kpi ok glass"><div class="label">今日已点检</div><div class="val" id="k_insp">–</div><div class="sub" id="k_insp_sub"></div><div class="bar"><i id="k_bar"></i></div></div>
-    <div class="kpi ng glass"><div class="label">今日异常</div><div class="val" id="k_ng">–</div><div class="sub">需跟进处理</div></div>
-    <div class="kpi warn glass"><div class="label">本月累计点检</div><div class="val" id="k_month">–</div><div class="sub">次记录</div></div>
+  <div id="alert"></div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="l">设备总数</div><div class="v" id="k_total">–</div><div class="s">台在册设备</div></div>
+    <div class="kpi ok"><div class="l">今日已点检</div><div class="v" id="k_insp">–</div><div class="s" id="k_insp_sub">—</div>
+      <div class="prog"><i id="k_bar"></i></div></div>
+    <div class="kpi ng"><div class="l">今日异常</div><div class="v" id="k_ng">–</div><div class="s">需跟进处理</div></div>
+    <div class="kpi warn"><div class="l">本月累计点检</div><div class="v" id="k_month">–</div><div class="s">次记录</div></div>
   </div>
 
-  <div class="legend mb">
-    <span><i style="background:#36d399"></i>正常</span>
-    <span><i style="background:#ff5d6c"></i>异常</span>
-    <span><i style="background:#6b6390"></i>未点检</span>
+  <div class="toolbar">
+    <span class="sm muted nowrap">📍 当前房间</span>
+    <b id="cur_room">–</b>
+    <div class="sep"></div>
+    <div class="seg" id="seg_status" role="group" aria-label="按状态筛选">
+      <button data-f="all"  aria-pressed="true">全部</button>
+      <button data-f="ng"   aria-pressed="false">异常</button>
+      <button data-f="none" aria-pressed="false">未检</button>
+      <button data-f="ok"   aria-pressed="false">正常</button>
+    </div>
+    <div class="seg" id="seg_kind" role="group" aria-label="按检查表类型筛选">
+      <button data-k="all"     aria-pressed="true">全部表</button>
+      <button data-k="device"  aria-pressed="false">点检表</button>
+      <button data-k="program" aria-pressed="false">专项表</button>
+    </div>
+    <input type="text" id="q" placeholder="🔍 编号 / 名称 / 型号" aria-label="筛选设备">
+    <div class="sp" style="flex:1"></div>
+    <a class="btn btn-sm btn-ghost" id="go_env">🌡 温湿度表</a>
+    <a class="btn btn-sm btn-ghost" id="go_print">🖨 设备点检表</a>
+    <button class="btn btn-sm btn-ghost" id="switch_room">🔄 切换房间</button>
+  </div>
+
+  <div class="sect">
+    <h2>设备状态</h2>
+    <span class="sm muted" id="cnt">—</span>
     <span class="sp"></span>
-    <span class="muted tiny">数据每 15 秒自动刷新 · 点击设备卡片查看点检明细</span>
+    <span class="sm dim" id="stamp"></span>
+  </div>
+  <div class="grid" id="grid">
+    <div class="skel" style="height:118px"></div><div class="skel" style="height:118px"></div>
+    <div class="skel" style="height:118px"></div><div class="skel" style="height:118px"></div>
+    <div class="skel" style="height:118px"></div><div class="skel" style="height:118px"></div>
   </div>
 
-  <div class="roomq glass">
-    <span class="muted tiny" style="white-space:nowrap">📍 当前房间：</span>
-    <b id="cur_room" style="font-size:14px;color:#4f8cff">–</b>
-    <button class="btn sm" id="switch_room" title="返回房间选择页">🔄 切换房间</button>
-    <a class="btn sm ghost" id="go_env" href="/env" title="本房间的温湿度监测记录">🌡 温湿度表 →</a>
-    <a class="btn sm ghost" id="go_print" href="/print-all" title="本房间全部设备的月度点检表（可打印）">🖨 设备点检表 →</a>
-    <span id="grp_links" class="flex" style="display:none;gap:6px;align-items:center"></span>
-    <span class="badges" id="room_badges"></span>
-    <span data-appver class="muted tiny" style="white-space:nowrap;margin-left:auto"></span>
-  </div>
-
-  <div class="histq glass">
-    <span class="muted tiny" style="white-space:nowrap">📚 历史点检查询：</span>
-    <select id="h_year" title="年份"></select>
-    <select id="h_month" title="月份"></select>
-    <select id="h_dev" title="设备编号"></select>
-    <button class="btn sm primary" id="h_go">🔍 查询点检表</button>
-    <span class="muted tiny" id="h_hint"></span>
-  </div>
-
-  <div class="grid" id="grid"></div>
-
-  <div class="sec-title">🕒 最近点检记录</div>
-  <div class="scroll glass" style="padding:6px 4px">
-    <table>
+  <div class="sect"><h2>最近点检记录</h2><span class="sp"></span>
+    <span class="sm dim">数据每 20 秒自动刷新 · 页面不可见时自动暂停</span></div>
+  <div class="panel"><div class="table-wrap" style="max-height:380px">
+    <table class="tbl">
       <thead><tr><th>时间</th><th>编号</th><th>设备</th><th>状态</th><th>签名人</th><th>签名</th><th>异常说明</th></tr></thead>
       <tbody id="recent"></tbody>
     </table>
+  </div></div>
+
+  <div class="sect"><h2>历史点检查询</h2>
+    <span class="sp"></span>
+    <span class="sm dim" id="h_cnt">—</span></div>
+  <div class="panel panel-pad">
+    <div class="row">
+      <div class="field" style="max-width:130px"><label>年份</label><select id="h_year"></select></div>
+      <div class="field" style="max-width:110px"><label>月份</label><select id="h_month"></select></div>
+      <div class="field h-srch" style="flex:2">
+        <label for="h_q">检查表（编号 / 名称 / 型号 / 房间 / 表名）</label>
+        <div class="h-box" id="h_box">
+          <span class="h-ico" aria-hidden="true">🔍</span>
+          <input type="text" id="h_q" placeholder="输入关键字搜索，如：冲击 / QR-102 / 显微镜" autocomplete="off"
+                 role="combobox" aria-expanded="false" aria-controls="h_dd" aria-autocomplete="list" aria-label="搜索检查表">
+          <button type="button" class="h-clr" id="h_clr" title="清空" aria-label="清空搜索" hidden>✕</button>
+          <select id="h_dev" hidden aria-hidden="true" tabindex="-1"></select>
+          <div class="h-dd" id="h_dd" role="listbox" aria-label="检查表候选" hidden></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="h_go">🔍 查询点检表</button>
+    </div>
+    <div class="row mt-3">
+      <div class="field" style="flex:0 0 auto">
+        <label>检查表类型</label>
+        <div class="seg" id="h_kind" role="group" aria-label="按检查表类型筛选">
+          <button type="button" data-k="all" aria-pressed="true">全部表</button>
+          <button type="button" data-k="d" aria-pressed="false">点检表</button>
+          <button type="button" data-k="p" aria-pressed="false">专项表</button>
+        </div>
+      </div>
+      <div class="field" style="flex:1 1 260px">
+        <label>已选检查表</label>
+        <div class="sm dim" id="h_sel" style="min-height:36px;display:flex;align-items:center">未选择检查表</div>
+      </div>
+    </div>
+    <div class="sm dim mt-3">可查近 5 年 · 未来月份不可查询 · 多关键字用空格分隔（需全部命中）· ↑↓ 选择 / Enter 确认 / Esc 关闭</div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
+<script src="/assets/v2/core.js"></script>
 <script src="/assets/dept.js"></script>
+<script src="/assets/notify.js"></script>
 <script>
-const $ = s => document.querySelector(s);
-const api = (p,opt)=>fetch(p,opt).then(r=>r.json());
-function toast(msg,type){const t=$('#toast');t.textContent=msg;t.className='toast show '+(type||'');setTimeout(()=>t.className='toast',2600);}
-// 转义回显字段，防止存储型 XSS
-function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-// signed_at 是 UTC ISO 字符串，转成本地时间显示（YYYY-MM-DD HH:MM:SS），避免差 8 小时
-function fmtTime(s){ if(!s) return ''; const d=new Date(s); if(isNaN(d.getTime())) return '';
-  const p=n=>String(n).padStart(2,'0');
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
-function clock(){const d=new Date();const p=n=>String(n).padStart(2,'0');
-  $('#clock').innerHTML=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} <b>${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}</b>`;}
-setInterval(clock,1000);clock();
+const { $, $$, esc, api, toast, mountNav, isGroupTok, tokGroup } = CORE;
 
-// 「管理后台」导航图标：仅管理员登录时显示（普通用户登录后看不到此入口）
-(async()=>{try{
-  const me=await api('/api/admin/me');
-  if(me && me.ok && me.role==='admin'){
-    const a=document.getElementById('nav_admin'); if(a) a.style.display='';
-  }
-}catch(e){}})();
+let ROOMS = [], ROOM_META = {}, GROUP_ROOMS = {}, CURR_ROOM = '';
+let FILTER = 'all', KIND = 'all', QUERY = '', LAST = null, TIMER = null, LOADING = false;
 
-// ===== 房间选择守卫：登录后必须先在 /rooms 选房间，才能看到对应设备大屏 =====
-// 两种"房间"标识：
-//   普通房间名（如「车间A」）→ 大屏只显示该房间的设备（location 过滤）
-//   __GROUP__<分组名>（如「__GROUP__车间」）→ 合并显示该分组下所有房间的设备，仅限本组，绝不含其他房间
-// 房间与分组均由后台「房间管理」维护：启动时从 /api/rooms 拉取
-let ROOM_COUNT={};
-let ROOM_META={};      // 房间完整信息（含分组 group）
-let GROUP_ROOMS={};    // 分组名 → 该组房间名数组
-const GRP_TP='__GROUP__';
-const isGroupTok=n=>String(n).indexOf(GRP_TP)===0;
-const tokGroup=n=>String(n).slice(GRP_TP.length);
-// 房间显示名：一律使用完整房间名（不再缩写为「车间 · 室1」，保证名称完整）
-function roomLabel(n){
-  if(isGroupTok(n)) return '全部'+tokGroup(n)+'设备';
-  return String((ROOM_META[n]||{}).name||n);
+/* ---------- 时钟 ---------- */
+function clock() {
+  const d = new Date(), p = CORE.p2;
+  $('#clock').textContent = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
-let ROOMS=['车间A','车间B'];
-let CURR_ROOM='';
-async function initRoom(){
-  try{
-    // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间
-    try{ if(window.DEPT) await DEPT.load(); }catch(e){}
-    const roomsAll=await api('/api/rooms');
-    const rooms=(window.DEPT ? DEPT.filterRooms(Array.isArray(roomsAll)?roomsAll:[]) : roomsAll);
-    if(Array.isArray(rooms)&&rooms.length){
-      ROOMS=[]; GROUP_ROOMS={};
-      rooms.forEach(r=>{
-        ROOMS.push(r.name);
-        ROOM_COUNT[r.name]=r.count||0;
-        ROOM_META[r.name]=r;
-        const g=String(r.group||'').trim();
-        if(g){ if(!GROUP_ROOMS[g]) GROUP_ROOMS[g]=[]; GROUP_ROOMS[g].push(r.name); }
-      });
-      Object.keys(GROUP_ROOMS).forEach(g=>ROOMS.push(GRP_TP+g));  // 分组合并视图
-    }
-  }catch(e){}
-  const rp=new URLSearchParams(location.search).get('room');
-  if(rp && ROOMS.indexOf(rp)>=0){
-    CURR_ROOM=rp;
-    try{ sessionStorage.setItem('selected_room',rp); }catch(e){}
-  }else{
-    try{ CURR_ROOM=sessionStorage.getItem('selected_room')||''; }catch(e){}
-  }
-  if(ROOMS.indexOf(CURR_ROOM)<0){ location.replace('/rooms.html'); return false; }
-  $('#cur_room').textContent=roomLabel(CURR_ROOM);
-  document.title='设备点检大屏 · '+roomLabel(CURR_ROOM);
+setInterval(clock, 1000); clock();
 
-  // 徽章：说明当前视图覆盖范围（单房间 / 分组合并）
-  (function renderRoomBadges(){
-    const el=$('#room_badges'); if(!el) return;
-    const names=Object.keys(ROOM_COUNT);
-    const total=names.reduce((a,b)=>a+(ROOM_COUNT[b]||0),0);
-    // 同分组房间合并算一个「房间区域」
-    const seen={}; let entries=0;
-    names.forEach(n=>{ const g=String((ROOM_META[n]||{}).group||'').trim();
-      if(g){ if(!seen[g]){ seen[g]=1; entries++; } } else entries++; });
-    let html='';
-    if(isGroupTok(CURR_ROOM)){
-      const g=tokGroup(CURR_ROOM), ms=GROUP_ROOMS[g]||[];
-      const gt=ms.reduce((a,b)=>a+(ROOM_COUNT[b]||0),0);
-      html+='<span>🧩 '+esc(g)+'：'+gt+' 台</span>';
-      html+='<span>📦 '+esc(ms.map(n=>n+' '+(ROOM_COUNT[n]||0)+' 台').join(' · '))+'</span>';
-    }else{
-      html+='<span>🏠 本房间在册：'+(ROOM_COUNT[CURR_ROOM]||0)+' 台</span>';
-      html+='<span>🏢 全厂：'+total+' 台</span>';
-    }
-    html+='<span>🗂 共 '+entries+' 个房间区域</span>';
-    el.innerHTML=html;
-  })();
+/* ---------- 房间守卫 ---------- */
+function roomLabel(n) {
+  if (isGroupTok(n)) return '全部' + tokGroup(n) + '设备';
+  return String((ROOM_META[n] || {}).name || n);
+}
 
-  // 跳转链接：单房间 → 直接指到本房间；分组合并 → 逐房间给出入口（温湿度/点检表都是单房间单据，不能合并打印）
-  const ne=document.getElementById('nav_env');
-  const ge=document.getElementById('go_env');
-  const gp=document.getElementById('go_print');
-  const gl=document.getElementById('grp_links');
-  if(isGroupTok(CURR_ROOM)){
-    const g=tokGroup(CURR_ROOM), ms=GROUP_ROOMS[g]||[];
-    if(ne) ne.href='/env';
-    if(ge) ge.style.display='none';
-    if(gp) gp.style.display='none';
-    if(gl){
-      gl.style.display='';
-      const mini=(cls,label,room)=>`<a class="btn sm ghost" href="${cls}?room=${encodeURIComponent(room)}" title="「${esc(room)}」${label}">${esc(room)}</a>`;
-      gl.innerHTML=
-        '<span class="muted tiny" style="white-space:nowrap">🌡 温湿度表：</span>'+
-        ms.map(n=>mini('/env','温湿度监测记录',n)).join('')+
-        '<span class="muted tiny" style="white-space:nowrap;margin-left:6px">🖨 点检表：</span>'+
-        ms.map(n=>mini('/print-all','月度点检表（可打印）',n)).join('');
-    }
-  }else{
-    const rq=encodeURIComponent(CURR_ROOM);
-    if(ne) ne.href='/env?room='+rq;
-    if(ge){ ge.style.display=''; ge.href='/env?room='+rq; }
-    if(gp){ gp.style.display=''; gp.href='/print-all?room='+rq+'&auto=1'; }
-    if(gl){ gl.style.display='none'; gl.innerHTML=''; }
+async function initRoom() {
+  let me = { ok: false };
+  try { me = await CORE.me(); } catch (e) { }
+  mountNav({ me });
+
+  if (window.DEPT) { try { await DEPT.load(); } catch (e) { } }
+  const rooms = await api('/api/rooms');
+  if (!rooms.__error && Array.isArray(rooms)) {
+    const list = (window.DEPT ? DEPT.filterRooms(rooms) : rooms) || [];
+    ROOMS = []; GROUP_ROOMS = {};
+    list.forEach(r => {
+      ROOMS.push(r.name); ROOM_META[r.name] = r;
+      const g = String(r.group || '').trim();
+      if (g) { (GROUP_ROOMS[g] = GROUP_ROOMS[g] || []).push(r.name); }
+    });
+    Object.keys(GROUP_ROOMS).forEach(g => ROOMS.push(CORE.GRP_TP + g));
   }
+
+  const rp = new URLSearchParams(location.search).get('room');
+  if (rp && ROOMS.indexOf(rp) >= 0) { CURR_ROOM = rp; CORE.session.room = rp; }
+  else if (ROOMS.indexOf(CORE.session.room) >= 0) { CURR_ROOM = CORE.session.room; }
+
+  if (!ROOMS.length || ROOMS.indexOf(CURR_ROOM) < 0) { location.replace('/rooms.html'); return false; }
+
+  // 关闭上一次会话残留的房间
+  $('#cur_room').textContent = roomLabel(CURR_ROOM);
+  $('#ttl').textContent = '设备维护保养 · ' + roomLabel(CURR_ROOM);
+  document.title = '设备点检大屏 · ' + roomLabel(CURR_ROOM);
+
+  const isGrp = isGroupTok(CURR_ROOM);
+  const rq = encodeURIComponent(CURR_ROOM);
+  $('#scope').textContent = isGrp
+    ? '合并视图：' + (GROUP_ROOMS[tokGroup(CURR_ROOM)] || []).join(' · ')
+    : (ROOM_META[CURR_ROOM] && ROOM_META[CURR_ROOM].desc) || '按房间查看当日点检状态';
+
+  // 温湿度 / 点检表是「单房间」单据，分组合并视图下逐房间给入口
+  const ge = $('#go_env'), gp = $('#go_print');
+  if (isGrp) { ge.hidden = true; gp.hidden = true; }
+  else { ge.href = '/env?room=' + rq; gp.href = '/print-all?room=' + rq + '&auto=1'; }
+
   return true;
 }
-$('#switch_room').onclick=()=>{ location.href='/rooms.html'; };
 
-async function load(){
-  const d=new Date();const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  // 分组合并视图 → group=分组名（服务端只回本组房间的设备）；单房间 → location=房间名
+/* ---------- 检查任务卡片（设备 × 检查表）---------- */
+// 一张卡片 = 一张检查表（不是一台设备）：冲击机有「设备点检 + 摩擦和风阻损耗」两张，
+// 显微镜头只有「显微镜维护记录」一张。用 <a> 原生跳转，不再靠 JS 挂 click —— 少一层出错面。
+function jobCardHtml(j) {
+  const cls = j.status === 'ng' ? 'is-ng' : j.status === 'none' ? 'is-none' : 'is-ok';
+  const label = j.status === 'ok' ? '正常' : j.status === 'ng' ? '异常' : '未点检';
+  const dot = j.status === 'ok' ? 'dot-ok' : j.status === 'ng' ? 'dot-ng' : 'dot-idle';
+  const isProg = j.job_kind === 'program';
+  const href = isProg
+    ? '/check.html?program=' + encodeURIComponent(j.job_id) + '&device=' + encodeURIComponent(j.no) + '&ym=' + CORE.thisMonth()
+    : '/inspect.html?device=' + encodeURIComponent(j.no);
+  const ttl = isProg ? (j.job_name || '专项检查') : (j.name || '设备点检');
+  const sub = isProg ? (j.name || '') + (j.model ? ' · ' + j.model : '') : (j.model || '');
+  const when = j.status !== 'none' && j.signed_at ? CORE.fmtHM(j.signed_at) : '';
+  return `<a class="card ${cls}" href="${href}" data-no="${esc(j.no)}" data-kind="${esc(j.job_kind)}"
+      title="${esc(ttl)}｜No.${esc(j.no)} ${esc(j.name)}｜${label}">
+    <span class="dot ${dot} badge-ng"></span>
+    <div class="hd"><span class="loc">${esc(j.location) || '—'}</span>
+      <span class="ktag ${isProg ? 'kt-p' : 'kt-d'}">${isProg ? '专项' : '点检'}</span></div>
+    <div class="no">No.${esc(j.no)}</div>
+    <div class="nm">${esc(ttl) || '—'}</div>
+    <div class="md">${esc(sub)}</div>
+    <div class="ft">
+      ${j.signature_image ? `<img class="sig" src="${j.signature_image}" alt="签名">` : ''}
+      <span class="who">${esc(j.signed_by) || '未点检'}</span>
+      <span class="sp" style="flex:1"></span>
+      <span class="tm">${when}</span>
+    </div>
+  </a>`;
+}
+
+function applyFilter(list) {
+  const q = QUERY.toLowerCase();
+  return list.filter(g => {
+    if (FILTER !== 'all' && g.status !== FILTER) return false;
+    if (KIND !== 'all' && g.job_kind !== KIND) return false;
+    if (!q) return true;
+    return (g.no || '').toLowerCase().includes(q)
+        || (g.name || '').toLowerCase().includes(q)
+        || (g.model || '').toLowerCase().includes(q)
+        || (g.job_name || '').toLowerCase().includes(q);
+  });
+}
+
+function paint(data) {
+  LAST = data;
+  const jobs = data.jobs || [];
+  const done = data.job_done || 0, jtotal = data.job_total != null ? data.job_total : jobs.length;
+  $('#k_total').textContent = data.total;
+  $('#k_insp').textContent = done;
+  const pct = jtotal ? Math.round(done / jtotal * 100) : 0;
+  $('#k_insp_sub').textContent = `完成 ${pct}%（共 ${jtotal} 项检查）`;
+  $('#k_bar').style.width = pct + '%';
+  $('#k_ng').textContent = data.job_abnormal || 0;
+  $('#k_month').textContent = data.month_inspected;
+
+  const list = applyFilter(jobs);
+  const grid = $('#grid');
+  const sig = list.map(g => g.job_kind + ':' + g.job_id + ':' + g.no + ':' + g.status + ':' + (g.signed_at || '')).join('|');
+  // 只在内容真的变化时才重建 DOM —— 避免每 20 秒丢焦点 / 重放动画 / 闪烁
+  if (grid.dataset.sig === sig) { $('#stamp').textContent = '更新于 ' + CORE.fmtHM(new Date().toISOString()); return; }
+  grid.dataset.sig = sig;
+  grid.innerHTML = list.length
+    ? list.map(jobCardHtml).join('')
+    : `<div class="empty" style="grid-column:1/-1"><span class="ico">🔍</span><div class="t">没有匹配的检查表</div><div class="d">试试清除筛选条件</div></div>`;
+  $('#cnt').textContent = `显示 ${list.length} / ${jobs.length} 项检查`;
+  $('#stamp').textContent = '更新于 ' + CORE.fmtHM(new Date().toISOString());
+}
+
+function paintRecent(data) {
+  const rb = $('#recent');
+  if (!data.recent || !data.recent.length) {
+    rb.innerHTML = '<tr><td colspan="7" class="dim" style="text-align:center;padding:22px">今日暂无点检记录</td></tr>';
+    return;
+  }
+  rb.innerHTML = data.recent.map(r => `<tr>
+    <td class="mono tiny">${CORE.fmtTime(r.signed_at)}</td>
+    <td>${esc(r.no)}</td><td>${esc(r.name)}</td>
+    <td><span class="pill pill-${r.status === 'ok' ? 'ok' : r.status === 'ng' ? 'ng' : 'idle'}">${r.status === 'ok' ? '正常' : r.status === 'ng' ? '异常' : '—'}</span></td>
+    <td>${esc(r.signer_name) || '—'}</td>
+    <td>${r.signature_image ? `<img src="${r.signature_image}" style="height:22px;background:#fff;border-radius:3px;padding:0 2px" alt="签名">` : '—'}</td>
+    <td class="tiny">${esc(r.abnormal_note) || ''}</td></tr>`).join('');
+}
+
+/* ---------- 数据加载 ---------- */
+async function load(manual) {
+  if (LOADING) return;
+  LOADING = true;
   const scope = isGroupTok(CURR_ROOM)
-    ? '&group='+encodeURIComponent(tokGroup(CURR_ROOM))
-    : '&location='+encodeURIComponent(CURR_ROOM);
-  const data=await api('/api/dashboard?date='+date+scope);
-  $('#k_total').textContent=data.total;
-  $('#k_insp').textContent=data.today_inspected;
-  $('#k_insp_sub').textContent=`已完成 ${data.total?Math.round(data.today_inspected/data.total*100):0}%`;
-  $('#k_bar').style.width=(data.total?data.today_inspected/data.total*100:0)+'%';
-  $('#k_ng').textContent=data.today_abnormal;
-  $('#k_month').textContent=data.month_inspected;
-  const grid=$('#grid');grid.innerHTML='';
-  data.grid.forEach(g=>{
-    // 状态语义样式：异常=红边脉冲提醒，未检=降透明度，正常=淡绿边
-    const stcls=g.status==='ng'?' stcard-ng':g.status==='none'?' stcard-none':' stcard-ok';
-    const c=document.createElement('div');c.className='card glass'+stcls;
-    c.innerHTML=`<div class="card-head"><span class="room-badge">${esc(g.location)||'—'}</span><span class="st ${g.status}"></span></div>
-      <div class="no">No.${esc(g.no)}</div>
-      <div class="nm" title="${esc(g.name)}">${esc(g.name)||'—'}</div>
-      <div class="md">${esc(g.model)||''}</div>
-      <div class="tm" style="font-size:10px;color:#888;margin-top:2px">${g.status!=='none'&&g.signed_at?fmtTime(g.signed_at):''}</div>
-      <div class="sig">${g.signature_image?`<img src="${g.signature_image}">`:''}<span class="who">${esc(g.signed_by)||'未点检'}</span></div>`;
-    c.onclick=()=>{ window.location.href='/inspect.html?device='+encodeURIComponent(g.no); };
-    grid.appendChild(c);
-  });
-  const rb=$('#recent');rb.innerHTML='';
-  data.recent.forEach(r=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="tiny">${fmtTime(r.signed_at)}</td>
-      <td>${esc(r.no)}</td><td>${esc(r.name)}</td>
-      <td><span class="pill ${r.status}">${r.status==='ok'?'正常':r.status==='ng'?'异常':'—'}</span></td>
-      <td>${esc(r.signer_name)||'—'}</td>
-      <td>${r.signature_image?`<img src="${r.signature_image}" style="height:24px">`:'—'}</td>
-      <td class="tiny">${esc(r.abnormal_note)||''}</td>`;
-    rb.appendChild(tr);
-  });
+    ? '&group=' + encodeURIComponent(tokGroup(CURR_ROOM))
+    : '&location=' + encodeURIComponent(CURR_ROOM);
+  const data = await api('/api/dashboard?date=' + CORE.localToday() + scope);
+  LOADING = false;
+  if (data.__error) {
+    if (manual) toast(data.__error, 'err');
+    $('#alert').innerHTML = `<div class="banner ng"><span>⚠️ ${esc(data.__error)}</span><span class="sp"></span>
+      <button class="btn btn-sm" onclick="location.reload()">重试</button></div>`;
+    return;
+  }
+  $('#alert').innerHTML = '';
+  paint(data); paintRecent(data);
 }
-$('#refreshBtn').onclick=load;
-$('#fsBtn').onclick=()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();};
 
-// ===== 历史点检查询：按年份 / 月份 / 设备编号 查找对应点检表 =====
-async function fillHist(){
-  const now=new Date();
-  const y=$('#h_year');
-  for(let i=4;i>=0;i--){
-    const yr=now.getFullYear()-i;
-    y.insertAdjacentHTML('beforeend',`<option value="${yr}">${yr}年</option>`);
-  }
-  y.value=now.getFullYear();
-  const mm=$('#h_month');
-  for(let i=1;i<=12;i++){
-    const m=String(i).padStart(2,'0');
-    mm.insertAdjacentHTML('beforeend',`<option value="${m}">${i}月</option>`);
-  }
-  mm.value=String(now.getMonth()+1).padStart(2,'0');
-  const devs=await api('/api/devices');
-  $('#h_dev').innerHTML='<option value="">（请选择设备编号）</option>'+
-    devs.map(d=>`<option value="${d.no}">${d.no} · ${d.name}</option>`).join('');
-  $('#h_hint').textContent=`可查 ${y.value} 年往前共 5 年 · 未来月份不可查询`;
+/* 页面不可见时暂停轮询（工厂 PC 长期挂大屏时省资源，回到前台立即补一次） */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { clearInterval(TIMER); TIMER = null; }
+  else { load(); if (!TIMER) TIMER = setInterval(load, 20000); }
+});
+
+/* ---------- 交互 ---------- */
+$('#refresh').onclick = () => load(true);
+/* ---------- 全屏展示：右上角按钮自动隐藏 ---------- */
+function syncFsUI(active){
+  document.documentElement.classList.toggle('fs-mode', !!active);
+  if(!active) document.documentElement.classList.remove('fs-reveal');
+  const b=$('#fs'); if(b) b.textContent = active ? '⛶ 退出全屏' : '⛶ 全屏';
 }
-$('#h_go').onclick=()=>{
-  const yr=$('#h_year').value, mm=$('#h_month').value, no=$('#h_dev').value;
-  if(!no){toast('请选择设备编号','err');return;}
-  const selMonth=yr+'-'+mm;
-  const now=new Date();
-  const curMonth=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  if(selMonth>curMonth){toast('不能查询未来月份的记录','err');return;}
-  window.open('/inspect.html?device='+encodeURIComponent(no)+'&month='+selMonth,'_blank');
+let FS_TIMER=null;
+function fsReveal(){
+  if(!document.documentElement.classList.contains('fs-mode')) return;
+  document.documentElement.classList.add('fs-reveal');
+  clearTimeout(FS_TIMER);
+  FS_TIMER=setTimeout(()=>document.documentElement.classList.remove('fs-reveal'), 2800);
+}
+document.addEventListener('fullscreenchange', () => syncFsUI(!!document.fullscreenElement));
+// 只在鼠标/手指靠近顶部（按钮就在那一带）时唤出，避免鼠标随便一动按钮就闪出来
+document.addEventListener('mousemove', e => { if(e.clientY<=96) fsReveal(); });
+document.addEventListener('touchstart', e => { const t=e.touches&&e.touches[0]; if(t&&t.clientY<=96) fsReveal(); }, {passive:true});
+$('#fs').onclick = () => {
+  if (!document.fullscreenElement) {
+    const p=document.documentElement.requestFullscreen();
+    if(p&&p.catch) p.catch(()=>{});   // 浏览器不允许时（非用户手势/被策略拦）静默即可，不用报错
+  } else document.exitFullscreen();
 };
-fillHist();
+$('#switch_room').onclick = () => { location.href = '/rooms.html'; };
+$$('#seg_status button').forEach(b => b.onclick = () => {
+  $$('#seg_status button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+  b.setAttribute('aria-pressed', 'true');
+  FILTER = b.dataset.f;
+  if (LAST) paint(LAST);
+});
+$$('#seg_kind button').forEach(b => b.onclick = () => {
+  $$('#seg_kind button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+  b.setAttribute('aria-pressed', 'true');
+  KIND = b.dataset.k;
+  if (LAST) paint(LAST);
+});
+$('#q').addEventListener('input', CORE.debounce(() => { QUERY = $('#q').value.trim(); if (LAST) paint(LAST); }, 180));
 
-initRoom().then(ok=>{ if(ok){ load(); setInterval(load,15000); } }); // 校验房间后才启动大屏轮询
+/* ---------- 历史查询（v1.28.0：检查表可搜索）----------
+   为什么要有搜索：可选检查表有 130+ 张（124 台设备点检 + 若干专项表），
+   原生 <select> 只能一条条滚，想找一个编号非常痛苦。
+   这里改成「输入即过滤」的可搜索下拉。原生 select(#h_dev) 仍留在 DOM 里当值容器，
+   既有查询逻辑（读 $('#h_dev').value）一行都不用改。 */
+let HIST = [];            // 全量检查表索引
+let HIST_KIND = 'all';    // all | d(点检表) | p(专项表)
+let HIST_HIT = [];        // 当前过滤结果
+let HIST_IDX = -1;        // 键盘高亮下标
+const H_MAX = 80;         // 最多渲染多少条，超出提示继续输入
 
-// 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
-fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
+const histNorm = s => String(s == null ? '' : s).toLowerCase();
+
+// 表单编号：设备点检表统一取模板 source_file 里的 PK-JC-QR-0xx（专项表另有 form_code）
+function histFormCode(s) {
+  const m = String(s || '').match(/PK-JC-QR-\d+/i);
+  return m ? m[0].toUpperCase() : '';
+}
+
+// 一条检查表索引：hay 是「一个字符串装下所有可搜字段」，多关键字全部命中才算中
+function histItem(kind, v, d, tplName, code) {
+  const no = String(d.no || ''), name = String(d.name || ''), model = String(d.model || '');
+  const location = String(d.location || ''), fc = String(code || '');
+  const kindCn = kind === 'd' ? '设备点检 点检表 日常' : '专项检查 专项表';
+  return { kind, v, no, name, model, location, tplName, code: fc,
+    hay: histNorm([no, name, model, location, tplName, fc, kindCn].join(' ')) };
+}
+
+// 关键字高亮：把命中片段包成 <mark>。先切再 esc，避免把用户输入当 HTML 插（防 XSS）
+function histMark(text, kws) {
+  const s = String(text == null ? '' : text);
+  if (!kws.length) return esc(s);
+  const low = s.toLowerCase(), hits = [];
+  kws.forEach(k => {
+    let i = low.indexOf(k);
+    while (i >= 0) { hits.push([i, i + k.length]); i = low.indexOf(k, i + k.length); }
+  });
+  if (!hits.length) return esc(s);
+  hits.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  hits.forEach(h => {
+    const last = merged[merged.length - 1];
+    if (last && h[0] <= last[1]) last[1] = Math.max(last[1], h[1]);
+    else merged.push(h);
+  });
+  let out = '', cur = 0;
+  merged.forEach(p => { out += esc(s.slice(cur, p[0])) + '<mark>' + esc(s.slice(p[0], p[1])) + '</mark>'; cur = p[1]; });
+  return out + esc(s.slice(cur));
+}
+
+function histRowHtml(it, i, kws) {
+  const on = i === HIST_IDX;
+  const l2 = [it.model ? '型号 ' + it.model : '', it.location ? '📍 ' + it.location : '', it.code, it.tplName]
+    .filter(Boolean).map(x => histMark(x, kws)).join(' · ');
+  return '<div class="it' + (on ? ' on' : '') + '" id="h_it_' + i + '" role="option" data-i="' + i + '"' +
+    ' aria-selected="' + on + '">' +
+    '<div class="l1"><span class="kt ' + it.kind + '">' + (it.kind === 'd' ? '点检' : '专项') + '</span>' +
+    '<span class="no">' + histMark(it.no, kws) + '</span>' +
+    '<span class="nm">' + histMark(it.name, kws) + '</span></div>' +
+    '<div class="l2">' + l2 + '</div></div>';
+}
+
+function histKws() {
+  const raw = $('#h_q').value.trim().toLowerCase();
+  return raw ? raw.split(/\s+/).filter(Boolean) : [];
+}
+
+function histRender() {
+  const kws = histKws();
+  HIST_HIT = HIST.filter(it => (HIST_KIND === 'all' || it.kind === HIST_KIND) && kws.every(k => it.hay.indexOf(k) >= 0));
+  if (HIST_IDX >= HIST_HIT.length) HIST_IDX = -1;
+  const shown = HIST_HIT.slice(0, H_MAX);
+  let h;
+  if (!shown.length) {
+    h = '<div class="empty">没有匹配的检查表<br><span class="tiny dim">试试编号片段（QR-102）或设备名（冲击 / 显微镜）</span></div>';
+  } else {
+    h = shown.map((it, i) => histRowHtml(it, i, kws)).join('');
+    if (HIST_HIT.length > shown.length) h += '<div class="more">还有 ' + (HIST_HIT.length - shown.length) + ' 条，请继续输入关键字缩小范围</div>';
+  }
+  const dd = $('#h_dd');
+  dd.innerHTML = h;
+  dd.hidden = false;
+  $('#h_q').setAttribute('aria-expanded', 'true');
+  if (HIST_IDX >= 0) $('#h_q').setAttribute('aria-activedescendant', 'h_it_' + HIST_IDX);
+  else $('#h_q').removeAttribute('aria-activedescendant');
+  $('#h_cnt').textContent = HIST_HIT.length + ' / ' + HIST.length + ' 张检查表';
+  const on = dd.querySelector('.it.on');
+  if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+}
+
+function histOpen(open) {
+  const dd = $('#h_dd');
+  if (open) histRender();
+  else {
+    dd.hidden = true;
+    $('#h_q').setAttribute('aria-expanded', 'false');
+    $('#h_q').removeAttribute('aria-activedescendant');
+  }
+  $('#h_clr').hidden = !$('#h_q').value;
+}
+
+function histPick(i) {
+  const it = HIST_HIT[i];
+  if (!it) return false;
+  $('#h_dev').value = it.v;                                  // 值容器：查询逻辑读它
+  $('#h_q').value = it.no + ' · ' + it.name + ' · ' + it.tplName;
+  HIST_IDX = -1;
+  histOpen(false);
+  const sel = $('#h_sel');
+  sel.textContent = '✅ ' + it.no + ' · ' + it.name + ' · ' + it.tplName + (it.location ? '（' + it.location + '）' : '');
+  sel.classList.remove('dim');
+  sel.dataset.v = it.v;
+  return true;
+}
+
+function histClear() {
+  $('#h_dev').value = '';
+  $('#h_q').value = '';
+  HIST_IDX = -1;
+  const sel = $('#h_sel');
+  sel.textContent = '未选择检查表';
+  sel.classList.add('dim');
+  delete sel.dataset.v;
+  $('#h_clr').hidden = true;
+  $('#h_q').focus();
+  histRender();
+}
+
+async function fillHist() {
+  const now = new Date();
+  const y = $('#h_year');
+  for (let i = 4; i >= 0; i--) { const yr = now.getFullYear() - i; y.insertAdjacentHTML('beforeend', `<option value="${yr}">${yr}年</option>`); }
+  y.value = now.getFullYear();
+  const mm = $('#h_month');
+  for (let i = 1; i <= 12; i++) { const m = CORE.p2(i); mm.insertAdjacentHTML('beforeend', `<option value="${m}">${i}月</option>`); }
+  mm.value = CORE.p2(now.getMonth() + 1);
+
+  // 选项 = 「一张检查表」，而不是一台设备：冲击机的点检表和摩擦风阻表要分开查
+  const [devs, prgs, tpls] = await Promise.all([api('/api/devices'), api('/api/programs'), api('/api/templates')]);
+  // 设备的「表单编号」不在 /api/devices 里，要从模板的 source_file 里摘（PK-JC-QR-032 …）
+  const codeOf = {};
+  (Array.isArray(tpls) ? tpls : []).forEach(t => { codeOf[t.id] = histFormCode(t.source_file); });
+  HIST = [];
+  (Array.isArray(devs) ? devs : []).forEach(d => HIST.push(histItem('d', 'd|' + d.no, d, '设备点检', codeOf[d.template_id] || '')));
+  (Array.isArray(prgs) ? prgs : []).forEach(p => (p.devices || []).forEach(d =>
+    HIST.push(histItem('p', 'p|' + p.id + '|' + d.no, d, p.name || '专项检查', p.form_code || ''))));
+  HIST.sort((a, b) => String(a.location || '~').localeCompare(String(b.location || '~'), 'zh') || String(a.no).localeCompare(String(b.no), 'zh'));
+
+  // select 只当值容器：保留全部选项，避免任何依赖它的旧代码拿不到值
+  $('#h_dev').innerHTML = '<option value="">（请选择检查表）</option>' +
+    HIST.map(x => `<option value="${esc(x.v)}">${esc(x.no + ' · ' + x.name + ' · ' + x.tplName)}</option>`).join('');
+  histOpen(false);
+  $('#h_cnt').textContent = HIST.length + ' / ' + HIST.length + ' 张检查表';
+}
+
+$('#h_q').addEventListener('focus', () => histOpen(true));
+$('#h_q').addEventListener('input', () => { HIST_IDX = -1; $('#h_clr').hidden = !$('#h_q').value; histRender(); });
+$('#h_q').addEventListener('keydown', e => {
+  const dd = $('#h_dd');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (dd.hidden) histRender();
+    const n = Math.min(HIST_HIT.length, H_MAX);
+    if (!n) return;
+    HIST_IDX = e.key === 'ArrowDown' ? (HIST_IDX + 1 >= n ? 0 : HIST_IDX + 1) : (HIST_IDX - 1 < 0 ? n - 1 : HIST_IDX - 1);
+    histRender();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (!dd.hidden && HIST_IDX >= 0 && histPick(HIST_IDX)) return;   // 有高亮项 → 选中它
+    if (HIST_HIT.length === 1 && histPick(0)) return;                // 只剩一条 → 直接选中
+    $('#h_go').click();                                              // 否则当作「确定查询」
+  } else if (e.key === 'Escape') {
+    if (!dd.hidden) { e.preventDefault(); histOpen(false); }
+  }
+});
+$('#h_dd').addEventListener('mousedown', e => {
+  const it = e.target.closest && e.target.closest('.it');
+  if (!it) return;
+  e.preventDefault();                    // 别让输入框先失焦，否则点下去前下拉就关了
+  histPick(Number(it.dataset.i));
+});
+$('#h_clr').onclick = () => histClear();
+$('#h_kind').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  $$('#h_kind button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+  b.setAttribute('aria-pressed', 'true');
+  HIST_KIND = b.dataset.k;
+  HIST_IDX = -1;
+  histRender();
+  $('#h_q').focus();
+});
+document.addEventListener('mousedown', e => { if (!$('#h_box').contains(e.target)) histOpen(false); });
+
+$('#h_go').onclick = () => {
+  const yr = $('#h_year').value, mo = $('#h_month').value, v = $('#h_dev').value;
+  if (!v) { toast('请先搜索并选择一张检查表', 'err'); $('#h_q').focus(); histRender(); return; }
+  if (yr + '-' + mo > CORE.thisMonth()) return toast('不能查询未来月份的记录', 'err');
+  const p = v.split('|');
+  if (p[0] === 'p') window.open('/check.html?program=' + encodeURIComponent(p[1]) + '&device=' + encodeURIComponent(p[2]) + '&ym=' + yr + '-' + mo, '_blank');
+  else window.open('/inspect.html?device=' + encodeURIComponent(p[1]) + '&month=' + yr + '-' + mo, '_blank');
+};
+
+/* ---------- 启动 ---------- */
+(async () => {
+  fillHist();
+  if (await initRoom()) { await load(); TIMER = setInterval(load, 20000); }
+})();
 </script>
 </body>
 </html>

@@ -17,5 +17,12 @@ node_modules/
 .wrangler/
 .DS_Store
 
-# 说明：本仓库 data/kv.json 与 data/config.json 均为【已脱敏演示数据】，随仓库提供、开箱即用
-#       （默认管理员 admin/admin123，演示用户 user/user123）。请勿把含真实业务数据的同名文件提交到公开仓库。
+# 测试脚本与内部文档（含敏感凭据 / 内部信息，不入库，仅本地使用）
+**/*-e2e-test.js
+**/regression-test.js
+**/交接文档.md
+
+# 说明：
+# - data/config.json、data/kv.json 为【运行时数据】，已被忽略，绝不入库（含密钥/业务数据）。
+# - data/sample.kv.json 才是随仓库提供的【已脱敏演示种子数据】，开箱即用（默认管理员 admin/admin123）。
+#   服务首次启动会自动用 sample.kv.json 生成 data/kv.json；请勿把含真实业务数据的 kv.json 提交到公开仓库。

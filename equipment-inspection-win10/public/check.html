@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>检查记录</title>
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+:root{ --line:#000; }
+*{box-sizing:border-box}
+body{ color:#1a1a2e; }
+.wrap{ max-width:1180px; margin:0 auto; padding:0 16px 44px; }
+
+/* ===== 工具条（仅屏幕） ===== */
+.toolbar{ background:#fff; border:2px solid var(--line); border-radius:8px; padding:10px 12px; margin-top:14px;
+  display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.toolbar .field{ display:flex; flex-direction:column; gap:3px; }
+.toolbar label{ font-size:11px; color:#666; }
+.toolbar select,.toolbar input{ font-size:13px; padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff; color:#222; }
+.btn{ cursor:pointer; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:700; color:#fff;
+  background:linear-gradient(135deg,#ff5fa2,#1aa6c4); box-shadow:0 3px 10px rgba(255,95,162,.25); }
+.btn:hover{ filter:brightness(1.05); }
+.btn.ghost{ background:#fff; color:#c2317e; border:1px solid #e58ec0; box-shadow:none; }
+.btn.sm{ padding:5px 10px; font-size:12px; }
+.tipbar{ font-size:12px; color:#888; margin-top:8px; }
+
+/* ===== 纸张 ===== */
+.sheet{ background:#fff; border:2px solid var(--line); border-radius:8px; padding:12px 15px 16px; margin-top:12px; position:relative; }
+.sheet .fcode{ text-align:right; font-size:11px; color:#555; font-weight:700; letter-spacing:.5px; }
+.sheet .ttl{ text-align:center; font-size:19px; font-weight:800; letter-spacing:2px; margin:5px 0 2px; }
+.sheet .ttl-en{ text-align:center; font-size:10.5px; color:#666; letter-spacing:.3px; margin-bottom:8px; line-height:1.25; }
+
+/* 表格外的一行表头（079 用：设备型号 / 设备编号） */
+.meta-line{ font-size:12.5px; margin:0 0 6px; padding:4px 2px; }
+.meta-line b{ display:inline-block; min-width:110px; border-bottom:1px solid #000; text-align:center; padding:0 8px; font-weight:700; }
+.meta-line .en{ font-size:10px; color:#666; }
+
+/* ===== 正表 ===== */
+table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
+.ctab td{ border:1px solid #000; padding:2px 3px; vertical-align:middle; text-align:center; word-break:break-word; }
+.ctab .lb{ font-size:10px; line-height:1.2; }
+.ctab .lb i{ display:block; font-style:normal; font-size:8.5px; color:#555; }
+.ctab tr.hdr td{ height:24px; font-size:10.5px; }
+.ctab tr.colh td{ background:#f2f2f2; font-weight:700; font-size:10.5px; line-height:1.2; }
+.ctab tr.colh td i{ display:block; font-style:normal; font-size:8.5px; color:#555; font-weight:400; }
+.ctab tbody tr.r td{ height:25px; }
+/* 右侧说明栏：线下 PK-JC-QR-102 是上下两块格 —— 标题格（跨表头 2 行）+ 正文格（跨列头行与
+   全部数据行），两块各自在格内垂直居中。线上原来合成一格、内容全顶在上边，与模板差得远。 */
+.ctab td.side{ text-align:center; vertical-align:middle; font-size:9.5px; line-height:1.4; padding:7px 8px; }
+.ctab td.side .s-h{ font-weight:700; font-size:10px; }
+.ctab td.side .s-h i{ display:block; font-style:normal; font-size:8.5px; color:#555; font-weight:400; }
+.ctab td.side ol{ margin:0; padding-left:0; text-align:center; list-style-position:inside; }
+.ctab td.side ol li{ margin-bottom:5px; text-align:center; }
+.ctab td.side ol li:last-child{ margin-bottom:0; }
+.ctab tr.crit td{ font-size:9.5px; text-align:left; line-height:1.35; padding:4px 5px; }
+.ctab tr.crit td.std{ text-align:center; font-weight:700; white-space:nowrap; }
+
+/* 单元格内的输入：融入纸张（打印时就是纯文字） */
+.ctab input.cin{ width:100%; border:none; outline:none; background:transparent; text-align:center;
+  font-size:12px; font-family:inherit; padding:1px 0; color:#111; }
+.ctab input.cin:focus{ background:#fff7fb; box-shadow:inset 0 0 0 1px #ff8ec4; border-radius:3px; }
+.ctab input.cin::placeholder{ color:#c9c9c9; font-size:10.5px; }
+
+/* 结论格 / 检查情况格：点一下就切换，默认从「正常」开始 */
+.ccell{ cursor:pointer; font-weight:700; font-size:13px; user-select:none; }
+.ccell:hover{ background:#fff7fb; }
+.ccell.v-normal{ color:#0a8f3c; }
+.ccell.v-abnormal{ color:#d11; font-weight:800; }
+.ccell.v-slash{ color:#b8860b; }
+.ccell.empty{ color:#ddd; }
+
+/* 签名格 */
+.sgcell{ position:relative; cursor:pointer; padding:0; height:25px; overflow:hidden; }
+.sgcell:hover{ background:#fff7fb; }
+.sgcell img{ max-height:23px; max-width:96%; object-fit:contain; display:block; margin:0 auto; }
+.sgcell .ph{ color:#ddd; font-size:12px; }
+.sgcell .nm{ display:block; font-size:8px; color:#999; line-height:1; }
+.ctab tr.r td.today{ background:#fffbe8; }
+/* 未来日期不可填写（与点检 / 温湿度口径一致：不能补未来） */
+.ctab tr.r td.future{ background:#fafafa; }
+.ctab tr.r td.future input.cin{ color:#bbb; }
+.ctab .ccell.future{ cursor:not-allowed; }
+.ctab .ccell.future.empty{ color:#eee; }
+.ctab .sgcell.future{ cursor:not-allowed; }
+.ctab .sgcell.future .ph{ color:#eee; }
+
+/* 底部备注（079） */
+.note-block{ margin-top:8px; font-size:11px; line-height:1.55; white-space:pre-line; color:#222; }
+.note-block b{ font-weight:700; }
+
+/* 签名选择弹层 */
+.sgmask{ display:none; position:fixed; inset:0; background:rgba(8,14,28,.62); z-index:60;
+  align-items:center; justify-content:center; }
+.sgmask.show{ display:flex; }
+.sgbox{ background:#fff; color:#222; border-radius:12px; padding:16px 18px; width:320px; box-shadow:0 20px 50px rgba(0,0,0,.4); }
+.sgbox h4{ margin:0 0 4px; font-size:15px; }
+.sgbox .sub{ font-size:11px; color:#888; margin-bottom:10px; }
+.sgbox select{ width:100%; font-size:13px; padding:7px 9px; border:1px solid #ccc; border-radius:7px; }
+.sgbox #sg_pw{ width:100%; box-sizing:border-box; margin-top:8px; font-size:13px; padding:7px 9px;
+  border:1px solid #ccc; border-radius:7px; font-family:inherit; }
+.sgbox #sg_pw:focus{ outline:none; border-color:#c2317e; box-shadow:0 0 0 2px rgba(194,49,126,.15); }
+.sgbox .sg-warn{ font-size:11px; color:#b42318; margin-top:5px; line-height:1.4; }
+.sgbox .sgops{ display:flex; gap:8px; margin-top:12px; }
+
+/* ===== 打印：A4 纵向，一张表一页 ===== */
+@media print{
+  @page{ size:A4 portrait; margin:7mm 8mm; }
+  *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+  html,body{ background:#fff !important; color:#000 !important; margin:0 !important; padding:0 !important;
+    min-height:0 !important; height:auto !important; overflow:visible !important; }
+  nav,.toolbar,.toast,.sgmask,.tipbar,.no-print{ display:none !important; }
+  .wrap{ max-width:none !important; margin:0 !important; padding:0 !important; }
+  .sheet{ border:none !important; border-radius:0 !important; padding:0 !important; margin:0 !important;
+    font-family:"SimSun","宋体","Microsoft YaHei",serif !important; page-break-inside:avoid; }
+  .sheet .fcode{ font-size:8pt; color:#000; }
+  .sheet .ttl{ font-size:13pt; letter-spacing:2.5pt; margin:0 0 1pt; }
+  .sheet .ttl-en{ font-size:6.8pt; color:#000; margin-bottom:3pt; }
+  .meta-line{ font-size:8.5pt; margin-bottom:2pt; padding:0; }
+  .meta-line b{ border-bottom:1px solid #000; min-width:60pt; }
+  .ctab{ font-size:6.6pt !important; }
+  .ctab td{ border:1px solid #000 !important; padding:.3pt 1pt !important; }
+  .ctab .lb{ font-size:6pt; }
+  .ctab .lb i{ font-size:5.2pt; color:#333; }
+  .ctab tr.hdr td{ height:11pt; font-size:6pt; }
+  .ctab tr.colh td{ background:#eee !important; font-size:6pt; }
+  .ctab tr.colh td i{ font-size:5.2pt; color:#333; }
+  /* td 上强制行高（tr height 在 Chrome 打印中不可靠）。
+     行高由 JS 按行数算出（--rowh），让整张表尽量铺满一页，不出现半页空白。 */
+  .ctab tbody tr.r td{ height:var(--rowh,6.6mm); box-sizing:border-box; }
+  .ctab td.side{ font-size:5.6pt; line-height:1.28; padding:2pt 2.5pt; text-align:center; vertical-align:middle; }
+  .ctab td.side .s-h{ font-size:5.8pt; }
+  .ctab td.side ol{ padding-left:0; text-align:center; list-style-position:inside; }
+  .ctab td.side ol li{ margin-bottom:1.6pt; text-align:center; }
+  .ctab tr.crit td{ font-size:5.4pt; line-height:1.22; padding:1pt 1.5pt; }
+  .ctab input.cin{ font-size:6.6pt; padding:0; }
+  /* 打印时把「内容」这类默认值当预印文字显示出来（纸质表上本来就印着 1.2.3） */
+  .ctab input.cin::placeholder{ color:#000; opacity:.9; }
+  .ccell{ font-size:7pt; }
+  /* 未填的格子打印出来是空白，不能露出屏幕上的占位点 */
+  .ccell.empty{ color:transparent; }
+  .ctab tr.r td.future{ background:transparent; }
+  .sgcell{ height:auto; }
+  .sgcell img{ max-height:5.4mm; }
+  .sgcell .nm{ display:none; }
+  .ctab tr.r td.today{ background:transparent; }
+  .note-block{ font-size:6.2pt; margin-top:3pt; line-height:1.35; }
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="brand-text">设备点检系统</span></div>
+  <div class="sp"></div>
+  <a href="/">设备大屏</a>
+  <a href="/inspect">点检作业</a>
+  <a href="/env.html" id="nav_env">温湿度</a>
+  <a href="/admin" id="nav_admin" style="display:none">管理后台</a>
+  <span data-appver style="color:rgba(234,241,251,.45);font-size:11px;white-space:nowrap"></span>
+  <a href="/logout">退出</a>
+</nav>
+
+<div class="wrap">
+  <div class="toolbar no-print">
+    <div class="field"><label>检查项目</label><select id="p_sel" style="min-width:200px"></select></div>
+    <div class="field" style="min-width:230px"><label>设备</label><select id="d_sel" style="min-width:220px"></select></div>
+    <div class="field"><label>月份</label><input type="month" id="ym_sel"></div>
+    <button class="btn" id="save_btn">💾 保存</button>
+    <button class="btn ghost" id="print_btn">🖨 打印</button>
+    <span class="muted tiny" id="stat"></span>
+  </div>
+  <div class="tipbar no-print" id="tipbar"></div>
+  <div id="sheet_box"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 签名人选择（点击签名格时弹出） -->
+<div class="sgmask" id="sgmask">
+  <div class="sgbox">
+    <h4 id="sg_t">电子签名</h4>
+    <div class="sub" id="sg_sub"></div>
+    <select id="sg_sel"></select>
+    <input type="password" id="sg_pw" placeholder="签名人密码（必填）" autocomplete="new-password">
+    <div class="sg-warn">检查表的签名必须验证签名人密码，不适用后台的「免密签名」开关。</div>
+    <div class="sgops">
+      <button class="btn sm" id="sg_ok">确定签名</button>
+      <button class="btn sm ghost" id="sg_clr">清除本格</button>
+      <button class="btn sm ghost" id="sg_cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/dept.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const api = (p, opt) => fetch(p, opt).then(r => r.json());
+function toast(m, t){ const e=$('#toast'); e.textContent=m; e.className='toast show '+(t||''); setTimeout(()=>e.className='toast',2600); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function pad2(n){ return String(n).padStart(2,'0'); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function curYm(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1); }
+
+// 结论三态：空 → 正常(√) → 异常(×) → 划杠(/) → 空
+const CONC_SEQ = ['', 'normal', 'abnormal', 'slash'];
+const CONC_MARK = { normal:'√', abnormal:'×', slash:'/' };
+// 检查情况两态：空 → 正常 → 异常 → 空
+const CHK_SEQ = ['', '正常', '异常'];
+
+let PROGRAMS = [], CUR_PROG = null, CUR_DEV = null, CUR_YM = curYm();
+let SIGNERS = [], rowsData = {};   // rowsData[dayKey][colKey] = 值
+let sigTarget = null;              // 正在选签名人的 {day, key}
+
+async function boot(){
+  const qs = new URLSearchParams(location.search);
+  let progs = [];
+  try{ progs = await api('/api/programs'); }catch(e){ progs = []; }
+  PROGRAMS = Array.isArray(progs) ? progs.filter(p => (p.device_ids||[]).length) : [];
+  if(!PROGRAMS.length){
+    $('#sheet_box').innerHTML = '<div class="sheet"><p style="margin:20px 0;color:#666">还没有配置任何独立检查项目。请先在管理后台把设备加入检查项目。</p></div>';
+    return;
+  }
+  const wantP = qs.get('program');
+  CUR_PROG = PROGRAMS.find(p => p.id === wantP) || PROGRAMS[0];
+  CUR_YM = qs.get('ym') || curYm();
+  $('#ym_sel').value = CUR_YM;
+  $('#ym_sel').max = curYm();          // 不允许选未来月份
+  buildProgSelect();
+  buildDevSelect(qs.get('device'), qs.get('room'));
+  await loadSheet();
+}
+
+function buildProgSelect(){
+  $('#p_sel').innerHTML = PROGRAMS.map(p =>
+    `<option value="${esc(p.id)}"${p.id===CUR_PROG.id?' selected':''}>${esc(p.name)}（${(p.device_ids||[]).length} 台）</option>`).join('');
+  $('#p_sel').onchange = async () => {
+    CUR_PROG = PROGRAMS.find(p => p.id === $('#p_sel').value) || PROGRAMS[0];
+    buildDevSelect('', '');
+    await loadSheet();
+  };
+}
+
+// 设备下拉：可带 room 限定（从某个房间进入时只列该房间的设备）
+function buildDevSelect(wantDev, wantRoom){
+  let devs = CUR_PROG.devices || [];
+  if(wantRoom) devs = devs.filter(d => (d.location||'') === wantRoom);
+  if(!devs.length) devs = CUR_PROG.devices || [];
+  CUR_DEV = devs.find(d => String(d.no) === String(wantDev)) || devs[0] || null;
+  $('#d_sel').innerHTML = devs.map(d =>
+    `<option value="${esc(d.no)}"${CUR_DEV&&d.no===CUR_DEV.no?' selected':''}>${esc(d.no)} · ${esc(d.name||'')}${d.model?' ('+esc(d.model)+')':''} · ${esc(d.location||'')}</option>`).join('');
+  $('#d_sel').onchange = async () => {
+    CUR_DEV = (CUR_PROG.devices||[]).find(d => String(d.no) === $('#d_sel').value) || null;
+    await loadSheet();
+  };
+}
+
+async function loadSheet(){
+  if(!CUR_DEV){ $('#sheet_box').innerHTML='<div class="sheet"><p style="color:#666">该项目下没有设备。</p></div>'; return; }
+  rowsData = {};
+  try{
+    const recs = await api('/api/check-records?program_id='+encodeURIComponent(CUR_PROG.id)+
+      '&device_id='+encodeURIComponent(CUR_DEV.id)+'&ym='+encodeURIComponent(CUR_YM));
+    if(Array.isArray(recs) && recs[0] && recs[0].rows) rowsData = recs[0].rows;
+  }catch(e){}
+  // 可选项列（如 #079「内容」）没有值时预置默认值，保证「默认选中」并随保存落库
+  const cks = rowKeys();
+  const scols = (CUR_PROG.columns || []).filter(c => c.type === 'select');
+  if(scols.length && cks.length){
+    cks.forEach(d => {
+      const k = String(d);
+      if(!rowsData[k]) rowsData[k] = {};
+      scols.forEach(c => {
+        const v = rowsData[k][c.key];
+        if(v == null || v === '' || (c.opts && c.opts.indexOf(v) < 0)) rowsData[k][c.key] = (c.def != null ? c.def : (c.opts && c.opts[0] || ''));
+      });
+    });
+  }
+  // 签名人（按登录人科室过滤：本科室的人只见本科室签名人；管理员 / 未设科室看全部）
+  try{ SIGNERS = await api('/api/signers/public'); }catch(e){ SIGNERS = []; }
+  const myDept = (window.DEPT && DEPT.dept) ? DEPT.dept : '';
+  if(myDept) SIGNERS = SIGNERS.filter(s => (s.dept||'') === myDept);
+  render();
+  const saved = Object.keys(rowsData).length;
+  $('#stat').textContent = CUR_YM + ' · 已填 ' + saved + ' 天';
+}
+
+// 当月行键：day 型=每天一行；week 型=当月每个周一一行
+function rowKeys(){
+  const y = +CUR_YM.slice(0,4), m = +CUR_YM.slice(5,7);
+  const dim = new Date(y, m, 0).getDate();
+  const out = [];
+  if(CUR_PROG.row_unit === 'week'){
+    for(let d=1; d<=dim; d++){ if(new Date(y, m-1, d).getDay() === 1) out.push(d); }
+  }else{
+    for(let d=1; d<=dim; d++) out.push(d);
+  }
+  return out;
+}
+
+function render(){
+  const p = CUR_PROG, dev = CUR_DEV;
+  const cols = p.columns || [];
+  const keys = rowKeys();
+  const hasSide = !!(p.side_items && p.side_items.length);
+  // 每个数据列占几个网格列。线下 PK-JC-QR-102 的「摩擦和风阻损耗」表头是跨 2 列的，
+  // 模板里用 columns[].span 声明；不声明 = 1（079 等表不受影响）。
+  const colSpans = cols.map(c => Math.max(1, +c.span || 1));
+  const spanSum = colSpans.reduce((a, b) => a + b, 0) || 1;
+  const dg = 1 + spanSum;   // 数据区网格列数（含日期列，不含右侧说明栏）
+  // 打印行高：按行数把 A4 一页铺满（30 行≈7.2mm；周检只有 4~5 行时取上限，避免行被拉得过高）
+  // 215mm 是留给数据行的净高度（已扣掉表头区与底部判定标准），留有余量确保不跨页
+  const rowH = Math.max(6.2, Math.min(9.2, 215 / Math.max(1, keys.length)));
+  document.documentElement.style.setProperty('--rowh', rowH.toFixed(2) + 'mm');
+  const tdy = todayStr();
+
+  // 列宽：日期列 8%（周检 16%），右侧说明栏 28%（对齐线下 PK-JC-QR-102 的实测比例），
+  // 其余按各列的 span 加权均分。colgroup 需要按「网格列」逐个铺开（而不是每列一个 col），
+  // 否则跨列单元格的宽度摊不到对应的网格列上，表头会错位。
+  const sideW = hasSide ? 28 : 0;
+  const dateW = p.row_unit === 'week' ? 16 : 8;
+  const dataW = 100 - sideW - dateW;
+  const unitW = dataW / spanSum;
+  let cg = `<col style="width:${dateW}%">`;
+  colSpans.forEach(sp => { for (let i = 0; i < sp; i++) cg += `<col style="width:${unitW.toFixed(3)}%">`; });
+  if (hasSide) cg += `<col style="width:${sideW}%">`;
+
+  // 右侧说明栏拆两块（对齐线下 PK-JC-QR-102 Rev.A1）：
+  //   ① 标题格 —— 只跨表头那 2 行，标题在其中垂直居中；
+  //   ② 正文格 —— 跨「列头行 + 全部数据行」，步骤列表在其中垂直居中。
+  // 两块 rowspan 相加（2 + keys + 1）= 原来的 keys + 3，占格总数不变，表格骨架零风险。
+  const sideHeadHtml = hasSide ? `<td class="side side-head" rowspan="2">
+      <div class="s-h">${esc(p.side_title||'')}${p.side_title_en?`<i>${esc(p.side_title_en)}</i>`:''}</div>
+    </td>` : '';
+  const sideBodyHtml = hasSide ? `<td class="side side-body" rowspan="${keys.length + 1}">
+      <ol>${(p.side_items||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ol>
+    </td>` : '';
+
+  let html = `<div class="sheet">
+    <div class="fcode">${esc(p.form_code||'')} ${esc(p.form_rev||'')}</div>
+    <div class="ttl">${esc(p.title||p.name)}</div>
+    ${p.title_en?`<div class="ttl-en">${esc(p.title_en)}</div>`:''}`;
+
+  // 表格外的表头行（079 那种：设备型号 / 设备编号 在表格上方）
+  if(!hasSide){
+    html += `<div class="meta-line">设备型号 <span class="en">Equipment Model</span>：<b>${esc(dev.model||'—')}</b>
+      　设备编号 <span class="en">Equipment No.</span>：<b>${esc(dev.no)}</b></div>`;
+  }
+
+  html += `<table class="ctab"><colgroup>${cg}</colgroup><tbody>`;
+
+  // 表格内的表头两行（102 那种）。
+  // 线下 PK-JC-QR-102 Rev.A1 是 8 列网格，表头靠「把相邻的空格合并」来排版，规则是：
+  //   第1行： 年月YY-MM（跨2列） | 年月值（1列） | 地点Site（1列） | 地点值（吃掉剩余全部列，居中） | 步骤栏
+  //   第2行： 设备型号（跨2列）  | 型号值（1列） | 设备编号（1列） | 编号值（吃掉剩余全部列，居中） | 步骤栏
+  // 必须按同一规则合并：否则上下两行边界对不齐，第一行右边会多出一格空白。
+  if(hasSide){
+    const restSpan = Math.max(1, dg - 4);   // 第 2 个「值」格吃掉的列数
+    html += `<tr class="hdr"><td class="lb" colspan="2">年月<i>YY-MM</i></td><td>${esc(CUR_YM)}</td>
+      <td class="lb">地点<i>Site</i></td><td colspan="${restSpan}">${esc(dev.location||'—')}</td>${sideHeadHtml}</tr>`;
+    html += `<tr class="hdr"><td class="lb" colspan="2">设备型号<i>Equipment Model</i></td><td>${esc(dev.model||'—')}</td>
+      <td class="lb">设备编号<i>Equipment No.</i></td><td colspan="${restSpan}">${esc(dev.no)}</td></tr>`;
+  }
+
+  // 列标题（跨列表头同样要带 colspan，否则和表头的网格对不上）
+  html += `<tr class="colh"><td class="lb">日期<i>Date</i></td>` +
+    cols.map((c, i) => `<td class="lb"${colSpans[i] > 1 ? ` colspan="${colSpans[i]}"` : ''}>${esc(c.label||'')}${c.label_en?`<i>${esc(c.label_en)}</i>`:''}</td>`).join('') + sideBodyHtml + `</tr>`;
+
+  // 数据行
+  keys.forEach(d => {
+    const k = String(d);
+    const row = rowsData[k] || {};
+    const dayStr = CUR_YM + '-' + pad2(d);
+    const isToday = dayStr === tdy;
+    const isFut = dayStr > tdy;             // 未来日期不可填（与点检 / 温湿度口径一致）
+    const futCls = isFut ? ' future' : '';
+    const dateTxt = p.row_unit === 'week' ? (CUR_YM.replace('-', '.') + '.' + pad2(d)) : String(d);
+    html += `<tr class="r" data-day="${k}" data-fut="${isFut?1:0}"><td class="${(isToday?'today':'')+futCls}">${dateTxt}</td>`;
+    cols.forEach((c, ci) => {
+      const v = row[c.key];
+      // 数据行的跨列必须跟表头一致（跨列表头下的数据格也要跨同样多的网格列），
+      // 否则列标题和数据行的网格对不齐，整张表的竖线会错位。
+      const cspan = colSpans[ci] > 1 ? ` colspan="${colSpans[ci]}"` : '';
+      if(c.type === 'sign'){
+        const img = v && v.image ? v.image : '';
+        html += `<td class="sgcell${futCls}"${cspan} data-sg="${k}|${esc(c.key)}" title="${isFut?'未来日期不可填写':('点击选择签名人'+(img?'（右键清除）':''))}">` +
+          (img ? `<img src="${img}" alt="">` : `<span class="ph">＋</span>`) + `</td>`;
+      }else if(c.type === 'conclusion'){
+        const cls = v ? ('v-'+(v==='normal'?'normal':v==='abnormal'?'abnormal':'slash')) : 'empty';
+        html += `<td class="ccell ${cls}${futCls}"${cspan} data-cc="${k}|${esc(c.key)}">${v ? CONC_MARK[v] : '·'}</td>`;
+      }else if(c.type === 'choice'){
+        const cls = v ? (v==='正常'?'v-normal':v==='异常'?'v-abnormal':'empty') : 'empty';
+        html += `<td class="ccell ${cls}${futCls}"${cspan} data-ch="${k}|${esc(c.key)}">${v ? esc(v) : '·'}</td>`;
+      }else if(c.type === 'select'){
+        const opts = c.opts || [];
+        const cur = (v && opts.includes(v)) ? v : (c.def != null ? c.def : (opts[0]||''));
+        const os = opts.map(o => `<option value="${esc(o)}"${o===cur?' selected':''}>${esc(o)}</option>`).join('');
+        html += `<td class="${futCls.trim()}"${cspan}><select class="csel" data-f="${k}|${esc(c.key)}"${isFut?' disabled':''}>${os}</select></td>`;
+      }else{
+        html += `<td class="${futCls.trim()}"${cspan}><input class="cin" data-f="${k}|${esc(c.key)}" value="${esc(v==null?'':v)}"
+          placeholder="${esc(c.def||'')}" autocomplete="off"${isFut?' disabled':''}${c.type==='number'?' inputmode="decimal"':''}></td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+
+  // 底部判定标准（102）。线下版是：c1[标准] | c2-3[摩擦损耗阈值，跨2列] | c4[与前次变化阈值] | c5-8[计算说明，跨满剩余列]
+  if(p.criteria && p.criteria.length){
+    const firstSpan = colSpans[0] || 1;
+    const spanTail = Math.max(1, dg + (hasSide?1:0) - (1 + firstSpan + 1));
+    p.criteria.forEach(cr => {
+      const vals = cr.vals || [];
+      html += `<tr class="crit"><td class="std">${esc(cr.std)}</td>` +
+        `<td colspan="${firstSpan}">${esc(vals[0]||'')}</td>` +
+        `<td>${esc(vals[1]||'')}</td>` +
+        `<td colspan="${spanTail}">${esc(vals[2]||'')}</td></tr>`;
+    });
+  }
+  html += `</tbody></table>`;
+
+  // 底部备注（079）
+  if(!hasSide && p.note) html += `<div class="note-block"><b>${esc(p.note.split('\n')[0])}</b>${esc(p.note.split('\n').slice(1).join('\n'))}</div>`;
+
+  html += `</div>`;
+  $('#sheet_box').innerHTML = html;
+
+  bindCells();
+  $('#tipbar').textContent = (p.row_unit === 'week' ? '每周一行（固定周一）' : '每天一行') +
+    ' · 未填写的行就是没做，打印时保持空白 · 结论点一下循环：空 → √ → × → /' +
+    ' · 电子签名需输入签名人密码（签名格右键清除）';
+}
+
+function bindCells(){
+  // 文本 / 数值
+  document.querySelectorAll('.ctab input.cin').forEach(inp => {
+    inp.oninput = () => {
+      const [day, key] = inp.dataset.f.split('|');
+      if(!rowsData[day]) rowsData[day] = {};
+      rowsData[day][key] = inp.value.trim();
+    };
+  });
+  // 可选项（如 #079「内容」）：下拉选择，变更即写入
+  document.querySelectorAll('.ctab select.csel').forEach(sel => {
+    sel.onchange = () => {
+      const [day, key] = sel.dataset.f.split('|');
+      if(!rowsData[day]) rowsData[day] = {};
+      rowsData[day][key] = sel.value;
+    };
+  });
+  // 结论（√/×/）
+  document.querySelectorAll('.ccell[data-cc]').forEach(td => {
+    td.onclick = () => {
+      if(td.classList.contains('future')) return;
+      const [day, key] = td.dataset.cc.split('|');
+      if(!rowsData[day]) rowsData[day] = {};
+      const cur = rowsData[day][key] || '';
+      const next = CONC_SEQ[(CONC_SEQ.indexOf(cur) + 1) % CONC_SEQ.length];
+      rowsData[day][key] = next;
+      td.textContent = next ? CONC_MARK[next] : '·';
+      td.className = 'ccell ' + (next ? 'v-'+(next==='normal'?'normal':next==='abnormal'?'abnormal':'slash') : 'empty');
+    };
+  });
+  // 检查情况（正常 / 异常）
+  document.querySelectorAll('.ccell[data-ch]').forEach(td => {
+    td.onclick = () => {
+      if(td.classList.contains('future')) return;
+      const [day, key] = td.dataset.ch.split('|');
+      if(!rowsData[day]) rowsData[day] = {};
+      const cur = rowsData[day][key] || '';
+      const next = CHK_SEQ[(CHK_SEQ.indexOf(cur) + 1) % CHK_SEQ.length];
+      rowsData[day][key] = next;
+      td.textContent = next || '·';
+      td.className = 'ccell ' + (next ? (next==='正常'?'v-normal':'v-abnormal') : 'empty');
+    };
+  });
+  // 签名格
+  document.querySelectorAll('.sgcell').forEach(td => {
+    td.onclick = () => { if(td.classList.contains('future')) return; openSig(td.dataset.sg); };
+    td.oncontextmenu = e => { e.preventDefault(); if(td.classList.contains('future')) return; clearSig(td.dataset.sg); };
+  });
+}
+
+function openSig(ref){
+  const [day, key] = ref.split('|');
+  sigTarget = { day, key };
+  const dev = CUR_DEV, p = CUR_PROG;
+  $('#sg_t').textContent = '选择签名人';
+  $('#sg_sub').textContent = (p.name||'') + ' · ' + (dev.no||'') + ' · ' +
+    (p.row_unit==='week' ? (CUR_YM.replace('-','.')+'.'+pad2(+day)) : (CUR_YM+'-'+pad2(+day)));
+  const usable = SIGNERS.filter(s => s.signature_image || s.signature_image_v);
+  $('#sg_sel').innerHTML = usable.length
+    ? usable.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')
+    : '<option value="">（没有可用签名人，请先在后台签名人管理里上传签名）</option>';
+  $('#sg_pw').value = '';
+  $('#sgmask').classList.add('show');
+  setTimeout(() => $('#sg_pw').focus(), 30);
+}
+function clearSig(ref){
+  const [day, key] = ref.split('|');
+  if(rowsData[day]) rowsData[day][key] = null;
+  render();
+  toast('已清除该格签名');
+}
+// 签名 = 一次服务端密码校验：
+//   前端这一步只是「输入密码」，真正裁决在 /api/check-records/sign；
+//   服务端同时发一张短时授权票，保存时凭票放行（详见 server.js handleSaveCheckRecord）。
+$('#sg_ok').onclick = async () => {
+  if(!sigTarget){ return; }
+  const s = SIGNERS.find(x => x.id === $('#sg_sel').value);
+  if(!s){ toast('没有可用签名人','err'); return; }
+  const pw = $('#sg_pw').value;
+  if(!pw){ toast('请输入签名人密码','err'); $('#sg_pw').focus(); return; }
+  const { day, key } = sigTarget;
+  const btn = $('#sg_ok'); btn.disabled = true;
+  try{
+    const r = await api('/api/check-records/sign', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ signer_id: s.id, password: pw }) });
+    if(!r || !r.ok){ toast((r && r.error) || '签名失败','err'); $('#sg_pw').value=''; $('#sg_pw').focus(); btn.disabled=false; return; }
+    if(!rowsData[day]) rowsData[day] = {};
+    rowsData[day][key] = { signer_id: r.signer_id, name: r.name,
+      image: r.signature_image || r.signature_image_v || '', token: r.token };
+    $('#sgmask').classList.remove('show'); sigTarget = null; $('#sg_pw').value = '';
+    render();
+    toast('已签名：' + r.name);
+  }catch(e){ toast('签名失败：' + e.message,'err'); }
+  btn.disabled = false;
+};
+$('#sg_pw').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('#sg_ok').click(); } });
+$('#sg_clr').onclick = () => { if(sigTarget){ clearSig(sigTarget.day + '|' + sigTarget.key); } closeSig(); };
+$('#sg_cancel').onclick = () => closeSig();
+$('#sgmask').onclick = e => { if(e.target === $('#sgmask')) closeSig(); };
+function closeSig(){ $('#sgmask').classList.remove('show'); $('#sg_pw').value = ''; sigTarget = null; }
+
+// 保存：整份替换该 项目 + 设备 + 月份 的行
+$('#save_btn').onclick = async () => {
+  if(!CUR_PROG || !CUR_DEV){ toast('请先选择项目与设备','err'); return; }
+  // 只保留真正有内容的行（全空的行不落库）
+  const rows = {};
+  for(const day in rowsData){
+    const r = rowsData[day] || {};
+    const has = Object.keys(r).some(k => {
+      const v = r[k];
+      if(v == null) return false;
+      if(typeof v === 'string') return !!v.trim();
+      if(typeof v === 'object') return !!(v.image || v.signer_id);
+      return true;
+    });
+    if(has) rows[day] = r;
+  }
+  $('#save_btn').disabled = true;
+  try{
+    const res = await api('/api/check-records', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ program_id: CUR_PROG.id, device_id: CUR_DEV.id, ym: CUR_YM, rows })
+    });
+    if(res && res.ok){ $('#stat').textContent = CUR_YM + ' · 已填 ' + res.days + ' 天'; toast('已保存（' + res.days + ' 行）'); }
+    else { toast((res && res.error) || '保存失败', 'err'); if(res && /签名/.test(res.error || '')) $('#stat').textContent = '有签名格未通过密码验证，请重新签名'; }
+  }catch(e){ toast('保存失败：' + e.message, 'err'); }
+  $('#save_btn').disabled = false;
+};
+$('#print_btn').onclick = () => window.print();
+// 打印前把可选项下拉（如 #079「内容」）替换成纯文本，保证打印件与纸质表一致（不露下拉箭头）
+window.addEventListener('beforeprint', () => {
+  document.querySelectorAll('.ctab select.csel').forEach(sel => {
+    const span = document.createElement('span');
+    span.className = 'csel-txt';
+    span.textContent = sel.value;
+    sel.replaceWith(span);
+  });
+});
+window.addEventListener('afterprint', () => { render(); });
+
+// 月份切换
+$('#ym_sel').onchange = async () => {
+  const v = $('#ym_sel').value;
+  if(!v) return;
+  if(v > curYm()){ toast('不能查看未来月份','err'); $('#ym_sel').value = CUR_YM; return; }
+  CUR_YM = v;
+  await loadSheet();
+};
+
+// 后台入口（仅管理员可见）
+(async () => { try{
+  const me = await api('/api/admin/me');
+  if(me && me.ok && me.role === 'admin'){ const a = document.getElementById('nav_admin'); if(a) a.style.display=''; }
+}catch(e){} })();
+
+fetch('/api/version').then(r=>r.json()).then(v=>{
+  document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);
+}).catch(()=>{});
+
+boot();
+</script>
+</body>
+</html>

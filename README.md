@@ -1,88 +1,104 @@
-# 设备点检巡检系统（开源版）  ·  当前版本 v1.0.0（2026-09-09）
+# 设备点检巡检系统（开源脱敏版）  ·  当前版本 v1.29.0
 
-一套**零依赖**的设备点检 / 巡检管理系统：支持设备台账、按日 / 按月考勤式点检、电子签名确认、月度打印与记录归档。前端与后端同源一体，可部署到云端、自有服务器，也可单机离线运行。
+一套**零依赖**的设备点检 / 巡检管理系统：支持设备台账、按日 / 按月点检、电子签名确认、温湿度监测记录、独立检查项目与月度打印归档。前端与后端同源一体，可部署到云端、自有服务器，也可单机离线运行。
 
 > 适用场景：工厂、实验室、物业等仪器的日常点检、月度巡检与签名确认。
+
+---
+
+## ⚠️ 重要声明（脱敏 · 去品牌 · 演示站只读）
+
+1. **脱敏**：本仓库全部代码与演示数据均为脱敏后的虚构内容，不含任何真实人员姓名、设备序列号、房间名称、内网地址或业务数据；原系统的公司名称、Logo、签名图片、内部表单编号等敏感信息已全部清除或替换为占位符。
+2. **无品牌标识**：仓库中**没有任何公司图标（logo / favicon / apple-touch-icon）或品牌文字**，前端统一使用中性标识「设备点检系统」。
+3. **演示站只读**：在线演示站为**纯展示（只读）模式**——访客仅可浏览查看，系统已禁用并拦截一切新增、添加、编辑、删除、签名提交、批量操作、备份恢复、远程升级等写入操作。
+
+---
 
 ## 🚀 在线演示 / Live Demo
 
 **👉 https://equipment-inspection-cp0.pages.dev**
 
-演示数据全部为**虚构脱敏内容**（设备编号 `DEMO-NO-*`、车间/测试室、型号 `设备型号-*`，不含任何真实姓名、设备序列号或手写签名），可直接登录体验全部功能：
+演示站为**只读展示**，访客直接浏览设备台账、点检大屏、月度表、温湿度记录等页面，**无需登录、不可写入**。自托管版本（`equipment-inspection-server` / `equipment-inspection-win10`）具备完整管理能力。
 
-| 角色 | 账号 | 密码 | 权限 |
-|------|------|------|------|
-| 管理员 | `admin` | `admin123` | 全部管理权限 + 点检 |
-| 操作员 | `demo-user` | `demo123` | 仅点检与查看 |
-| 签名人 | `演示签名人` | `sig123` | 手写签名确认 |
+---
 
 ## 三套交付版本
 
-| 目录 | 适用场景 | 运行方式 | 联网需求 |
+| 目录 | 适用场景 | 运行方式 | 写入权限 |
 |------|----------|----------|----------|
-| `equipment-inspection/` | **Cloudflare Pages** 部署（Serverless） | `wrangler pages deploy` | 部署后联网 |
-| `equipment-inspection-server/` | **自有服务器**（Linux / Windows / macOS） | `node server.js` + PM2 | 局域网 / 公网 |
-| `equipment-inspection-win10/` | **单机离线**（车间电脑，双击即用） | 自带便携 Node，**免安装** | 纯本地 |
+| `equipment-inspection/` | **Cloudflare Pages** 部署（Serverless 演示站） | `wrangler pages deploy` | ❌ 只读（拦截一切写入） |
+| `equipment-inspection-server/` | **自有服务器**（Linux / Windows / macOS） | `node server.js` + PM2 | ✅ 完整 |
+| `equipment-inspection-win10/` | **单机离线**（车间电脑，双击即用） | 自带便携 Node，**免安装** | ✅ 完整 |
 
-三套版本**前端页面与后端 API 契约一致**，数据格式互通（均为 `data/kv.json` 顶层结构：`admin / devices / templates / signers / inspections / abnormalRecords`）。
+三套版本前端页面与后端 API 契约一致，数据格式互通（均为 KV 顶层结构：`admin / users / devices / templates / signers / inspections / abnormalRecords / rooms / depts / envRecords / programs / checkRecords / envAlerts / notifs / lims …`）。
 
-## 功能
+---
 
-- **设备大屏**：实时状态、当月点检进度、异常统计、最近点检记录。
-- **点检作业**：按设备 / 按日点检，异常备注，签名密码校验。
-- **多用户与角色权限**：独立登录页（`login.html`），管理员可在「用户管理」中增删改查账号并分配 `admin` / `user` 角色；`admin` 拥有全部管理权限（含用户管理、设备批量删除、整月一键点检），`user` 仅可点检与查看；密码经 `PEPPER` 加盐 SHA-256 哈希存储，会话令牌为 `用户名.HMAC(SECRET, 用户名)`。
-- **月度点检表 / 整月打印**：A4 排版，含签名缩略图与异常说明，一键打印。
-- **管理后台**：设备增删改查（批量生成 / 文本导入 / 批量删除）、点检模板与检查项、签名人管理（手写签名）、整月一键点检、管理员改密、记录查询与删除。
-- **房间 / 区域管理**：`/rooms` 维护点检区域（车间），设备按区域归类，大屏与月度表按区域统计设备分布。
-- **数据备份与恢复**：管理员可一键导出全量 JSON 备份（`GET /api/admin/backup`），亦可作为迁移 / 灾备手段。
-- **巡检记录 CSV 导出**：`GET /api/admin/export-inspections-csv` 将全部巡检记录导出为 CSV（UTF-8 BOM，Excel 直接打开）。
+## 功能（v1.29.0）
 
-## 快速开始
+- **设备台账**：设备编号、名称、型号、所属点检模板、所在房间。
+- **点检模板**：可配置点检项目（内容 + 频次），支持复制 / 导入。
+- **点检作业与大屏**：按设备每日点检、状态大屏、按日 / 按月查看。
+- **电子签名**：点检完成后由授权签名人签名（演示数据不含真实签名图片）。
+- **月度点检表**：按房间 / 设备生成月度点检汇总与打印视图。
+- **温湿度监测记录**：房间温湿度填录、一键填充、划线、报警配置与告警。
+- **独立检查项目（programs）**：与常规点检分离的专项检查表（如摩擦风阻损耗检查）。
+- **点检记录（checkRecords）**：独立项目的按日期 / 周次记录。
+- **通知（notifs）** 与 **细粒度权限**：按人开放点检模板管理、温湿度录入、批量操作、导出等。
+- **LIMS 对接 / 局域网远程升级**：保留接口结构，凭据与地址均为占位符（`<LIMS_BASE_URL>` 等），默认关闭。
 
-### Cloudflare Pages
-```bash
-cd equipment-inspection
-npx wrangler pages deploy . --project-name=equipment-inspection
-```
-数据存于 Cloudflare KV（绑定 `INSPECTION_DATA`），首次访问自动生成随机密钥。
+---
 
-### 自有服务器
-```bash
-cd equipment-inspection-server
-node server.js            # 或 PORT=9000 node server.js
-```
-生产环境建议 PM2 守护 + Nginx 反代（见 `equipment-inspection-server/README.md`）。
-
-### Win10 便携版
-把从 Node 官网下载的 `node.exe` 放入 `equipment-inspection-win10/runtime/`，双击 `启动.bat` 即用。
-
-## 默认账号
+## 默认账号（自托管版本）
 
 | 角色 | 账号 | 密码 | 权限 |
 |------|------|------|------|
-| 管理员 | `admin` | `admin123` | 全部管理权限 + 点检 |
-| 操作员 | `demo-user` | `demo123` | 仅点检与查看 |
+| 管理员 | `admin` | `admin123` | 全部管理权限 |
+| 普通用户 | `demo-user` | `demo123` | 查看 + 温湿度录入 |
 
-> ⚠️ 上线前务必到「管理后台 → 修改密码」或「用户管理」改掉默认口令。仓库自带的脱敏演示数据中，操作员账号为 `demo-user` / `demo123`。
+> 首次启动自动创建上述账号；演示数据为 `data/sample.kv.json`，运行时自动生成 `data/kv.json`（已被 `.gitignore` 忽略，不入库）。
 
-### 首次使用
-打开首页后点击「登录」进入 `login.html`：以 `admin` 登录可进行用户管理与全部后台操作；以 `user` 登录仅能完成点检、查看大屏与月度表。
+---
 
-## 数据安全与脱敏
+## 快速开始
 
-- 签名 / 会话所用的 `PEPPER`、`SECRET` **不硬编码**：Cloudflare 版持久化在 KV 的 `STORE` 单键内；自有服务器 / Win10 版持久化在 `data/config.json`。
-- 仓库已附带一份**已脱敏演示** `data/config.json`（演示密钥）与 `data/kv.json`：设备编号（`DEMO-NO-0001…`）、区域名（车间A / 车间B / 测试室）、型号（`设备型号-A…`）、签名人（`演示签名人`）均为虚构占位，**不含任何真实人员姓名、真实设备序列号、真实手写签名或企业内部信息**。克隆即可体验；上线前请替换为你的真实数据并重新生成密钥（删除 `data/config.json` 重启即重置）。
-- 示例数据中的表单标准号 `DEMO-QR-001 Rev.A1` 为**通用占位**（点检表版式标识），可按需替换为贵司自有模板编号。
-- 如需迁移：直接复制 `data/kv.json` 即可；删除 `data/config.json` 重启可重置密钥。
+### Node 服务版
+```bash
+cd equipment-inspection-server
+npm install
+node server.js     # 默认监听 http://localhost:8787
+```
 
-### 关于 Cloudflare KV 存储上限（签名去重）
-Cloudflare KV 单值上限 **25 MB**。原始方案把每张手写签名（base64 PNG）内嵌进每一条点检记录，2424 条记录会撑到 ~41 MB 超限。本仓库采用**签名去重**：
-- 每条点检记录**不再**内嵌 `signature_image`，仅保留 `signer_id` / `signed_by`；
-- 手写签名只存于**签名人记录**一处；
-- 读取月度表 / 大屏时由后端 `signerSignature()` 按 `signer_id` 注入签名图，**前端零改动**。
+### Windows 便携版
+直接双击 `启动.bat`（`node server.js` 免安装），或：
+```bat
+cd equipment-inspection-win10
+启动.bat
+```
 
-去重后本仓库演示整库 `STORE` 约 **2.2 MB**（124 台设备 / 3798 条记录），远低于 25 MB 上限，无需引入 R2 对象存储。（若未来数据远超 25 MB，可改走 R2 分片存储。）
+### 在线演示站（只读）
+见上方 Live Demo 地址。该站点为只读展示，无法登录写入。
 
-## 许可证
+---
 
-[MIT License](../LICENSE) © Equipment Inspection Contributors
+## 目录结构
+```
+equipment-inspection-opensource/
+├── README.md / LICENSE / 功能说明.md / 更新日志.md
+├── equipment-inspection/      Cloudflare Pages 演示站（只读）
+│   ├── *.html                 前端页面（已去品牌）
+│   ├── assets/                静态资源（已移除品牌图片）
+│   ├── functions/[[path]].js  只读后端（Pages Functions）
+│   ├── wrangler.toml
+│   └── data/sample.kv.json    演示数据种子
+├── equipment-inspection-server/  Node 服务版（完整功能）
+└── equipment-inspection-win10/   Windows 便携版（完整功能）
+```
+
+## 脱敏与去标识
+- **凭据**：`PEPPER` / `SECRET` 首次启动随机生成并写入 `data/config.json`（已忽略，不入库）；LIMS 地址 / 账号 / 密码 均为占位符。
+- **数据**：`sample.kv.json` 中设备、房间、签名人、表单编号等全部为虚构示例。
+- **品牌**：已移除 `logo-full.png` / `logo-mark.png` / `apple-touch-icon.png` / `favicon-64.png`，前端品牌区统一为文字「设备点检系统」，favicon 替换为中性 SVG。
+
+## 开源协议
+[MIT License](./LICENSE)。可自由使用、修改与再分发，但请保留版权与许可声明，并以脱敏方式使用，避免带入真实业务数据。

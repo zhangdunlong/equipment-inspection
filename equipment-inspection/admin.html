@@ -11,11 +11,25 @@
 .sp-tip{display:block;font-size:12px;color:var(--muted);margin-bottom:8px}
 .sp-cells{display:flex;gap:12px;flex-wrap:wrap;padding:4px 0 2px}
 .sp-cell{position:relative;background:rgba(255,255,255,.95);border:1px solid var(--glass-bd);border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.22)}
-.sp-cell canvas{display:block;width:132px;height:132px;background:#fff;border-radius:8px;touch-action:none;cursor:crosshair}
+.sp-cell canvas{display:block;width:160px;height:160px;background:#fff;border-radius:8px;touch-action:none;cursor:crosshair}
 .sp-cell .sp-no{position:absolute;top:-8px;left:-8px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:linear-gradient(90deg,var(--pink),var(--cyan));color:#04121f;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
 .sp-cell .sp-ops{display:flex;gap:5px;margin-top:6px}
-.sp-cell .sp-ops>*{flex:1;text-align:center;font-size:11px;line-height:1.6;padding:1px 0;border-radius:7px;border:1px solid var(--glass-bd);background:rgba(255,255,255,.10);color:var(--txt);cursor:pointer}
-.sp-cell .sp-ops>*:hover{border-color:var(--cyan)}
+/* 书写格是白底（rgba(255,255,255,.95)），格内按钮必须用深色字。
+   旧版沿用了 var(--txt) —— 那是深色主题下的浅色字，落在白底格子上等于白底白字，
+   用户根本看不见「清除」，才以为写错了只能整片清空。 */
+.sp-cell .sp-ops>*{flex:1;text-align:center;font-size:11.5px;line-height:1.75;padding:2px 4px;border-radius:7px;border:1px solid rgba(37,50,74,.22);background:rgba(37,50,74,.06);color:#25324a;font-weight:600;cursor:pointer;white-space:nowrap}
+.sp-cell .sp-ops>*:hover{background:rgba(79,140,255,.16);border-color:#4f8cff;color:#0f2440}
+.sp-cell .sp-ops>[data-act=clr]:hover{background:rgba(255,107,107,.20);border-color:#ff6b6b;color:#8a1414}
+/* 放大书写浮层：z-index 取 70 —— 高于 #mask(50)，低于 toast(90) */
+.sp-zoom-mask{position:fixed;inset:0;z-index:70;background:rgba(4,8,18,.74);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px}
+.sp-zoom{background:#101a30;border:1px solid var(--glass-bd);border-radius:16px;padding:16px 18px 14px;box-shadow:0 22px 60px rgba(0,0,0,.55);max-width:96vw;max-height:94vh;overflow:auto}
+.sp-zoom-hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.sp-zoom-hd b{color:var(--cyan);font-size:15px}
+.sp-zoom-sub{font-size:12px;color:var(--muted)}
+.sp-zoom canvas{display:block;width:min(540px,84vw);height:min(540px,84vw);background:#fff;border-radius:12px;touch-action:none;cursor:crosshair}
+.sp-zoom-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.sp-zoom-sp{flex:1}
+.sp-zoom-tip{font-size:11.5px;color:var(--muted);margin-top:8px}
 .sp-empty{font-size:12px;color:var(--muted);background:rgba(255,255,255,.05);border:1px dashed var(--glass-bd);border-radius:10px;padding:14px 16px}
 .sp-tpl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--txt);margin-top:14px}
 .sp-tpl>b{font-size:12.5px;color:var(--cyan)}
@@ -89,7 +103,7 @@
 </head>
 <body data-page-node-id="RvLgTuOm6uqFgvBLvRkwy0">
 <nav class="nav" data-page-node-id="gOdJJbobV9gjx1jkn6W9bu">
-  <div class="brand" data-page-node-id="5tU0rx3J5t0DIvcwI0C8cR">⚡ 设备点检中心</div>
+  <div class="brand"><span class="brand-text">设备点检系统</span></div>
   <div class="sp" data-page-node-id="bKo1bOzVVT3Iz3BohGo9Zj"></div>
   <a href="/" data-page-node-id="CRY5hQfffadzvorFA0a3By">设备大屏</a>
   <a href="/inspect" data-page-node-id="usI7VVhkcCWLEfDr9KRatu">点检作业</a>
@@ -122,7 +136,9 @@
     <button data-t="env" data-page-node-id="EnvFillTab000000000001">🌡 温湿度填充</button>
     <button data-t="user" data-page-node-id="yvGHzG1cgMHBOgFfK5sGF2">👥 用户管理</button>
     <button data-t="dept" data-page-node-id="pS3QaKz7mNxV2LhRtYb9Wc">🏢 科室管理</button>
+    <button data-t="alert">🚨 温湿度预警</button>
     <button data-t="sys" data-page-node-id="2UmR7JEXmVL4svbpwnPS5N">⚙️ 系统</button>
+    <button data-t="logs">🧾 运行日志</button>
   </div>
 
   <!-- 设备 -->
@@ -137,16 +153,18 @@
       </div>
     </div>
     <div class="field" data-page-node-id="h8OharQSqBG6kQPY0qAkiE"><label data-page-node-id="xNsTbFBZSjECYGfwG62aUf">按行导入（格式：编号,模板型号,设备名称）每行一条</label>
-      <textarea id="imp_txt" placeholder="001,设备型号-C,电子式高温蠕变持久试验机&#10;002,设备型号-A,高温电子蠕变试验机"></textarea>
+      <textarea id="imp_txt" placeholder="001,GWT2105,电子式高温蠕变持久试验机&#10;002,RDL-50,高温电子蠕变试验机"></textarea>
       <button class="btn sm mt" id="imp_go" data-page-node-id="Vztw6I3ww3aycyHD4pu57c">导入</button>
     </div>
     <div class="flex mb" data-page-node-id="eDPZaPZNHZcR9u5vduB7iX">
       <button class="btn sm" id="dev_add" data-page-node-id="NTdjx4wWPGDtjpGcPm5WpV">＋ 新增单台</button>
       <button class="btn sm danger" id="dev_delmulti" data-page-node-id="WsfA2ZMASAvwDyFLOrBrAv">🗑 批量删除选中 <span id="dev_selcount" class="muted tiny" style="display:none" data-page-node-id="sE4cmlANbXI4eXJjpBqejq">(0)</span></button>
+      <input id="dev_q" placeholder="🔍 按编号搜索（也可搜名称 / 型号 / 房间）" autocomplete="off"
+        style="flex:1;min-width:210px;max-width:340px;font-size:13px;padding:6px 10px;border:1px solid #ccc;border-radius:8px">
       <span class="muted tiny" id="dev_stat" data-page-node-id="vns9VeYAsEK2cHKo0LGON6"></span>
     </div>
     <div class="scroll glass" style="max-height:420px" data-page-node-id="HR6220v6e9LCIDMlHPEYqA">
-      <table data-page-node-id="QFzwmk2CqEXO8ItWgBxkH2"><thead data-page-node-id="Bg1IjvkHQJ0Ce3xYiH4Zkk"><tr data-page-node-id="bkPFKNvHBCd5g1oSVLyX3N"><th style="width:40px;text-align:center" data-page-node-id="2KwxjI4MLjEQr3YXkqHL00"><input type="checkbox" id="dev_all" title="全选/取消全选" data-page-node-id="vFdRtBGzk7jciKJIKE4jOG"></th><th data-page-node-id="fMabuthIa5i3ayCM9WeIs6">编号</th><th data-page-node-id="Q3jeMAOklcXjv5pwvZliZH">名称</th><th data-page-node-id="SdOI5NJpWFlH9Z2k0hx2FW">型号</th><th data-page-node-id="yDLOwGINR77LRvVb77vF0c">模板</th><th data-page-node-id="e8a7r62MLt15QcDVDXNIhw">位置</th><th data-page-node-id="vyhXnZFPTgHawysjHVFjxw"></th></tr></thead>
+      <table data-page-node-id="QFzwmk2CqEXO8ItWgBxkH2"><thead data-page-node-id="Bg1IjvkHQJ0Ce3xYiH4Zkk"><tr data-page-node-id="bkPFKNvHBCd5g1oSVLyX3N"><th style="width:40px;text-align:center" data-page-node-id="2KwxjI4MLjEQr3YXkqHL00"><input type="checkbox" id="dev_all" title="全选/取消全选" data-page-node-id="vFdRtBGzk7jciKJIKE4jOG"></th><th data-page-node-id="fMabuthIa5i3ayCM9WeIs6">编号</th><th data-page-node-id="Q3jeMAOklcXjv5pwvZliZH">名称</th><th data-page-node-id="SdOI5NJpWFlH9Z2k0hx2FW">型号</th><th data-page-node-id="yDLOwGINR77LRvVb77vF0c">检查表（模板）</th><th data-page-node-id="e8a7r62MLt15QcDVDXNIhw">位置</th><th data-page-node-id="vyhXnZFPTgHawysjHVFjxw"></th></tr></thead>
       <tbody id="dev_list" data-page-node-id="wfNYKzg2ChGIQ1Drl1mt8X"></tbody></table>
     </div>
   </div>
@@ -157,7 +175,11 @@
       <button class="btn sm" id="tpl_add" data-page-node-id="Cn7SHQaJHCuhXdMYeqn0qO">＋ 新增模板</button>
       <button class="btn sm" id="tpl_import" style="margin-left:8px">📥 导入模板</button>
     </div>
-    <p class="muted tiny" style="margin:4px 0 10px">设备用哪张点检表，由「设备管理」里选的模板决定。卡片上 <b>✎ 编辑检查项</b> 改内容（增 / 删 / 改 / 调序），<b>✎ 编辑表头</b> 改表单编号 · 版本 · 标题 · 备注 Note（直接印在点检表上），<b>⧉ 复制</b> 可为单台设备做一份独立模板。设备列表每行的 <b>📋 模板</b> 按钮可直达那台设备的点检表编辑。</p>
+    <p class="muted tiny" style="margin:4px 0 10px">设备用哪张点检表，由「设备管理」里选的模板决定。卡片上 <b>✎ 编辑检查项</b> 改内容（增 / 删 / 改 / 调序），<b>✎ 编辑表头</b> 改表单编号 · 版本 · 标题 · 备注 Note（直接印在点检表上），<b>⧉ 复制</b> 可为单台设备做一份独立模板。设备列表里每台设备会列出它<b>全部</b>的检查表，每张表各有一个 <b>📋</b> 按钮直达编辑 —— 一台设备可以同时有「点检表」和「专项检查表」（例如冲击机 = 日常点检 + 摩擦和风阻损耗）。</p>
+    <h4 style="margin:14px 0 6px;font-size:13px">🔎 专项检查表（独立检查项目 · 日期 × 数据列 的月表）</h4>
+    <p class="muted tiny" style="margin:0 0 8px">这一区的表在「设备状态」里是<b>独立卡片</b>（与点检卡并列）。点 <b>✎ 编辑检查表</b> 可改表头 / 数据列 / 右侧说明栏 / 底部判定标准 / 参与设备。表内电子签名一律要签名人密码。</p>
+    <div id="prog_list"></div>
+    <h4 style="margin:18px 0 6px;font-size:13px">📋 设备点检模板（检查内容 × 频率）</h4>
     <div id="tpl_list" data-page-node-id="UyqVEl2UfJsVICj6Y6TMeH"></div>
   </div>
 
@@ -165,16 +187,16 @@
   <div class="panel glass" id="p_room" data-page-node-id="wQTbHyF887kgG7h3atuRfb">
     <p class="muted tiny" data-page-node-id="oIl5ayBUQe0YnlCmS8U9En">房间用于大屏分组与登录后的房间选择页。重命名房间会自动迁移该房间下所有设备的位置；删除房间要求房间内已无设备。</p>
     <div class="row" data-page-node-id="3PvLzwxoJpB0H4JNU53RTB">
-      <div class="field" data-page-node-id="TLJ9BHbvww2t7O4FuBx1Nh"><label data-page-node-id="mHci2pXueqA7ThzU1Wc5Z5">房间名称</label><input id="room_name" placeholder="如：车间C" maxlength="40" data-page-node-id="kDgvGTaon4AuSiL8BShfK9"></div>
+      <div class="field" data-page-node-id="TLJ9BHbvww2t7O4FuBx1Nh"><label data-page-node-id="mHci2pXueqA7ThzU1Wc5Z5">房间名称</label><input id="room_name" placeholder="如：持久蠕变室3" maxlength="40" data-page-node-id="kDgvGTaon4AuSiL8BShfK9"></div>
       <div class="field" data-page-node-id="TmcZT9ebxTPfowgVAuEyhQ"><label data-page-node-id="3LuOBCdkuXzCM9HbGn41SC">描述（可选）</label><input id="room_desc" placeholder="如：设备型号说明" maxlength="60" data-page-node-id="PZFbkr7biT12UsKn09B6UA"></div>
-      <div class="field"><label>分组（可选）</label><input id="room_group" placeholder="同组房间会合并显示，如：车间" maxlength="20"></div>
+      <div class="field"><label>分组（可选）</label><input id="room_group" placeholder="同组房间会合并显示，如：持久蠕变" maxlength="20"></div>
       <div class="field"><label>科室（可选）</label><select id="room_dept"></select></div>
       <div class="field" style="align-self-end" data-page-node-id="i6XSvBL78sBBhzsGH7i4jD"><button class="btn cyan sm" id="room_add" data-page-node-id="ECSpqgb72VBEuj9ZXyb0Rb">＋ 新增房间</button></div>
     </div>
     <div class="muted tiny" style="margin:2px 0 8px">🌡 温湿度监测配置（可选）——填好后该房间的「温湿度监测记录」表头会自动带出；已建好的房间在列表里点 <b>✏️ 编辑</b>（表头缺项时另有一键 <b>🌡 补填表头</b>）补填即可。</div>
     <div class="row">
-      <div class="field"><label>监测仪器型号和编号</label><input id="room_app" placeholder="如 hx-rtu-t10/DEMO-ZX-882" maxlength="80"></div>
-      <div class="field"><label>被监测的设备型号和编号</label><input id="room_eq" placeholder="如 设备型号-A/DEMO-NO-1~DEMO-NO-54" maxlength="300"></div>
+      <div class="field"><label>监测仪器型号和编号</label><input id="room_app" placeholder="如 hx-rtu-t10/PK-JCZX-882" maxlength="80"></div>
+      <div class="field"><label>被监测的设备型号和编号</label><input id="room_eq" placeholder="如 RDL-50/227083-2-1~227083-2-54" maxlength="300"></div>
     </div>
     <div class="field"><label>综合温湿度要求</label><textarea id="room_req" rows="2" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH"></textarea>
       <div class="muted tiny" style="margin-top:3px">格式建议：<b>温度：下限℃-上限℃</b> + <b>湿度：≤上限%RH</b>（可再附标准号）。温度/湿度超限自动标红依赖这两行，写不规范则不校验。</div>
@@ -189,6 +211,7 @@
   <div class="panel glass" id="p_sig" data-page-node-id="K7Sw3C087J22gtN4oRA7hc">
     <div class="row" data-page-node-id="TuKgtI7EHooYor2lx1Aly3">
       <div class="field" data-page-node-id="mySan4qTBYBy24om02x44j"><label data-page-node-id="M1GjEYD8Rg9fApWbY7cdM2">姓名</label><input id="sg_name" data-page-node-id="41fVBrioOYQCNpOHf07ya7"></div>
+      <div class="field"><label>所属科室</label><select id="sg_dept"></select><p class="muted tiny" style="margin-top:2px">用于「整月一键点检」按科室随机分派</p></div>
       <div class="field" data-page-node-id="bVhUcGzt2lexiF3N74IAnf"><label data-page-node-id="IVsWTBBhKV8CC8pLAIU25Q">签名密码</label><input id="sg_pw" type="password" placeholder="用于签名验证" data-page-node-id="prrvtS6VP0sie2NixKTtL6"></div>
     </div>
     <div class="field" data-page-node-id="VYPDoDpl3ZhREyziczMhcR">
@@ -197,7 +220,7 @@
     </div>
     <button class="btn primary" id="sg_add" data-page-node-id="EvIGHYjbfZ3kbxJ0ZcMYAk">＋ 添加签名人员</button>
     <div class="scroll glass mt" style="max-height:360px" data-page-node-id="FQBrX7bCGIfh9oSlfTjfFe">
-      <table data-page-node-id="3nAEHTxucbGCzep1tI9AmM"><thead data-page-node-id="cVxayMWMdOROXnL2aRVsxS"><tr data-page-node-id="l4dg2DBWlGYXwLrYAcDLs4"><th data-page-node-id="0PFb5HkfKuNu3fujkDyesg">姓名</th><th data-page-node-id="hfOqLp4naBhFbwpFgPaTfQ">电子签名</th><th style="width:132px">签名版本</th><th data-page-node-id="nlpcRGWy6WiTfmMwLCWOec">状态</th><th data-page-node-id="XlzFkwXPkWndxN2cSZDcqI"></th></tr></thead>
+      <table data-page-node-id="3nAEHTxucbGCzep1tI9AmM"><thead data-page-node-id="cVxayMWMdOROXnL2aRVsxS"><tr data-page-node-id="l4dg2DBWlGYXwLrYAcDLs4"><th data-page-node-id="0PFb5HkfKuNu3fujkDyesg">姓名</th><th style="width:110px">所属科室</th><th data-page-node-id="hfOqLp4naBhFbwpFgPaTfQ">电子签名</th><th style="width:132px">签名版本</th><th data-page-node-id="nlpcRGWy6WiTfmMwLCWOec">状态</th><th data-page-node-id="XlzFkwXPkWndxN2cSZDcqI"></th></tr></thead>
       <tbody id="sg_list" data-page-node-id="o2HcLcvLAxxq96SMa3qZBb"></tbody></table>
     </div>
   </div>
@@ -207,6 +230,8 @@
     <div class="row" data-page-node-id="BM3DI4oWzPkqtRDniA1NKl">
       <div class="field" data-page-node-id="51iQLDvNjBe0sorbidusvB"><label data-page-node-id="DBTlSfL0tfLXTa8X1D8sa6">按设备编号筛选</label><input id="r_no" placeholder="如 001" data-page-node-id="zQ0bXQVRCI602rEVujTBiK"></div>
       <div class="field" data-page-node-id="ZKu8KTh6c6G2GokfjM8Bej"><label data-page-node-id="QZkDlt0lbYeIbFHJX7CQTL">按日期筛选</label><input type="date" id="r_date" data-page-node-id="9fxT2xAbMY9vJxwO0ti6eS"></div>
+      <div class="field"><label>按名字筛选（设备名 / 签名人）</label><input id="r_signer" placeholder="如 张敦龙 或 试验机" autocomplete="off"></div>
+      <div class="field"><label>按房间筛选</label><select id="r_room"><option value="">（全部房间）</option></select></div>
       <div class="field" style="max-width:120px" data-page-node-id="sHhLExDqMIKexKBmkQujE2"><label data-page-node-id="1I0uQNnh6dZxsh6V3lH7pj">&nbsp;</label><button class="btn sm" id="r_q" data-page-node-id="oLCUCWipPnKNe4PHzX6sjK">查询</button></div>
     </div>
     <div class="flex mb" data-page-node-id="9U91Fj0Txtnd2HdPWWzA74">
@@ -215,7 +240,7 @@
       <span class="muted tiny" id="r_stat" data-page-node-id="xsMjOARGxPU2uUjGL78BRv"></span>
     </div>
     <div class="scroll glass" style="max-height:420px" data-page-node-id="uWAbMzBJKm9dhodn7HaOwI">
-      <table data-page-node-id="U6t9By4su8NrKBBc9Jqyvn"><thead data-page-node-id="g07GL4MNABC4HU1uqidxhj"><tr data-page-node-id="nQUiFzLeBUbiiYlx3qNEES"><th style="width:26px" data-page-node-id="WdYylIMVrtwuH24bYJxctb"></th><th data-page-node-id="Tc1NNcGDIQcVrY5MPAB3rR">日期</th><th data-page-node-id="QkxNQNQ4DfRnORE9h21FDT">编号</th><th data-page-node-id="mDcAEOlA32xOtEygbO6e9W">设备</th><th data-page-node-id="BAHMjkfucDCd87izJ1ZJcd">状态</th><th data-page-node-id="1AemofnC6gRhhVxQG9vJ5R">签名人</th><th data-page-node-id="RSuzxVjL1D1cey2QR7nRJ9">异常说明</th><th data-page-node-id="7VJsOgJUJ2SsPtUL4SVHWr"></th></tr></thead>
+      <table data-page-node-id="U6t9By4su8NrKBBc9Jqyvn"><thead data-page-node-id="g07GL4MNABC4HU1uqidxhj"><tr data-page-node-id="nQUiFzLeBUbiiYlx3qNEES"><th style="width:26px" data-page-node-id="WdYylIMVrtwuH24bYJxctb"></th><th data-page-node-id="Tc1NNcGDIQcVrY5MPAB3rR">日期</th><th data-page-node-id="QkxNQNQ4DfRnORE9h21FDT">编号</th><th data-page-node-id="mDcAEOlA32xOtEygbO6e9W">设备</th><th data-page-node-id="RoomColRec0000001">房间</th><th data-page-node-id="BAHMjkfucDCd87izJ1ZJcd">状态</th><th data-page-node-id="1AemofnC6gRhhVxQG9vJ5R">签名人</th><th data-page-node-id="RSuzxVjL1D1cey2QR7nRJ9">异常说明</th><th data-page-node-id="7VJsOgJUJ2SsPtUL4SVHWr"></th></tr></thead>
       <tbody id="r_list" data-page-node-id="8BDyuqByF3czAhMzm8gv1A"></tbody></table>
     </div>
   </div>
@@ -245,8 +270,78 @@
     </div>
   </div>
 
+  <!-- 温湿度预警 -->
+  <div class="panel glass" id="p_alert">
+    <div class="flex" style="align-items:center;gap:10px;margin-bottom:8px">
+      <h3 style="margin:0;font-size:15px">🚨 温湿度预警</h3>
+      <span id="al_stat" class="tiny muted"></span>
+      <span style="flex:1"></span>
+      <button class="btn sm" id="al_save">💾 保存配置</button>
+    </div>
+    <label class="flex" style="align-items:center;gap:8px;margin-bottom:6px">
+      <input type="checkbox" id="al_enabled" style="width:auto"> <b>启用温湿度预警</b>
+      <span style="flex:1"></span>
+      <span class="tiny">同格再报冷却（小时）</span>
+      <input type="number" id="al_cooldown" style="width:70px" value="12">
+    </label>
+    <div class="flex" style="align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+      <b class="tiny">提醒方式：</b>
+      <label class="tiny" style="cursor:pointer"><input type="checkbox" id="al_ch_inapp" style="width:auto" checked> 站内通知（铃铛）</label>
+      <label class="tiny" style="cursor:pointer"><input type="checkbox" id="al_ch_banner" style="width:auto" checked> 页面顶部横幅</label>
+    </div>
+    <h4 style="margin:10px 0 4px;font-size:13px">阈值来源（默认直接读该房间的「温湿度要求」，不必逐间手配）</h4>
+    <label class="flex" style="align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <input type="checkbox" id="al_useroom" style="width:auto" checked> <b>阈值自动跟随房间「温湿度要求」</b>
+      <span class="tiny muted">房间要求里没写的指标就不判定（例如只写了温度的房间不判湿度）；关掉则所有房间都用下面的全局默认</span>
+    </label>
+    <div class="flex" style="align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <span class="tiny">一个房间列了多条温度标准时（如冲击室 ASTM 15~25 + GB 18~28）：</span>
+      <select id="al_multistd" style="width:250px">
+        <option value="union">取并集（宽）→ 15~28℃</option>
+        <option value="intersect">取交集（严）→ 18~25℃</option>
+      </select>
+      <span class="tiny muted">改完点右下「保存配置」刷新生效值</span>
+    </div>
+    <h4 style="margin:12px 0 4px;font-size:13px">全局默认阈值（仅在房间没写要求时兜底；留空=不判定该指标）</h4>
+    <div class="flex" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <span class="tiny">温度下限℃</span><input type="number" step="0.1" id="al_tmin" style="width:80px">
+      <span class="tiny">温度上限℃</span><input type="number" step="0.1" id="al_tmax" style="width:80px">
+      <span class="tiny">湿度下限%</span><input type="number" step="0.1" id="al_hmin" style="width:80px">
+      <span class="tiny">湿度上限%</span><input type="number" step="0.1" id="al_hmax" style="width:80px">
+    </div>
+    <h4 style="margin:12px 0 4px;font-size:13px">各房间生效阈值 <span class="tiny muted">（「自动读取」来自房间要求；最右侧手工覆盖留空就用自动值）</span></h4>
+    <table class="ctab" style="width:100%"><thead>
+      <tr><th rowspan="2">房间</th><th rowspan="2">科室</th><th rowspan="2">自动读取（来自房间温湿度要求）</th><th rowspan="2">生效阈值</th><th colspan="4">手工覆盖</th></tr>
+      <tr><th>温度下限</th><th>温度上限</th><th>湿度下限</th><th>湿度上限</th></tr>
+    </thead><tbody id="al_rooms"></tbody></table>
+    <h4 style="margin:12px 0 4px;font-size:13px">提醒接收人（匹配规则：触发房间所属科室的人员 ∪ 跨科室人员；房间未设科室则仅跨科室人员收到）</h4>
+    <div id="al_recips" style="border:1px solid #e5e7eb;border-radius:6px"></div>
+    <h4 style="margin:14px 0 4px;font-size:13px">预警记录</h4>
+    <div class="flex" style="gap:8px;align-items:center;margin-bottom:6px">
+      <select id="al_filter" style="width:140px">
+        <option value="">全部</option>
+        <option value="open">未确认</option>
+        <option value="acked">已确认</option>
+      </select>
+      <button class="btn sm" id="al_reload">🔄 刷新</button>
+    </div>
+    <table class="ctab" style="width:100%"><thead><tr>
+      <th>时间</th><th>房间</th><th>时段</th><th>预警内容</th><th>来源</th><th>状态</th><th>操作</th>
+    </tr></thead><tbody id="al_list"></tbody></table>
+  </div>
   <!-- 系统 -->
   <div class="panel glass" id="p_sys" data-page-node-id="ULgKoasiYohJNzlZN78DwV">
+    <h3 style="margin:0 0 8px;font-size:15px">🔐 签名验证</h3>
+    <label class="flex" style="align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
+      <input type="checkbox" id="sys_signnopw" style="width:auto">
+      <span>点检 / 温湿度页<b>免密签名</b>（勾上后选中签名人即可落签，不再要求「签名人密码」）</span>
+    </label>
+    <p class="muted tiny" style="margin:0 0 4px">
+      签名密码是「这个字是谁签的」的凭据（ISO 记录通常要求保留）。若现场认为<b>登录账号已足以区分操作人</b>、
+      每次输密码太繁琐，可在此放开；放开后仍会记下所选签名人与提交时间，只是不再校验密码。改完刷新一次页面生效。
+    </p>
+    <p class="muted tiny" id="sys_signnopw_stat" style="color:var(--warn);margin:0 0 18px"></p>
+
     <div class="field" style="max-width:360px" data-page-node-id="t6P9pDfbZ5Ay5tPGZvKrnp"><label data-page-node-id="EdVlWXVyEgIX60ISuNPHlC">修改后台密码</label>
       <input type="password" id="npw" placeholder="新密码（至少4位）" data-page-node-id="U6p1g6pUZGn8QVTwsw9lsF">
       <button class="btn sm mt" id="npw_go" data-page-node-id="GMHCwbVzzRKHQEqXY1o4Nh">保存</button>
@@ -260,6 +355,8 @@
     <div class="flex mb" data-page-node-id="vEDf1FDLHHZo7MozWsHyDr">
       <button class="btn sm cyan" id="sys_backup" data-page-node-id="f6q6zQtnNxbWycoVbvCGlL">⬇️ 下载数据备份 (JSON)</button>
       <button class="btn sm cyan" id="sys_csv" data-page-node-id="p41KFCzTzsXy1Ogm2xIKcY">⬇️ 导出点检记录 (CSV)</button>
+      <button class="btn sm" id="sys_restore">⬆️ 导入数据备份 (JSON)</button>
+      <input type="file" id="sys_restore_file" accept=".json,application/json" style="display:none">
       <span class="muted tiny" id="sys_backup_hint" data-page-node-id="0TLQeOY9uAttiGuWrxxGIn"></span>
     </div>
     <p class="muted tiny" data-page-node-id="SCNR84gTjFykeY9sSibTWa">备份建议每月一次，下载的 JSON 即完整数据库快照，可整份替换 <code data-page-node-id="fJogHBYyETt0dXS6hR9WHN">data/kv.json</code> 恢复。CSV 含全部点检记录（编号/名称/房间/日期/时间/结果/备注），带 BOM 可直接用 Excel 打开。</p>
@@ -331,7 +428,7 @@
 
     <h3 style="margin:18px 0 8px;font-size:15px" id="sys_about">🔗 关于</h3>
     <div class="flex mb" style="flex-wrap:wrap;gap:10px;align-items:center">
-      <a class="btn sm cyan" href="https://github.com/equipment-inspection-demo" target="_blank" rel="noopener">🐙 GitHub 主页</a>
+      <a class="btn sm cyan" href="https://github.com/zhangdunlong" target="_blank" rel="noopener">🐙 GitHub 主页</a>
       <span class="muted tiny">设备点检巡检系统 <b data-appver style="opacity:.75"></b> · Node.js 零依赖 · 数据存于 <code>data/kv.json</code></span>
     </div>
 </div>
@@ -351,6 +448,11 @@
       <div class="field" id="m_delwrap" data-page-node-id="Wwh1DelWrap0000000004"><label data-page-node-id="Wwh1DelLbl00000000005">删除范围</label>
         <select id="m_delscope" data-page-node-id="Wwh1DelSel00000000006"><option value="month">当月（1 日至截止日）</option><option value="all">该设备全部历史记录</option></select>
         <p class="muted tiny" style="margin-top:2px" id="m_delhint" data-page-node-id="Wwh1DelHint0000000007">点「取消 / 删除」时生效</p></div>
+      <div class="field" id="m_randwrap"><label>&nbsp;</label>
+        <label class="muted tiny" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="m_rand"> 按科室随机分派签名人</label>
+        <p class="muted tiny" style="margin-top:2px">房间→科室→每天随机选该科室一人签名</p></div>
+      <div class="field" id="m_weekwrap"><label>&nbsp;</label>
+        <p class="muted tiny" style="margin-top:2px;color:#8a6d1b">📅 <b>周检设备自动识别</b>：模板里检查项频率全为「每周」的设备（洗眼器、金相显微镜等）只点<b>检查日（周一）</b>，其余日期不生成记录，点检页/打印页按「/」呈现；要重新整理历史数据，先「取消点检」再「点检」即可。</p></div>
     </div>
     <div class="flex mb" data-page-node-id="d0ZJj1mKfGvBABAfpoKxnV">
       <button class="btn primary" id="m_go" data-page-node-id="LRTDkFH1a6p108E3q1IeZY">📅 点检（按上方范围）</button>
@@ -358,11 +460,43 @@
       <button class="btn cyan" id="m_print" data-page-node-id="9RDCdFV5qO3hdF8CSyXWVp">🖨 打印整月点检表</button>
       <span class="muted tiny" id="m_stat" data-page-node-id="s1BxwNuSQG0qO9NXBlVPWI"></span>
     </div>
+
+    <!-- 专项检查表 · 整月一键生成（复制上一次点检的数据） -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)" id="p_checkmonth" data-page-node-id="ChkMonthPanel000000001">
+      <h3 style="margin:0 0 6px;font-size:15px" data-page-node-id="ChkMonthTitle000000001">📋 专项检查表 · 整月一键生成（复制上一次点检的数据）</h3>
+      <p class="muted tiny" style="line-height:1.85" data-page-node-id="ChkMonthDesc0000000001">
+        给独立检查项目（如「夏比冲击摩擦和风阻损耗检查」「显微镜维护记录」）<b>整月一键生成</b>检查记录：逐台设备找到 <b>上一次点检</b>
+        （同项目 + 同设备、目标月份之前最近的那一条，<b>跨月查找</b> —— 中间某个月没做也能取到），把它的数据列内容复制到目标月份对应的日期上。
+        <br>· 行对应规则：<b>日检表按「日号」对</b>（上月 20 号 → 本月 20 号）；<b>周检表按「第几个周一」对</b>（上月第 1 个周一 → 本月第 1 个周一）。
+        <br>· <b>只补空格</b>：目标月已经有内容的日期一律不动（选「整份替换」才会覆盖）。
+        <br>· <b style="color:var(--warn)">签名格不会照抄</b> —— 检查表的签名是「这个字是谁签的」凭据，照抄等于替别人签一整月。
+        要一并落签就选<b>签名人</b>并输入<b>签名密码</b>（走检查表同一套强制密码校验）；不选则签名格留空，之后在检查表页面逐格补签。
+        <br>· 未来日期不生成；「上一次」没有记录的设备会被跳过，并在下方结果里列出来。
+      </p>
+      <div class="row" data-page-node-id="ChkMonthRow00000000001">
+        <div class="field" data-page-node-id="ChkMonthFProg00000001"><label data-page-node-id="ChkMonthLProg00000001">检查项目</label><select id="cm_prog" style="min-width:220px" data-page-node-id="ChkMonthIProg00000001"></select></div>
+        <div class="field" data-page-node-id="ChkMonthFMonth0000001"><label data-page-node-id="ChkMonthLMonth0000001">月份</label><input type="month" id="cm_month" data-page-node-id="ChkMonthIMonth0000001"></div>
+        <div class="field" data-page-node-id="ChkMonthFEnd000000001"><label data-page-node-id="ChkMonthLEnd000000001">截止日期</label><input type="date" id="cm_end" data-page-node-id="ChkMonthIEnd000000001"><p class="muted tiny" style="margin-top:2px" data-page-node-id="ChkMonthHEnd000000001">默认整月；当前月截到今天</p></div>
+        <div class="field" data-page-node-id="ChkMonthFOver0000001"><label data-page-node-id="ChkMonthLOver0000001">已有数据</label><select id="cm_overwrite" data-page-node-id="ChkMonthIOver0000001"><option value="0" data-page-node-id="ChkMonthOver0k0000001">只补空格（推荐）</option><option value="1" data-page-node-id="ChkMonthOver1k0000001">整份替换目标月</option></select></div>
+        <div class="field" data-page-node-id="ChkMonthFScope0000001"><label data-page-node-id="ChkMonthLScope0000001">设备范围</label>
+          <select id="cm_scope" data-page-node-id="ChkMonthIScope0000001"><option value="all" data-page-node-id="ChkMonthScopeAll00001">全部设备</option><option value="room" data-page-node-id="ChkMonthScopeRoom0001">按房间</option><option value="one" data-page-node-id="ChkMonthScopeOne00001">指定单台</option></select></div>
+        <div class="field" id="cm_roomwrap" style="display:none" data-page-node-id="ChkMonthFRoom000000001"><label data-page-node-id="ChkMonthLRoom000000001">选择房间</label><select id="cm_room" data-page-node-id="ChkMonthIRoom000000001"></select></div>
+        <div class="field" id="cm_devwrap" style="display:none" data-page-node-id="ChkMonthFDev0000000001"><label data-page-node-id="ChkMonthLDev0000000001">选择设备</label><select id="cm_dev" data-page-node-id="ChkMonthIDev0000000001"></select></div>
+        <div class="field" data-page-node-id="ChkMonthFSigner000001"><label data-page-node-id="ChkMonthLSigner000001">签名人（可选）</label><select id="cm_signer" data-page-node-id="ChkMonthISigner000001"></select></div>
+        <div class="field" data-page-node-id="ChkMonthFPw0000000001"><label data-page-node-id="ChkMonthLPw0000000001">签名密码</label><input type="password" id="cm_pw" placeholder="选了签名人才需要" data-page-node-id="ChkMonthIPv0000000001"></div>
+      </div>
+      <div class="flex mb" data-page-node-id="ChkMonthBtns0000000001">
+        <button class="btn sm" id="cm_preview" data-page-node-id="ChkMonthPreview0000001">👁 预览（不写库）</button>
+        <button class="btn primary" id="cm_go" data-page-node-id="ChkMonthGo00000000001">📋 生成整月检查表</button>
+        <span class="muted tiny" id="cm_stat" data-page-node-id="ChkMonthStat0000000001"></span>
+      </div>
+      <div id="cm_result" class="muted tiny" style="line-height:1.95" data-page-node-id="ChkMonthResult000000001"></div>
+    </div>
   </div>
 
   <!-- 温湿度一键填充（后台） -->
   <div class="panel glass" id="p_env" data-page-node-id="EnvFillPanel0000000001">
-    <p class="muted tiny" data-page-node-id="EnvFillDesc00000000001">温湿度表（DEMO-QR-008）是「房间 + 月份」的月表，每天分上午 / 下午 / 晚上三个时段。这里可以一键把 <b>1 日至截止日</b> 之间 <b>还空着</b> 的格子批量补上温度 / 湿度，并套用所选签名人的电子签名 —— 数值按各房间「综合温湿度要求」圈的限定范围自动生成，保证落在范围内；已有数据的格子（含签名、划线）一律不动。</p>
+    <p class="muted tiny" data-page-node-id="EnvFillDesc00000000001">温湿度表（PK-JC-QR-008）是「房间 + 月份」的月表，每天分上午 / 下午 / 晚上三个时段。这里可以一键把 <b>1 日至截止日</b> 之间 <b>还空着</b> 的格子批量补上温度 / 湿度，并套用所选签名人的电子签名 —— 数值按各房间「综合温湿度要求」圈的限定范围自动生成，保证落在范围内；已有数据的格子（含签名、划线）一律不动。</p>
     <div class="row" data-page-node-id="EnvFillRow000000000001">
       <div class="field" data-page-node-id="EnvFillFMonth000000001"><label data-page-node-id="EnvFillLMonth000000001">月份</label><input type="month" id="e_month" data-page-node-id="EnvFillIMonth000000001"></div>
       <div class="field" data-page-node-id="EnvFillFEnd0000000001"><label data-page-node-id="EnvFillLEnd0000000001">截止日期</label><input type="date" id="e_end" data-page-node-id="EnvFillIEnd0000000001"><p class="muted tiny" style="margin-top:2px" data-page-node-id="EnvFillHEnd0000000001">默认截止到今天，只填 1 日至该日的日期</p></div>
@@ -377,6 +511,112 @@
       <span class="muted tiny" id="e_stat" data-page-node-id="EnvFillStat000000001"></span>
     </div>
     <div id="e_result" class="muted tiny" style="line-height:1.95" data-page-node-id="EnvFillResult0000001"></div>
+
+    <!-- 随机生成范围（后台自调） -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)" id="p_envrange" data-page-node-id="EnvRangePanel000000001">
+      <h3 style="margin:0 0 6px;font-size:15px" data-page-node-id="EnvRangeTitle00000001">🎲 随机生成范围</h3>
+      <p class="muted tiny" style="line-height:1.8" data-page-node-id="EnvRangeDesc000000001">配置后，「🌡 一键填充」的温度 / 湿度直接在该范围内随机生成（<b>对全部房间生效</b>）。四项<b>留空</b>则不使用，改按各房间「综合温湿度要求」解析生成（未配要求的房间会被跳过）。<b>取值优先级：房间「🎲 专属范围」（房间管理里设置） &gt;此全局范围 &gt; 房间温湿度要求</b>。每天三个时段仍共用一条基准值小幅波动，读数连贯可信。</p>
+      <div class="row" data-page-node-id="EnvRangeRow0000000001">
+        <div class="field" data-page-node-id="EnvRangeFTmin0000001"><label data-page-node-id="EnvRangeLTmin0000001">温度下限（℃）</label><input type="number" step="0.1" id="er_tmin" placeholder="如 15" data-page-node-id="EnvRangeITmin0000001"></div>
+        <div class="field" data-page-node-id="EnvRangeFTmax0000001"><label data-page-node-id="EnvRangeLTmax0000001">温度上限（℃）</label><input type="number" step="0.1" id="er_tmax" placeholder="如 28" data-page-node-id="EnvRangeITmax0000001"></div>
+        <div class="field" data-page-node-id="EnvRangeFhMin0000001"><label data-page-node-id="EnvRangeLhMin0000001">湿度下限（%RH）</label><input type="number" step="0.1" min="0" max="100" id="er_hmin" placeholder="如 40" data-page-node-id="EnvRangeIhMin0000001"></div>
+        <div class="field" data-page-node-id="EnvRangeFhMax0000001"><label data-page-node-id="EnvRangeLhMax0000001">湿度上限（%RH）</label><input type="number" step="0.1" min="0" max="100" id="er_hmax" placeholder="如 70" data-page-node-id="EnvRangeIhMax0000001"></div>
+      </div>
+      <div class="flex mb" data-page-node-id="EnvRangeBtns000000001">
+        <button class="btn primary sm" id="er_save" data-page-node-id="EnvRangeSave00000001">💾 保存范围</button>
+        <button class="btn sm" id="er_clear" data-page-node-id="EnvRangeClear0000001">清除（按各房间温湿度要求）</button>
+        <span class="muted tiny" id="er_stat" data-page-node-id="EnvRangeStat00000001"></span>
+      </div>
+    </div>
+
+    <!-- 温湿度记录批量删除（管理员） -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)" id="p_envdel" data-page-node-id="EnvDelPanel0000000001">
+      <h3 style="margin:0 0 6px;font-size:15px" data-page-node-id="EnvDelTitle000000001">🗑 温湿度记录批量删除</h3>
+      <p class="muted tiny" style="line-height:1.8" data-page-node-id="EnvDelDesc000000001">按「房间 + 月份」<b>整表删除</b>温湿度记录（含该月全部格子的温度 / 湿度 / 记录员 / 签名 / 划线）。<b style="color:var(--warn)">删除不可恢复</b> —— 建议先到「数据备份」导出一份。常用于清掉测试 / 抓错的月份后重新生成。</p>
+      <div class="row" data-page-node-id="EnvDelRow00000000001">
+        <div class="field" data-page-node-id="EnvDelFMonth0000001"><label data-page-node-id="EnvDelLMonth0000001">月份</label><input type="month" id="ed_month" data-page-node-id="EnvDelIMonth000000001"></div>
+        <div class="field" style="flex:2" data-page-node-id="EnvDelFRooms0000001"><label data-page-node-id="EnvDelLRooms0000001">房间（可多选）</label>
+          <div id="ed_rooms" style="display:flex;flex-wrap:wrap;gap:4px 14px;max-height:96px;overflow:auto;padding:6px;border:1px solid rgba(255,255,255,.12);border-radius:6px" data-page-node-id="EnvDelIRooms000000001"></div>
+        </div>
+      </div>
+      <div class="flex mb" data-page-node-id="EnvDelBtns000000001">
+        <button class="btn sm" id="ed_all" data-page-node-id="EnvDelAll0000000001">全选 / 全不选</button>
+        <button class="btn sm" id="ed_del" style="border-color:var(--warn);color:var(--warn)" data-page-node-id="EnvDelGo0000000001">🗑 删除所选（整月整表）</button>
+        <span class="muted tiny" id="ed_stat" data-page-node-id="EnvDelStat000000001"></span>
+      </div>
+    </div>
+
+    <!-- LIMS 实时数据源（HANSON-LIMS 直连） -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)">
+      <h3 style="margin:0 0 6px;font-size:15px">🛰 LIMS 实时数据源</h3>
+      <p class="muted tiny" style="line-height:1.8">温湿度页的「⬇ LIMS 抓取」按钮和下面的同步，直接从 LIMS「环境监测管理」抓<b>真实温湿度</b>：湿度走整月图表（5 分钟一点，可取整月历史），温度走「温湿同点」逐时段窗口（同一点同时取温湿度，配对可信）。只补空格：已有内容 / 签名 / 划线的格子一律不动。<br>
+        <b>温度可以在下面单独指源</b>：只有挂了温湿同点传感器的房间才拿得到温度，没挂的房间（湿度满格、温度空着）可以让它的<b>温度改从别的 LIMS 房间取</b>，例如多间统一指向「冲击室」——湿度仍走各自的源，两边互不影响。</p>
+      <div class="row">
+        <div class="field"><label>启用 LIMS 数据源</label><select id="l_enabled"><option value="1">启用</option><option value="0">停用</option></select></div>
+        <div class="field"><label>LIMS 地址</label><input id="l_base" placeholder="https://example.com/lims"></div>
+        <div class="field"><label>LIMS 账号</label><input id="l_user" placeholder="LIMS 账号"></div>
+        <div class="field"><label>LIMS 密码</label><input id="l_pass" type="password" placeholder="留空 = 不修改"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>取数策略（每个「日 / 时段」格只落一个值）</label>
+          <select id="l_strategy">
+            <option value="random">该时段内随机取一点（默认）</option>
+            <option value="nearest">取最接近触发时刻的点</option>
+            <option value="first">取时段内第一个点</option>
+            <option value="last">取时段内最后一个点</option>
+            <option value="avg">取时段平均值</option>
+            <option value="min">取时段最小值</option>
+            <option value="max">取时段最大值</option>
+          </select></div>
+        <div class="field"><label>记录员（未指定签名人时显示）</label><input id="l_recorder" placeholder="LIMS自动导入"></div>
+        <div class="field"><label>覆盖已有格子</label><select id="l_overwrite"><option value="0">否（只补空格，推荐）</option><option value="1">是（连已有格子也覆盖，慎用）</option></select></div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex-basis:100%">
+          <label>房间 → LIMS 数据源映射（点选，无需手填）</label>
+          <p class="muted tiny" style="margin:2px 0 8px">右边下拉<b>只列 LIMS 侧的房间名</b>，点检房间名不再混进来（否则会出现一堆 LIMS 根本没有的房间）。留空＝不抓取该房间。<br>
+            每个房间两行：<b>湿度</b> 决定这间的数据源；<b>温度</b> 默认「跟随湿度源」（温湿同点），也可以单独指向别的 LIMS 房间（湿度不受影响），或设为「不抓温度」留空手填。<b>房间一旦设为「（未映射 · 不抓取）」，它的温度行会随之禁用</b>——没源可跟自然不抓温度；而它原本同名占着的那个 LIMS 房间会变成<b>空闲</b>，可以放心映射给别的房间，不需要再勾「允许共用」。
+            名字旁图标＝实测结论：<b>✅</b> 存在且有数据 / <b>⚠</b> 房间存在但没挂设备 / <b>❌</b> LIMS 中不存在（名字写错）/ <b>·</b> 未校验。
+            建议先点「🔍 实测校验房间名」把每个名字拿到 LIMS 里问一遍，再用「🧹 清理无效房间名」清掉错的。</p>
+          <div id="room_map_box" class="scroll glass" style="max-height:300px;padding:6px"></div>
+          <div class="row" style="margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:8px">
+            <div class="field" style="flex:1;min-width:200px"><label>新增 LIMS 源房间（填一个加一个，建议加完实测校验）</label><input id="l_newlimroom" placeholder="如：化学制样"></div>
+            <button class="btn sm" id="l_addlimroom">＋ 加入数据源清单</button>
+            <button class="btn sm" id="l_verify" title="逐个房间名向 LIMS 实测（名字不存在会秒回 code=5000）。每个约 8 秒，后台异步执行，不卡界面">🔍 实测校验房间名</button>
+            <button class="btn sm" id="l_prune" title="把实测为「LIMS 中不存在」的名字从清单里删掉，并清空指向它们的映射">🧹 清理无效房间名</button>
+          </div>
+          <div id="l_catalog" class="muted tiny" style="margin-top:6px;line-height:1.9"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>定时自动填充（服务内置，到点自动抓当天并保存）</label><select id="l_auto"><option value="0">关闭</option><option value="1">启用</option></select></div>
+        <div class="field"><label>触发时刻（逗号分隔，5 分钟窗口）</label><input id="l_times" placeholder="08:35,13:35,19:05"></div>
+        <div class="field"><label>定时填充的记录员（可空）</label><input id="l_auto_rec" placeholder="留空 = 用上面的记录员"></div>
+      </div>
+      <div class="flex mb">
+        <button class="btn primary sm" id="l_save">💾 保存 LIMS 配置</button>
+        <button class="btn sm" id="l_test">🔌 测试连接</button>
+        <button class="btn cyan sm" id="l_syncall" title="抓取全部有映射房间的当月温湿度并写入（湿度整月 + 温度逐时段窗口补抓，含「有湿度但缺温度」的格子；只补空格）。后台异步执行，不卡界面">⬇ 同步整月（含温度）</button>
+        <span class="muted tiny" id="l_stat"></span>
+      </div>
+      <div id="l_result" class="muted tiny" style="line-height:1.95"></div>
+    </div>
+  </div>
+
+  <!-- 运行日志 -->
+  <div class="panel glass" id="p_logs">
+    <div class="flex mb" style="flex-wrap:wrap;gap:8px;align-items:center">
+      <select id="log_level" style="max-width:130px">
+        <option value="">全部级别</option>
+        <option value="WARN">仅警告</option>
+        <option value="ERROR">仅错误</option>
+      </select>
+      <input id="log_q" placeholder="关键字过滤（标签/内容，如 LIMS）" style="max-width:280px">
+      <button class="btn sm" id="log_refresh">⟳ 刷新</button>
+      <span class="muted tiny" id="log_stat"></span>
+    </div>
+    <p class="muted tiny" style="margin:0 0 8px">服务运行日志：LIMS 同步、登录、接口报错都记在这里，远程排障不用再上服务器翻控制台。内存保留最近 2000 条，落盘 <code>data/logs/app-日期.log</code> 保留 14 天（完整历史去服务器拷文件）。</p>
+    <div class="scroll glass" style="max-height:480px"><pre id="log_view" style="margin:0;padding:10px;font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-all">（空）</pre></div>
   </div>
 </div>
 
@@ -398,8 +638,131 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
-  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month')loadMonthInspect();if(b.dataset.t==='env')loadEnvFill();if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}
+  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month'){loadMonthInspect();loadCheckMonth();}if(b.dataset.t==='env'){loadEnvFill();loadLims();}if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}if(b.dataset.t==='logs')loadLogs();if(b.dataset.t==='alert')loadAlertTab();
 });
+
+// ===================== 温湿度预警配置（v1.21.0，顶层作用域——tab 钩子与内联 onclick 都要能调到）=====================
+async function loadAlertTab(){
+  const cj=await api('/api/admin/env-alert-cfg'); const cfg=cj.cfg||{};
+  const rs=await api('/api/rooms'); const rooms=rs.rooms||rs||[];
+  const users=await api('/api/users');
+  let depts=[]; try{ depts=(await api('/api/depts')).depts||[]; }catch(e){}
+  $('#al_enabled').checked=cfg.enabled!==false;
+  $('#al_cooldown').value=cfg.cooldownHours||12;
+  $('#al_ch_inapp').checked=!!(cfg.channels&&cfg.channels.inApp);
+  $('#al_ch_banner').checked=!!(cfg.channels&&cfg.channels.banner);
+  $('#al_useroom').checked=cfg.useRoomReq!==false;
+  $('#al_multistd').value=cfg.multiStd==='intersect'?'intersect':'union';
+  const d=cfg.defaults||{};
+  $('#al_tmin').value=d.tMin==null?'':d.tMin; $('#al_tmax').value=d.tMax==null?'':d.tMax;
+  $('#al_hmin').value=d.hMin==null?'':d.hMin; $('#al_hmax').value=d.hMax==null?'':d.hMax;
+  // 每个房间的「自动抓取结果 + 生效阈值 + 来源」，让阈值从哪来一眼可见、可核对
+  const effs={}; (cj.effective||[]).forEach(e=>effs[e.name]=e);
+  const SRC_LABEL={room:'🏠 来自房间要求',default:'⚙️ 全局默认',override:'✍️ 手工覆盖',off:'⛔ 未启用自动'};
+  const numTxt=(v,u)=>v==null?'?':(v+u);
+  const autoTxt=e=>{
+    if(e.parsed){
+      let t='温度 '+e.parsed.tMin+'~'+e.parsed.tMax+'℃';
+      if(e.parsed.stdCount>1) t+='（'+e.parsed.stdCount+' 个标准）';
+      if(e.parsed.hMax!=null) t+=' · 湿度 ≤'+e.parsed.hMax+'%';
+      return esc(t);
+    }
+    if(e.empty) return '<span class="muted">房间未填写要求</span>';
+    return '<span style="color:#b42318">未识别出温湿度范围，请检查写法</span>';
+  };
+  const effTxt=e=>{
+    const E=e.effective||{};
+    const t=(E.tMin==null&&E.tMax==null)?'<span class="muted">温度不判</span>':'温度 '+numTxt(E.tMin,'~')+numTxt(E.tMax,'℃');
+    const h=(E.hMin==null&&E.hMax==null)?'<span class="muted">湿度不判</span>':'湿度 '+(E.hMin==null?'≤'+E.hMax+'%':numTxt(E.hMin,'~')+numTxt(E.hMax,'%'));
+    return t+'<br>'+h;
+  };
+  $('#al_rooms').innerHTML=rooms.map(r=>{
+    const e=effs[r.name]||{parsed:null,empty:true,effective:{},src:'default'};
+    const o=(cfg.rooms&&cfg.rooms[r.name])||{};
+    const v=f=>o[f]==null?'':o[f];
+    return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.dept||'')+'</td>'
+      +'<td style="text-align:left;font-size:11.5px">'+autoTxt(e)+'</td>'
+      +'<td style="font-size:11.5px">'+effTxt(e)+'<br><span class="tiny muted">'+esc(SRC_LABEL[e.src]||e.src||'')+'</span></td>'
+      +['tMin','tMax','hMin','hMax'].map(f=>'<td><input type="number" step="0.1" style="width:76px" class="al-ov" data-room="'+esc(r.name)+'" data-f="'+f+'" value="'+v(f)+'"></td>').join('')+'</tr>';
+  }).join('')||'<tr><td colspan="8" style="color:#98a2b3">暂无房间</td></tr>';
+  // 接收人：跨科室 + 按科室分组（未设科室用户只进跨科室组）
+  const byDept=(cfg.recipients&&cfg.recipients.byDept)||{};
+  const all=(cfg.recipients&&cfg.recipients.all)||[];
+  const act=users.filter(u=>u.active!==false);
+  let html='<div style="padding:10px 12px;border-bottom:1px dashed #dde"><b>🌐 跨科室接收人</b>（任何房间的预警都通知，含未设科室的房间）'
+    +'<div class="flex" style="gap:10px;flex-wrap:wrap;margin-top:6px">'
+    +act.map(u=>'<label style="font-size:12.5px"><input type="checkbox" class="al-all" data-id="'+u.id+'"'+(all.includes(u.id)?' checked':'')+'> '+esc(u.name||u.username)+(u.role==='admin'?'（管理员）':'')+'</label>').join('')+'</div></div>';
+  depts.forEach(g=>{
+    const gu=act.filter(u=>(u.dept||'')===g);
+    if(!gu.length) return;
+    const sel=byDept[g]||[];
+    html+='<div style="padding:10px 12px;border-bottom:1px dashed #dde"><b>🏢 '+esc(g)+'</b>（该科室房间的预警通知以下人员）'
+      +'<div class="flex" style="gap:10px;flex-wrap:wrap;margin-top:6px">'
+      +gu.map(u=>'<label style="font-size:12.5px"><input type="checkbox" class="al-dept" data-dept="'+esc(g)+'" data-id="'+u.id+'"'+(sel.includes(u.id)?' checked':'')+'> '+esc(u.name||u.username)+'</label>').join('')+'</div></div>';
+  });
+  $('#al_recips').innerHTML=html;
+  loadAlertList();
+  $('#al_save').onclick=async()=>{
+    const roomsOv={};
+    document.querySelectorAll('.al-ov').forEach(inp=>{
+      const v=inp.value.trim(); if(v==='')return;
+      const r=inp.dataset.room,f=inp.dataset.f;
+      (roomsOv[r]=roomsOv[r]||{})[f]=Number(v);
+    });
+    const byDept2={};
+    document.querySelectorAll('.al-dept:checked').forEach(c=>{
+      (byDept2[c.dataset.dept]=byDept2[c.dataset.dept]||[]).push(c.dataset.id);
+    });
+    const all2=[...document.querySelectorAll('.al-all:checked')].map(c=>c.dataset.id);
+    const body={enabled:$('#al_enabled').checked,
+      useRoomReq:$('#al_useroom').checked,multiStd:$('#al_multistd').value,
+      cooldownHours:Number($('#al_cooldown').value)||12,
+      channels:{inApp:$('#al_ch_inapp').checked,banner:$('#al_ch_banner').checked},
+      defaults:{tMin:$('#al_tmin').value,tMax:$('#al_tmax').value,hMin:$('#al_hmin').value,hMax:$('#al_hmax').value},
+      rooms:roomsOv,recipients:{byDept:byDept2,all:all2}};
+    const r=await api('/api/admin/env-alert-cfg',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.ok){ $('#al_stat').textContent='✅ 已保存 '+new Date().toLocaleTimeString(); loadAlertList(); }
+    else { $('#al_stat').textContent='❌ '+(r.error||'保存失败'); }
+  };
+}
+const AL_KIND={temp_high:'温度超上限',temp_low:'温度低于下限',hum_high:'湿度超上限',hum_low:'湿度低于下限'};
+async function loadAlertList(){
+  const st=$('#al_filter').value;
+  const j=await api('/api/env-alerts'+(st?'?status='+st:''));
+  $('#al_list').innerHTML=(j.rows||[]).map(a=>{
+    const per={AM:'上午',PM:'下午',Night:'晚上'}[a.period]||a.period;
+    return '<tr><td>'+esc(String(a.at).replace('T',' ').slice(0,16))+'</td><td>'+esc(a.room)+'</td><td>'+a.day+'日 '+per+'</td>'
+      +'<td>'+AL_KIND[a.kind]+'：'+a.value+'</td><td>'+esc(a.source||'')+'</td>'
+      +'<td>'+(a.status==='open'?'<b style="color:#b42318">未确认</b>':'已确认（'+esc(a.ack_by||'')+'）')+'</td>'
+      +'<td>'+(a.status==='open'?'<button class="btn sm" onclick="ackAlert(\''+a.id+'\')">确认</button>':'')+'</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="color:#98a2b3">暂无预警记录</td></tr>';
+}
+async function ackAlert(id){
+  const r=await api('/api/env-alerts/ack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[id]})});
+  if(r.ok)loadAlertList(); else toast(r.error||'确认失败','err');
+}
+window.ackAlert=ackAlert;   // 内联 onclick 只认全局
+$('#al_filter').onchange=()=>loadAlertList();
+$('#al_reload').onclick=()=>loadAlertList();
+
+// ===== 运行日志 =====
+function fmtLogT(ms){const d=new Date(ms);const p=n=>String(n).padStart(2,'0');return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
+async function loadLogs(){
+  const qs=new URLSearchParams();
+  const lv=$('#log_level').value;if(lv)qs.set('level',lv);
+  const q=$('#log_q').value.trim();if(q)qs.set('q',q);
+  qs.set('limit','300');
+  const r=await api('/api/admin/logs?'+qs.toString());
+  if(r.error){$('#log_view').textContent='加载失败: '+r.error;return;}
+  const rows=r.rows||[];
+  $('#log_stat').textContent='内存共 '+r.total+' 条 · 显示最新 '+r.returned+' 条 · 落盘 '+(r.files||[]).length+' 份';
+  if(!rows.length){$('#log_view').textContent='（暂无匹配日志）';return;}
+  const map={'INFO':'INFO','WARN':'⚠WARN','ERROR':'❌ERROR'};
+  $('#log_view').textContent=rows.map(x=>fmtLogT(x.t)+' ['+(map[x.level]||x.level)+']['+x.tag+'] '+x.msg).join('\n');
+}
+$('#log_refresh').onclick=loadLogs;
+$('#log_level').onchange=loadLogs;
+$('#log_q').addEventListener('keydown',e=>{if(e.key==='Enter')loadLogs();});
 
 $('#l_go').onclick=async()=>{
   const r=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -424,13 +787,43 @@ async function loadUsers(){
     <td>${u.dept?esc(u.dept):'<span class="muted">—</span>'}</td>
     <td>${u.active?'<span style="color:#0a8f3c">启用</span>':'<span style="color:#d11">停用</span>'}</td>
     <td><button class="btn sm" onclick="editUser('${u.id}')">编辑</button>
+        ${u.role!=='admin'?`<button class="btn sm" onclick="permUser('${u.id}')" title="细粒度功能权限">🔑 权限</button>`:'<span class="muted tiny">全部权限</span>'}
         <button class="btn sm ${u.active?'':'cyan'}" onclick="toggleUser('${u.id}',${u.active?0:1})">${u.active?'停用':'启用'}</button>
         <button class="btn sm danger" onclick="delUser('${u.id}')">删</button></td></tr>`).join('');
 }
+// 功能权限开关（v1.9.0）：与 server.js PERM_DEFS 对应。def = 用户未配置过时的默认状态
+const PERM_LIST=[
+  ['env_edit','温湿度表录入','温湿度页手动填写 / 保存 / 划线（默认放开，可单独收紧）',1],
+  ['env_fill','温湿度一键填充','后台一键填充、LIMS 抓取 / 同步',0],
+  ['env_delete','温湿度记录删除','后台按「房间+月份」整表删除温湿记录',0],
+  ['tpl_edit','点检模板管理','新增 / 编辑 / 复制 /删除点检模板与检查项',0],
+  ['inspect_batch','批量点检操作','一键点检、整月生成 / 撤销、批量删除点检记录',0],
+  ['export','数据导出备份','下载 JSON 备份、导出点检 / 温湿 CSV',0],
+];
+const permEff=(perms,k,def)=>(perms&&perms[k]!==undefined&&perms[k]!==null)?!!perms[k]:!!def;
+async function permUser(id){
+  const users=await api('/api/users');const u=users.find(x=>x.id===id);if(!u)return;
+  const m=$('#modal');
+  m.innerHTML=`<h3>🔑 功能权限 · ${esc(u.name||u.username)}</h3>
+    <p class="muted tiny" style="margin-top:-4px">勾选 = 允许该用户使用此功能（无需给管理员角色）。不勾 = 保持关闭。管理员不受此限制。</p>
+    ${PERM_LIST.map(([k,label,desc,def])=>`
+      <label style="display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border:1px solid rgba(255,255,255,.10);border-radius:8px;margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" id="perm_${k}" ${permEff(u.perms,k,def)?'checked':''} style="margin-top:2px">
+        <span><b>${label}</b><span class="muted tiny" style="display:block;line-height:1.6">${desc}</span></span>
+      </label>`).join('')}
+    <div class="flex"><button class="btn primary" onclick="savePerms('${id}')">保存权限</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
+  $('#mask').classList.add('show');
+}
+async function savePerms(id){
+  const perms={};
+  for(const [k] of PERM_LIST) perms[k]=$('#perm_'+k).checked?1:0;
+  const r=await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({perms})});
+  if(r.error){toast(r.error,'err');return;}
+  toast('权限已保存','ok');closeM();loadUsers();
+}
 $('#user_add').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>新增用户</h3>
-    <div class="field"><label>用户名（登录账号）</label><input id="u_name" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">必填，唯一；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
-    <div class="field"><label>姓名</label><input id="u_disp" placeholder="仅用于显示，可中文"></div>
+    <div class="field"><label>用户名 / 姓名</label><input id="u_name" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">必填，唯一。<b>这一个名字同时是登录账号、也是页面显示的姓名</b>（已合并为一条，不用重复填）；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
     <div class="field"><label>密码</label><input type="password" id="u_pw" placeholder="至少4位"></div>
     <div class="field"><label>角色</label><select id="u_role"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
     <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
@@ -440,18 +833,20 @@ $('#user_add').onclick=()=>{
   fillDeptSelect($('#u_dept'));
 };
 async function saveUser(){
-  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
+  const username=$('#u_name').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
   if(!username||!pw){toast('用户名与密码必填','err');return;}
-  if(username.length<2||username.length>32||/\s/.test(username)){toast('用户名需 2-32 位，可中文/英文/数字，不能含空格','err');return;}
-  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name,password:pw,role,dept})});
+  if(!/^[\u4e00-\u9fa5A-Za-z0-9._@-]{2,32}$/.test(username)){toast('用户名需 2-32 位，可中文/英文/数字/下划线/点/@/连字符，不能含空格','err');return;}
+  // 姓名不再单独填写：用户名本身就是显示姓名（后端 name 为空时也会回落为 username）
+  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name:username,password:pw,role,dept})});
   if(r.error){toast(r.error,'err');return;}
   toast('已新增用户','ok');closeM();loadUsers();
 }
+let _euOrig=null;   // 编辑用户弹窗原值：判断该账号「登录名」与「显示名」是否本就一致
 async function editUser(id){
   const users=await api('/api/users');const u=users.find(x=>x.id===id);if(!u)return;
+  _euOrig={u:u.username,n:u.name||u.username};
   const m=$('#modal');m.innerHTML=`<h3>编辑用户</h3>
-    <div class="field"><label>用户名</label><input id="u_name" value="${esc(u.username)}" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
-    <div class="field"><label>姓名</label><input id="u_disp" value="${esc(u.name)}"></div>
+    <div class="field"><label>用户名 / 姓名</label><input id="u_name" value="${esc(u.name||u.username)}" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">已合并为一条：<b>这个名字同时是登录账号、也是显示姓名</b>；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
     <div class="field"><label>重置密码（留空不修改）</label><input type="password" id="u_pw" placeholder="至少4位"></div>
     <div class="field"><label>角色</label><select id="u_role"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></div>
     <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
@@ -461,8 +856,14 @@ async function editUser(id){
   fillDeptSelect($('#u_dept'), u.dept||'');
 }
 async function saveUserEdit(id){
-  const username=$('#u_name').value.trim(), name=$('#u_disp').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
-  const body={username,name,role,dept}; if(pw) body.password=pw;
+  const val=$('#u_name').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
+  if(!val){toast('用户名 / 姓名不能为空','err');return;}
+  if(!/^[\u4e00-\u9fa5A-Za-z0-9._@-]{2,32}$/.test(val)){toast('需 2-32 位，可中文/英文/数字/下划线/点/@/连字符，不能含空格','err');return;}
+  // 「用户名 / 姓名」已合并为一条：name 始终跟随；username 只在原本「登录名 == 显示名」时才跟随改，
+  // 以免把 admin（显示名“管理员”≠登录名）这类账号的登录名改掉 —— 登录名一变该账号就登不进来了
+  const body={name:val,role,dept};
+  if(_euOrig && _euOrig.u===_euOrig.n) body.username=val;
+  if(pw) body.password=pw;
   const r=await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){toast(r.error,'err');return;}
   toast('已保存','ok');closeM();loadUsers();
@@ -491,17 +892,18 @@ async function loadRooms(){
                : miss===3 ? '<span class="pill ng">❌ 未填写</span>'
                : '<span class="pill" style="background:rgba(255,209,102,.18);color:#ffd166">⚠️ 缺 '+miss+' 项</span>';
     const missTip = miss? '<div class="muted tiny" style="margin-top:3px">缺：'+[['thermo_apparatus','仪器'],['thermo_equipment','被监测设备'],['thermo_requirement','温湿度要求']].filter((p,i)=>!parts[i]).map(p=>p[1]).join('、')+'</div>' : '';
+    const rangeChip = r.env_range ? `<div class="muted tiny" style="margin-top:3px">🎲 专属范围：温 ${r.env_range.tMin}~${r.env_range.tMax}℃ / 湿 ${r.env_range.hMin}~${r.env_range.hMax}%RH</div>` : '';
     const key=esc(r.name).replace(/'/g,"\\'");
     return `<tr>
     <td><b>${esc(r.name)}</b>${r.group?'<div class="muted tiny" style="margin-top:2px">🧩 分组：'+esc(r.group)+'（合并展示）</div>':''}</td>
     <td class="muted">${esc(r.desc)||'—'}${r.thermo_apparatus?'<br><span class="muted tiny">🌡 仪器：'+esc(r.thermo_apparatus)+(r.thermo_requirement?' · '+esc(r.thermo_requirement.split('\n')[0]):'')+'</span>':''}</td>
     <td>${r.dept?esc(r.dept):'—'}</td>
-    <td>${chip}${missTip}</td>
+    <td>${chip}${missTip}${rangeChip}</td>
     <td>${r.count} 台</td>
     <td>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-        <a class="btn sm" href="/env?room=${encodeURIComponent(r.name)}" target="_blank" rel="noopener" title="该房间的温湿度监测记录（DEMO-QR-008）">🌡 温湿度表</a>
-        <a class="btn sm" href="/print-all?room=${encodeURIComponent(r.name)}&auto=1" target="_blank" rel="noopener" title="该房间全部设备的月度点检表（DEMO-QR-001）">🖨 点检表</a>
+        <a class="btn sm" href="/env?room=${encodeURIComponent(r.name)}" target="_blank" rel="noopener" title="该房间的温湿度监测记录（PK-JC-QR-008）">🌡 温湿度表</a>
+        <a class="btn sm" href="/print-all?room=${encodeURIComponent(r.name)}&auto=1" target="_blank" rel="noopener" title="该房间全部设备的月度点检表（PK-JC-QR-032）">🖨 点检表</a>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn sm" onclick="renameRoom('${key}')" title="改名称 / 描述 / 分组 / 温湿度表头">✏️ 编辑</button>
@@ -535,11 +937,11 @@ function renameRoom(name,focus){
     <div class="field"><label>描述（可选）</label><input id="rm_desc" maxlength="60" value="${esc(r.desc||'')}"></div>
     <hr style="border:none;border-top:1px dashed #ccc;margin:10px 0">
     <div class="field"><label>分组（可选）</label><input id="rm_group" maxlength="20" value="${esc(r.group||'')}" placeholder="留空 = 独立房间">
-      <div class="muted tiny" style="margin-top:3px">例：给「车间A」「车间B」都填「车间」，两间房就会归到一个组下展示（房间本身仍各自独立，设备和记录不受影响）</div></div>
+      <div class="muted tiny" style="margin-top:3px">例：给「持久蠕变室1」「持久蠕变室2」都填「持久蠕变」，两间房就会归到一个组下展示（房间本身仍各自独立，设备和记录不受影响）</div></div>
     <div class="field"><label>科室（可选）</label><select id="rm_dept"></select>
       <div class="muted tiny" style="margin-top:3px">该房间归属的科室；留空 = 不限定（全员可见）。用户登录后只看到本科室的房间。</div></div>
     <h4 style="margin:4px 0 8px;font-size:13px">🌡 温湿度监测配置（新建月度记录时自动带出）</h4>
-    <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 hx-rtu-t10/DEMO-ZX-882"></div>
+    <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 hx-rtu-t10/PK-JCZX-882"></div>
     <div class="field"><label>被监测的设备型号和编号</label><input id="rm_eq" maxlength="300" value="${esc(r.thermo_equipment||'')}"></div>
     <div class="field"><label>综合温湿度要求</label><textarea id="rm_req" rows="3" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH">${esc(r.thermo_requirement||'')}</textarea></div>
     <p class="muted tiny">重命名后该房间下所有设备的位置会同步更新，点检记录不受影响。</p>
@@ -562,6 +964,33 @@ async function saveRoom(oldName){
   const r=await api('/api/rooms/'+encodeURIComponent(oldName),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){toast(r.error,'err');return;}
   toast(oldName===name?'已保存':'已重命名为「'+name+'」','ok');closeM();loadRooms();
+}
+// 每房间专属「随机生成范围」（v1.9.0）：优先级 房间单独 > 后台全局范围 > 房间温湿度要求
+function roomRange(name){
+  const r=(window.__rooms||[]).find(x=>x.name===name)||{};
+  const er=r.env_range||{};
+  const m=$('#modal');
+  m.innerHTML=`<h3>🎲 专属随机范围 · ${esc(name)}</h3>
+    <p class="muted tiny" style="margin-top:-4px;line-height:1.8">设置后，该房间的「🌡 温湿度一键填充」就在此范围内取值，
+    <b>优先于</b>后台全局「随机生成范围」和该房间「综合温湿度要求」。四项<b>全部留空</b> = 清除专属范围（回退全局 / 房间要求）。
+    每天三个时段仍共用基准值小幅波动，读数连贯。</p>
+    <div class="row">
+      <div class="field"><label>温度下限（℃）</label><input type="number" step="0.1" id="rr_tmin" value="${er.tMin!=null?er.tMin:''}" placeholder="如 15"></div>
+      <div class="field"><label>温度上限（℃）</label><input type="number" step="0.1" id="rr_tmax" value="${er.tMax!=null?er.tMax:''}" placeholder="如 28"></div>
+      <div class="field"><label>湿度下限（%RH）</label><input type="number" step="0.1" min="0" max="100" id="rr_hmin" value="${er.hMin!=null?er.hMin:''}" placeholder="如 40"></div>
+      <div class="field"><label>湿度上限（%RH）</label><input type="number" step="0.1" min="0" max="100" id="rr_hmax" value="${er.hMax!=null?er.hMax:''}" placeholder="如 70"></div>
+    </div>
+    <p class="muted tiny">当前生效来源：${r.env_range?'<b>本房间专属范围</b>':'全局范围或房间温湿度要求'}</p>
+    <div class="flex"><button class="btn primary" onclick="saveRoomRange('${esc(name).replace(/'/g,"\\'")}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
+  $('#mask').classList.add('show');
+}
+async function saveRoomRange(name){
+  const v=s=>$(s).value.trim();
+  const any=[v('#rr_tmin'),v('#rr_tmax'),v('#rr_hmin'),v('#rr_hmax')].some(x=>x!=='');
+  const body={env_range:any?{tMin:v('#rr_tmin'),tMax:v('#rr_tmax'),hMin:v('#rr_hmin'),hMax:v('#rr_hmax')}:null};
+  const r=await api('/api/rooms/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}
+  toast(any?'专属范围已保存':'专属范围已清除（回退全局 / 房间要求）','ok');closeM();loadRooms();
 }
 async function delRoom(name){
   if(!confirm('确定删除房间「'+name+'」？仅当房间内无设备时才能删除。'))return;
@@ -618,6 +1047,22 @@ async function loadSysStat(){
 }
 $('#sys_backup').onclick=()=>{ location.href='/api/admin/backup'; toast('已开始下载 JSON 备份','ok'); };
 $('#sys_csv').onclick=()=>{ location.href='/api/admin/export-inspections-csv'; toast('已开始导出 CSV','ok'); };
+$('#sys_restore').onclick=()=>$('#sys_restore_file').click();
+$('#sys_restore_file').onchange=async(e)=>{
+  const f=e.target.files&&e.target.files[0]; e.target.value='';
+  if(!f) return;
+  if(!confirm('导入「'+f.name+'」将【整份替换】当前全部数据（点检记录 / 设备 / 用户 / 房间 / 温湿度等），导入前会自动备份当前数据。确定继续吗？')) return;
+  const btn=$('#sys_restore'); btn.disabled=true; const hint=$('#sys_backup_hint'); hint.textContent='导入中…';
+  try{
+    const text=await f.text();
+    const data=JSON.parse(text);
+    const r=await api('/api/admin/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    if(r.error){ toast(r.error,'err'); hint.textContent=''; btn.disabled=false; return; }
+    toast('数据已导入（自动备份：'+r.backup+'）','ok');
+    hint.textContent='已导入 '+r.counts.inspections+' 条点检 / '+r.counts.devices+' 台设备 / '+r.counts.users+' 用户';
+  }catch(err){ toast('导入失败：'+((err&&err.message)||err),'err'); hint.textContent=''; }
+  btn.disabled=false;
+};
 // ===== 局域网远程升级（v1.3.1：任意一台电脑登录后台即可推，目标机零配置）=====
 const LAN={clients:[],pkgs:[],cur:'',sel:new Set(),pkg:localStorage.getItem('lan_pkg')||'',busy:false,jobs:null,timer:null};
 const lanV=v=>String(v||'').replace(/^v/i,'');
@@ -739,7 +1184,7 @@ function lanEdit(c){
   $('#modal').innerHTML=`<h3>${isNew?'＋ 添加电脑':'编辑电脑'}</h3>
     <div class="field"><label>名称（自己认得出就行）</label><input id="lc_name" value="${esc(d.name)}" placeholder="如：二楼车间点检机"></div>
     <div class="row">
-      <div class="field"><label>IP 或计算机名</label><input id="lc_host" value="${esc(d.host)}" placeholder="127.0.0.1"></div>
+      <div class="field"><label>IP 或计算机名</label><input id="lc_host" value="${esc(d.host)}" placeholder="目标机 IP 或计算机名"></div>
       <div class="field"><label>端口</label><input id="lc_port" value="${d.port||8787}"></div>
     </div>
     <div class="field"><label>专用令牌（一般留空）</label><input id="lc_token" value="${esc(d.token)}" placeholder="留空 = 自动用系统共享密钥（推荐）"></div>
@@ -1017,18 +1462,55 @@ $('#lan_file').onchange=async e=>{
 
 // 设备
 async function loadDev(){
-  const tpls=await api('/api/templates');
+  const [tpls,progs]=await Promise.all([api('/api/templates'),api('/api/programs')]);
   ALL_TPL=tpls;
+  ALL_PROG=Array.isArray(progs)?progs:[];
   $('#g_tpl').innerHTML='<option value="">（无模板）</option>'+tpls.map(t=>`<option value="${t.id}">${esc(t.key)} · ${esc(t.equip_name)}</option>`).join('');
   const devs=await api('/api/devices');
-  ALL_DEV=devs;
-  $('#dev_stat').textContent='共 '+devs.length+' 台';
-  const tmap={};tpls.forEach(t=>tmap[t.id]=t.key);
-  $('#dev_list').innerHTML=devs.map(d=>`<tr>
+  ALL_DEV=devs;   // ALL_PROG 上面已取，供「一台设备多张检查表」铺开用
+  renderDevList();
+}
+// 一台设备的全部检查表：① 自身点检模板（点检表）② 参与的独立检查项目（专项表）。
+// 用户要的「一台设备两个模板、两个都能在设备管理里编辑」就靠这里铺开：
+// 冲击机 = 点检表 + 摩擦和风阻损耗表，显微镜头 = 显微镜维护记录（专项）一张。
+function devCheckItems(d){
+  const out=[];
+  const t=ALL_TPL.find(x=>x.id===d.template_id);
+  if(t) out.push({ kind:'device', label:'点检 · '+(t.key||''), sub:(t.equip_name||''),
+    btn:`<button class="btn sm" onclick="openDevTpl('${d.id}')" title="编辑这台设备的点检表（检查项 + 表头）">📋 点检表</button>` });
+  ALL_PROG.forEach(p=>{
+    if((p.device_ids||[]).indexOf(d.id)<0) return;
+    out.push({ kind:'program', label:'专项 · '+(p.name||''), sub:(p.row_unit==='week'?'周检月表':'日检月表'),
+      btn:`<button class="btn sm" onclick="openProgTpl('${p.id}')" title="编辑「${esc(p.name||'')}」检查表：表头 / 数据列 / 说明栏 / 判定标准 / 参与设备">📋 专项表</button>` });
+  });
+  return out;
+}
+// 设备列表渲染（带搜索）。搜索只影响「显示哪些行」，
+// 全选 / 批量删除作用于当前筛出来的行 —— 先筛再全选＝对这批设备操作。
+function renderDevList(){
+  if(!$('#dev_list')) return;
+  const q=String(($('#dev_q')&&$('#dev_q').value)||'').trim().toLowerCase();
+  const list=q? ALL_DEV.filter(d=>
+      String(d.no||'').toLowerCase().includes(q) ||
+      String(d.name||'').toLowerCase().includes(q) ||
+      String(d.model||'').toLowerCase().includes(q) ||
+      String(d.location||'').toLowerCase().includes(q)) : ALL_DEV;
+  if($('#dev_stat')) $('#dev_stat').textContent = q
+    ? ('筛选出 '+list.length+' 台 / 共 '+ALL_DEV.length+' 台')
+    : ('共 '+ALL_DEV.length+' 台');
+  $('#dev_list').innerHTML = list.map(d=>{
+    const items=devCheckItems(d);
+    const tplCell = items.length
+      ? items.map(it=>`<div>${esc(it.label)}</div>`).join('')
+      : '<span class="muted">（无点检模板）</span>';
+    return `<tr>
     <td style="text-align:center"><input type="checkbox" class="devchk" data-id="${d.id}"></td>
-    <td>${d.no}</td><td>${esc(d.name)}</td><td>${d.model||''}</td><td class="tiny">${tmap[d.template_id]||'—'}</td>
-    <td class="tiny">${d.location||''}</td>
-    <td style="white-space:nowrap"><button class="btn sm" onclick="openDevTpl('${d.id}')" title="编辑这台设备的点检表模板（检查内容 + 表头）">📋 模板</button> <button class="btn sm" onclick="editDev('${d.id}')">编辑</button> <button class="btn sm danger" onclick="delDev('${d.id}')">删</button></td></tr>`).join('');
+    <td>${esc(d.no)}</td><td>${esc(d.name)}</td><td>${esc(d.model||'')}</td>
+    <td class="tiny" style="min-width:196px">${tplCell}</td>
+    <td class="tiny">${esc(d.location||'')}</td>
+    <td style="white-space:nowrap">${items.map(it=>it.btn).join(' ')} <button class="btn sm" onclick="editDev('${d.id}')">编辑</button> <button class="btn sm danger" onclick="delDev('${d.id}')">删</button></td></tr>`;
+  }).join('')
+    || `<tr><td colspan="7" class="muted tiny" style="text-align:center;padding:16px">没有匹配「${esc(q)}」的设备</td></tr>`;
   const allCb=$('#dev_all'); if(allCb){allCb.checked=false;}
   updateDelBtn();
 }
@@ -1059,6 +1541,9 @@ function updateDelBtn(){
 }
 $('#dev_all').onchange=()=>{ const v=$('#dev_all').checked; document.querySelectorAll('.devchk').forEach(c=>c.checked=v); updateDelBtn(); };
 $('#dev_list').addEventListener('change', e=>{ if(e.target.classList.contains('devchk')) updateDelBtn(); });
+// 设备搜索：输入即筛（180ms 防抖，台账上百条时不必逐字符重渲染）
+let devQT=null;
+if($('#dev_q')) $('#dev_q').oninput=()=>{ clearTimeout(devQT); devQT=setTimeout(renderDevList,180); };
 $('#dev_delmulti').onclick=async()=>{
   const ids=[...document.querySelectorAll('.devchk:checked')].map(c=>c.dataset.id);
   if(!ids.length){toast('请先勾选要删除的设备','err');return;}
@@ -1070,20 +1555,40 @@ $('#dev_delmulti').onclick=async()=>{
   loadDev();
 };
 async function editDev(id){
-  const tpls=await api('/api/templates');
+  const [tpls,devs,rooms,deptResp]=await Promise.all([api('/api/templates'),api('/api/devices'),api('/api/rooms'),api('/api/depts')]);
+  const depts=deptResp.depts||[];
   let d={no:'',name:'',model:'',template_id:'',location:''};
-  if(id){const devs=await api('/api/devices');d=devs.find(x=>x.id===id)||d;}
+  if(id){d=devs.find(x=>x.id===id)||d;}
   // Find the matching template to pre-fill name/model
   const curTpl=tpls.find(t=>t.id===d.template_id);
   if(curTpl && !id){ d.name=curTpl.equip_name; d.model=curTpl.model||curTpl.key||''; }
+  // 当前设备所在房间的科室：用于联动预选（设备不单独存 dept，科室由房间推导）
+  const curRoom=rooms.find(r=>r.name===d.location);
+  const curDept=curRoom?(curRoom.dept||''):'';
+  const locOptions=(dept)=>{
+    const list=rooms.filter(r=>(!dept)||(r.dept||'')===dept);
+    return '<option value="">（请选择位置/区域）</option>'+list.map(r=>`<option value="${esc(r.name)}" ${r.name===d.location?'selected':''}>${esc(r.name)}</option>`).join('');
+  };
+  const deptOptions=()=> '<option value="">（不限科室）</option>'+depts.map(x=>`<option value="${esc(x)}" ${x===curDept?'selected':''}>${esc(x)}</option>`).join('');
   const m=$('#modal');
   m.innerHTML=`<h3>${id?'编辑':'新增'}设备</h3>
-    <div class="field"><label>关联模板</label><select id="e_tpl"><option value="">（无模板，手动输入）</option>${tpls.map(t=>`<option value="${t.id}" ${t.id==d.template_id?'selected':''}>${esc(t.key)} · ${esc(t.equip_name)}</option>`).join('')}</select>
+    <div class="field"><label>关联点检模板</label><select id="e_tpl"><option value="">（无模板，手动输入）</option>${tpls.map(t=>`<option value="${t.id}" ${t.id==d.template_id?'selected':''}>${esc(t.key)} · ${esc(t.equip_name)}</option>`).join('')}</select>
       <p class="muted tiny" style="margin-top:4px">选择模板后自动带出设备名称和型号，可在此基础上手动修改。</p></div>
+    ${id?`<div class="field"><label>这台设备的检查表（点检表 / 专项表）</label>
+      <div class="glass" style="padding:8px 10px">${(()=>{
+        const its=devCheckItems(d);
+        return its.length
+          ? its.map(it=>`<div class="flex" style="align-items:center;gap:8px;margin:3px 0"><span class="tiny">${esc(it.label)}</span><span class="sp" style="flex:1"></span>${it.btn}</div>`).join('')
+          : '<span class="muted tiny">还没有检查表。关联一张点检模板，或在「点检模板」页给专项检查表勾上这台设备。</span>';
+      })()}</div>
+      <p class="muted tiny" style="margin-top:4px">一台设备可以同时有多张表（例如冲击机 = 日常点检 + 摩擦和风阻损耗），每张表在这里各有一个编辑入口。</p></div>`:''}
     <div class="field"><label>设备编号 No. <span class="muted tiny">（必填）</span></label><input id="e_no" value="${d.no}" placeholder="如 001"></div>
     <div class="field"><label>设备名称</label><input id="e_name" value="${esc(d.name)}" placeholder="从模板自动带出，可修改"></div>
     <div class="field"><label>型号</label><input id="e_model" value="${d.model||''}" placeholder="从模板自动带出，可修改"></div>
-    <div class="field"><label>位置/区域</label><input id="e_loc" value="${d.location||''}"></div>
+    <div style="display:flex;gap:12px">
+      <div class="field" style="flex:1;min-width:0"><label>所属科室</label><select id="e_dept">${deptOptions()}</select></div>
+      <div class="field" style="flex:1;min-width:0"><label>位置/区域</label><select id="e_loc">${locOptions(curDept)}</select></div>
+    </div>
     <div class="flex"><div class="sp"></div><button class="btn" onclick="closeM()">取消</button>
     <button class="btn primary" onclick="saveDev('${id}')">保存</button></div>`;
   // 选择模板时自动填充名称和型号（仍可手动修改）
@@ -1100,6 +1605,8 @@ async function editDev(id){
     nameEl.style.background='';
     modelEl.style.background='';
   };
+  // 科室 → 位置/区域 联动：切换科室时，位置下拉只列该科室房间
+  $('#e_dept').onchange=()=>{ $('#e_loc').innerHTML=locOptions($('#e_dept').value); };
   $('#mask').classList.add('show');
 }
 async function saveDev(id){
@@ -1112,17 +1619,29 @@ async function delDev(id){if(!confirm('确认删除该设备？'))return;const r
 
 // ===== 点检模板（内容 + 表头 编辑）=====
 // 数据模型：templates[] = { id, key, equip_name, model, source_file, items:[{sn,content,frequency}],
-//   note（表下备注）, form_code（表单编号，如 DEMO-QR-001）, form_rev（Rev.A1）,
+//   note（表下备注）, form_code（表单编号，如 PK-JC-QR-032）, form_rev（Rev.A1）,
 //   title / title_en（表标题）, use_count（引用该模板的设备数，服务端算） }
 // 关键：items[].sn 是历史点检数据（inspections.bySn）的绑定键 —— 保存时服务端会重排为 1..n，
 //       并自动把该模板下所有设备的历史记录按 旧sn→新sn 迁移，保证删除/调序后数据不错位。
-let ALL_TPL=[], ALL_DEV=[], TI_BACKUP=null;
+let ALL_TPL=[], ALL_DEV=[], ALL_PROG=[], TI_BACKUP=null;
 async function loadTpl(){
   ALL_TPL=await api('/api/templates');
+  const progs=await api('/api/programs');
+  ALL_PROG=Array.isArray(progs)?progs:[];
+  $('#prog_list').innerHTML=ALL_PROG.map(p=>`<div class="glass" style="padding:12px;margin-bottom:12px;border-left:3px solid var(--warn,#f5a524)">
+    <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
+      <b>🔎 ${esc(p.name||'')}</b>
+      <span class="tag">${esc(p.form_code||'')} ${esc(p.form_rev||'')}</span>
+      <span class="tag">${p.row_unit==='week'?'每周一行（周一）':'每天一行'}</span>
+      <span class="muted tiny">${(p.columns||[]).length} 个数据列 · ${(p.device_ids||[]).length} 台设备参与 · ${(p.rooms||[]).join(' / ')||'—'}</span>
+      <div class="sp"></div>
+      <button class="btn sm" onclick="openProgTpl('${p.id}')">✎ 编辑检查表</button>
+      <button class="btn sm cyan" onclick="openCheckPage('${p.id}')">↗ 打开点检页</button>
+    </div></div>`).join('') || '<p class="muted tiny">还没有专项检查表。</p>';
   $('#tpl_list').innerHTML=ALL_TPL.map(t=>`<div class="glass" style="padding:14px;margin-bottom:12px">
     <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
       <b>${esc(t.key)}</b> <span class="tag">${esc(t.equip_name)}</span>
-      <span class="tag">${esc(t.form_code||'DEMO-QR-001')} ${esc(t.form_rev||'Rev.A1')}</span>
+      <span class="tag">${esc(t.form_code||'PK-JC-QR-032')} ${esc(t.form_rev||'Rev.A1')}</span>
       <span class="muted tiny">${(t.items||[]).length} 项检查 · 被 ${t.use_count||0} 台设备使用 · 来源 ${esc(t.source_file||'—')}</span>
       <div class="sp"></div>
       <button class="btn sm" onclick="tplItems('${t.id}')">✎ 编辑检查项</button>
@@ -1139,7 +1658,7 @@ async function loadTpl(){
 function tplHead(id){
   const t=ALL_TPL.find(x=>x.id===id); if(!t){toast('模板不存在','err');return;}
   $('#modal').innerHTML=`<h3>✎ 编辑表头 · ${esc(t.key)}</h3>
-    <p class="muted tiny" style="margin:2px 0 8px">表单编号与标题直接印在点检表右上角及表头（如 DEMO-QR-001 Rev.A1 / 设备维护保养记录）；留空则用通用默认值。备注 Note 印在表格下方。</p>
+    <p class="muted tiny" style="margin:2px 0 8px">表单编号与标题直接印在点检表右上角及表头（如 PK-JC-QR-032 Rev.A1 / 设备维护保养记录）；留空则用通用默认值。备注 Note 印在表格下方。</p>
     <div class="row">
       <div class="field"><label>模板标识 key</label><input id="th_key" value="${esc(t.key)}"></div>
       <div class="field"><label>设备名称</label><input id="th_name" value="${esc(t.equip_name)}"></div>
@@ -1149,7 +1668,7 @@ function tplHead(id){
       <div class="field"><label>来源文件（仅备注用）</label><input id="th_src" value="${esc(t.source_file||'')}"></div>
     </div>
     <div class="row">
-      <div class="field"><label>表单编号</label><input id="th_code" value="${esc(t.form_code||'')}" placeholder="DEMO-QR-001"></div>
+      <div class="field"><label>表单编号</label><input id="th_code" value="${esc(t.form_code||'')}" placeholder="PK-JC-QR-032"></div>
       <div class="field"><label>版本</label><input id="th_rev" value="${esc(t.form_rev||'')}" placeholder="Rev.A1"></div>
     </div>
     <div class="row">
@@ -1317,7 +1836,7 @@ async function openDevTpl(devId){
     <div class="glass" style="padding:12px;margin-bottom:10px">
       <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
         <b>${esc(t.key)}</b><span class="tag">${esc(t.equip_name)}</span>
-        <span class="tag">${esc(t.form_code||'DEMO-QR-001')} ${esc(t.form_rev||'Rev.A1')}</span>
+        <span class="tag">${esc(t.form_code||'PK-JC-QR-032')} ${esc(t.form_rev||'Rev.A1')}</span>
         <span class="muted tiny">${(t.items||[]).length} 项检查 · ${t.use_count||0} 台设备共用此模板</span>
       </div>
     </div>
@@ -1343,17 +1862,195 @@ async function devTplFork(tid,devId){
   toast('已创建专用模板「'+r.template.key+'」并关联该设备','ok');
   closeM(); loadDev();
 }
+// ===== 专项检查表（独立检查项目）编辑器 =====
+// 数据模型：programs[] = { id, name, title/title_en, form_code/form_rev, row_unit(day|week),
+//   columns:[{key,label,label_en,type,opts,def,span}]（日期 × 数据列 的月表结构）,
+//   side_title/side_title_en + side_items[]（表格右侧说明栏）,
+//   criteria:[{std,vals[]}]（底部判定标准）, note（表下备注）, device_ids[]（参与设备）, auto_link }
+// 与「点检模板」的区别：点检模板是「检查内容 × 频率」的清单；
+// 专项表是「日期 × 若干数据列」的月表（102 摩擦风阻 / 079 显微镜维护）。
+const PROG_TYPE_CN={ text:'文本', number:'数值', sign:'签名', conclusion:'结论√×/', choice:'正常/异常', select:'下拉选项' };
+const PROG_TYPES=['text','number','sign','conclusion','choice','select'];
+
+function pgColRow(c){
+  c=c||{};
+  const opts=PROG_TYPES.map(t=>
+    `<option value="${t}"${((c.type||'text')===t)?' selected':''}>${PROG_TYPE_CN[t]}</option>`).join('');
+  return `<tr>
+    <td><input class="pc_key" value="${esc(c.key||'')}" placeholder="英文键" style="width:84px"></td>
+    <td><input class="pc_label" value="${esc(c.label||'')}" placeholder="列标题" style="width:108px"></td>
+    <td><input class="pc_label_en" value="${esc(c.label_en||'')}" placeholder="English" style="width:104px"></td>
+    <td><select class="pc_type" style="width:96px">${opts}</select></td>
+    <td><input class="pc_opts" value="${esc((c.opts||[]).join(','))}" placeholder="选项用逗号分隔" style="width:156px"></td>
+    <td><input class="pc_def" value="${esc(c.def||'')}" style="width:84px"></td>
+    <td><input class="pc_span" type="number" min="1" max="6" value="${c.span||1}" style="width:50px"></td>
+    <td style="white-space:nowrap"><button class="btn sm" onclick="pgColMove(this,-1)" title="上移">↑</button><button class="btn sm" onclick="pgColMove(this,1)" title="下移">↓</button><button class="btn sm danger" onclick="pgColDel(this)" title="删除">×</button></td>
+  </tr>`;
+}
+function pgColAdd(){
+  const body=$('#pc_body');
+  // 键名必须唯一：删过列之后「行数+1」会和已有键撞（两列同 key → 保存后数据互相覆盖）
+  const used=new Set([...body.querySelectorAll('.pc_key')].map(i=>i.value.trim()));
+  let n=used.size+1; while(used.has('col'+n)) n++;
+  body.insertAdjacentHTML('beforeend', pgColRow({ key:'col'+n, type:'text' }));
+}
+function pgColDel(b){
+  if($('#pc_body').querySelectorAll('tr').length<=1){ toast('至少保留一列','err'); return; }
+  b.closest('tr').remove();
+}
+function pgColMove(b,dir){
+  const tr=b.closest('tr');
+  if(dir<0 && !tr.previousElementSibling) return;
+  if(dir>0 && !tr.nextElementSibling) return;
+  if(dir<0) tr.parentNode.insertBefore(tr, tr.previousElementSibling);
+  else tr.parentNode.insertBefore(tr.nextElementSibling, tr);
+}
+function pgCritRow(c){
+  c=c||{}; const v=c.vals||[];
+  return `<tr>
+    <td><input class="cr_std" value="${esc(c.std||'')}" placeholder="ASTM E23" style="width:108px"></td>
+    <td><input class="cr_v0" value="${esc(v[0]||'')}"></td>
+    <td><input class="cr_v1" value="${esc(v[1]||'')}"></td>
+    <td><input class="cr_v2" value="${esc(v[2]||'')}"></td>
+    <td><button class="btn sm danger" onclick="this.closest('tr').remove()" title="删除">×</button></td>
+  </tr>`;
+}
+function pgCritAdd(){ $('#cr_body').insertAdjacentHTML('beforeend', pgCritRow(null)); }
+function pgRoomAll(btn,on){ btn.closest('div').querySelectorAll('.pg_dev').forEach(c=>c.checked=!!on); }
+function openCheckPage(pid){ window.open('/check.html?program='+encodeURIComponent(pid),'_blank'); }
+
+async function openProgTpl(pid){
+  if(!ALL_TPL.length) ALL_TPL=await api('/api/templates');
+  if(!ALL_DEV.length) ALL_DEV=await api('/api/devices');
+  const resp=await api('/api/programs');
+  ALL_PROG=Array.isArray(resp)?resp:[];
+  const p=ALL_PROG.find(x=>x.id===pid);
+  if(!p){ toast('检查项目不存在','err'); return; }
+  const myIds=p.device_ids||[];
+  // 参与设备：按房间分组勾选（设备一多，平铺一列根本找不着）
+  const byRoom={};
+  ALL_DEV.forEach(d=>{ const r=String(d.location||'（未分房间）'); (byRoom[r]=byRoom[r]||[]).push(d); });
+  const devRows=Object.keys(byRoom).sort().map(r=>{
+    const list=byRoom[r];
+    const on=list.filter(d=>myIds.indexOf(d.id)>=0).length;
+    return `<div style="margin:7px 0 2px">
+      <div class="flex" style="align-items:center;gap:6px"><b class="tiny">${esc(r)}</b>
+        <button class="btn sm" onclick="pgRoomAll(this,true)">全选</button>
+        <button class="btn sm" onclick="pgRoomAll(this,false)">全不选</button>
+        <span class="muted tiny">已选 ${on}/${list.length}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:4px">${list.map(d=>
+        `<label class="tiny" style="display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" class="pg_dev" value="${d.id}"${myIds.indexOf(d.id)>=0?' checked':''}> ${esc(d.no)} ${esc(d.name)}</label>`).join('')}</div>
+    </div>`;
+  }).join('');
+
+  const m=$('#modal');
+  m.style.maxWidth='1040px';
+  m.innerHTML=`<h3>📋 专项检查表 · ${esc(p.name||'')}</h3>
+    <p class="muted tiny" style="margin:2px 0 8px">这就是该检查项目对应的「一张表」：表头 + 数据列 + 右侧说明栏 + 底部判定标准。保存后立即影响点检页（check.html）与打印件。电子签名一律需密码验证。</p>
+    <div class="row">
+      <div class="field"><label>项目名称</label><input id="pg_name" value="${esc(p.name||'')}"></div>
+      <div class="field" style="max-width:170px"><label>行单位</label><select id="pg_unit">
+        <option value="day"${(p.row_unit||'day')==='day'?' selected':''}>每天一行</option>
+        <option value="week"${p.row_unit==='week'?' selected':''}>每周一行（固定周一）</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>表单编号</label><input id="pg_code" value="${esc(p.form_code||'')}" placeholder="PK-JC-QR-102"></div>
+      <div class="field"><label>版本</label><input id="pg_rev" value="${esc(p.form_rev||'')}" placeholder="Rev.A1"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>标题（中文）</label><input id="pg_title" value="${esc(p.title||'')}"></div>
+      <div class="field"><label>标题（英文）</label><input id="pg_title_en" value="${esc(p.title_en||'')}"></div>
+    </div>
+
+    <h4 style="margin:14px 0 4px;font-size:13px">数据列 <button class="btn sm" onclick="pgColAdd()">＋ 加一列</button></h4>
+    <p class="muted tiny" style="margin:0 0 6px">键名 = 英文标识（字母数字下划线，数据按它存，建好后尽量别改）；跨列 = 表头合并的列数（102 的「摩擦和风阻损耗」= 2）；下拉选项用英文逗号分隔。</p>
+    <div class="scroll" style="max-height:280px">
+      <table class="ctab"><thead><tr><th style="width:88px">键名</th><th>列标题</th><th>英文标题</th><th style="width:100px">类型</th><th>下拉选项</th><th style="width:88px">默认值</th><th style="width:54px">跨列</th><th style="width:112px"></th></tr></thead>
+      <tbody id="pc_body">${(p.columns||[]).map(pgColRow).join('')}</tbody></table>
+    </div>
+
+    <h4 style="margin:14px 0 4px;font-size:13px">右侧说明栏（表格右边竖着那一栏）</h4>
+    <div class="row">
+      <div class="field"><label>栏目标题（中）</label><input id="pg_st" value="${esc(p.side_title||'')}" placeholder="步骤 Step"></div>
+      <div class="field"><label>栏目标题（英）</label><input id="pg_ste" value="${esc(p.side_title_en||'')}" placeholder="Step"></div>
+    </div>
+    <div class="field"><label>逐条内容（每行一条；留空 = 不显示这一栏）</label><textarea id="pg_side" rows="4">${esc((p.side_items||[]).join('\n'))}</textarea></div>
+
+    <h4 style="margin:14px 0 4px;font-size:13px">底部判定标准 <button class="btn sm" onclick="pgCritAdd()">＋ 加一条</button></h4>
+    <table class="ctab"><thead><tr><th style="width:112px">标准</th><th>第 1 格</th><th>第 2 格</th><th>第 3 格</th><th style="width:52px"></th></tr></thead>
+      <tbody id="cr_body">${(p.criteria||[]).map(pgCritRow).join('')}</tbody></table>
+
+    <div class="field" style="margin-top:12px"><label>表格下方备注 Note</label><textarea id="pg_note" rows="4">${esc(p.note||'')}</textarea></div>
+
+    <h4 style="margin:14px 0 4px;font-size:13px">参与设备 <span class="muted tiny">勾上后，该设备的「设备状态」里就会出现这张表的卡片</span></h4>
+    <div class="scroll" style="max-height:250px;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px">${devRows}</div>
+
+    <div class="flex" style="margin-top:14px"><span class="sp"></span>
+      <button class="btn" onclick="closeM()">取消</button>
+      <button class="btn primary" onclick="saveProgTpl('${p.id}')">💾 保存检查表</button></div>`;
+  $('#mask').classList.add('show');
+}
+
+async function saveProgTpl(pid){
+  const cols=[];
+  document.querySelectorAll('#pc_body tr').forEach(tr=>{
+    const key=(tr.querySelector('.pc_key').value||'').trim();
+    if(!key) return;
+    cols.push({ key,
+      label:tr.querySelector('.pc_label').value,
+      label_en:tr.querySelector('.pc_label_en').value,
+      type:tr.querySelector('.pc_type').value,
+      opts:(tr.querySelector('.pc_opts').value||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean),
+      def:tr.querySelector('.pc_def').value,
+      span:+tr.querySelector('.pc_span').value||1 });
+  });
+  if(!cols.length){ toast('至少要有一列数据列','err'); return; }
+  const crit=[];
+  document.querySelectorAll('#cr_body tr').forEach(tr=>{
+    const std=(tr.querySelector('.cr_std').value||'').trim();
+    const vals=[tr.querySelector('.cr_v0').value,tr.querySelector('.cr_v1').value,tr.querySelector('.cr_v2').value];
+    if(!std && !vals.join('').trim()) return;
+    crit.push({ std, vals });
+  });
+  const name=String($('#pg_name').value||'').trim();
+  if(!name){ toast('项目名称不能为空','err'); return; }
+  const devIds=[...document.querySelectorAll('.pg_dev:checked')].map(c=>c.value);
+  if(!devIds.length && !confirm('这张表还没勾选任何设备，保存后「设备状态」里不会出现它的卡片。\n仍然保存？')) return;
+  const body={ name, title:$('#pg_title').value, title_en:$('#pg_title_en').value,
+    form_code:$('#pg_code').value, form_rev:$('#pg_rev').value, row_unit:$('#pg_unit').value,
+    side_title:$('#pg_st').value, side_title_en:$('#pg_ste').value, note:$('#pg_note').value,
+    side_items:$('#pg_side').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    columns:cols, criteria:crit, device_ids:devIds };
+  const r=await api('/api/programs/'+pid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('检查表已保存','ok'); closeM();
+  await loadTpl(); await loadDev();
+}
+
+// 加载签名人下拉（供模板上传授权用）
+async function fillSignerSelect(selId){
+  try{
+    const signers=await api('/api/signers/public');
+    $('#'+selId).innerHTML='<option value="">（请选择签名人）</option>'+signers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  }catch(e){ $('#'+selId).innerHTML='<option value="">（加载失败）</option>'; }
+}
 $('#tpl_add').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>新增点检模板</h3>
-    <div class="field"><label>模板标识 key（如 设备型号-A）</label><input id="t_key"></div>
+    <div class="field"><label>模板标识 key（如 RDL-50）</label><input id="t_key"></div>
     <div class="field"><label>设备名称</label><input id="t_name"></div>
     <div class="field"><label>型号</label><input id="t_model"></div>
+    <div class="field"><label>授权签名人（新建模板需签名人 + 密码）</label><select id="t_signer"><option value="">（请选择）</option></select></div>
+    <div class="field"><label>签名密码</label><input type="password" id="t_pw" placeholder="签名人密码"></div>
     <div class="flex"><div class="sp"></div><button class="btn" onclick="closeM()">取消</button>
     <button class="btn primary" onclick="saveTpl()">保存</button></div>`;
   $('#mask').classList.add('show');
+  fillSignerSelect('t_signer');
 };
-async function saveTpl(){const r=await api('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({key:$('#t_key').value,equip_name:$('#t_name').value,model:$('#t_model').value})});
+async function saveTpl(){
+  const sid=$('#t_signer').value, pw=$('#t_pw').value;
+  if(!sid){ toast('请选择授权签名人','err'); return; }
+  const r=await api('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key:$('#t_key').value,equip_name:$('#t_name').value,model:$('#t_model').value,signer_id:sid,password:pw})});
   if(r.error){toast(r.error,'err');return;}toast('已添加模板','ok');closeM();loadTpl();}
 
 
@@ -1361,12 +2058,16 @@ async function saveTpl(){const r=await api('/api/templates',{method:'POST',heade
 $('#tpl_import').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>📥 导入点检模板（CSV / TSV 自动解析）</h3>
     <div class="row">
-      <div class="field"><label>模板标识 key（如 设备型号-A）</label><input id="it_key" placeholder="导入文件名会自动填入，可修改"></div>
-      <div class="field"><label>设备名称</label><input id="it_name" placeholder="如 车间试验机"></div>
+      <div class="field"><label>模板标识 key（如 RDL-50）</label><input id="it_key" placeholder="导入文件名会自动填入，可修改"></div>
+      <div class="field"><label>设备名称</label><input id="it_name" placeholder="如 持久蠕变试验机"></div>
     </div>
     <div class="row">
       <div class="field"><label>型号（可选）</label><input id="it_model"></div>
       <div class="field"><label>来源文件（可选）</label><input id="it_src" placeholder="自动填入上传文件名"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>授权签名人（导入模板需签名人 + 密码）</label><select id="it_signer"><option value="">（请选择）</option></select></div>
+      <div class="field"><label>签名密码</label><input type="password" id="it_pw" placeholder="签名人密码"></div>
     </div>
     <div class="field">
       <label>上传文件（CSV / TSV；Excel 请先“另存为 CSV”）</label>
@@ -1445,13 +2146,15 @@ async function previewTpl(){
 async function genTpl(){
   const key=$('#it_key').value.trim(), name=$('#it_name').value.trim();
   if(!key||!name){ toast('模板标识与设备名称必填','err'); return; }
+  const sid=$('#it_signer').value, pw=$('#it_pw').value;
+  if(!sid){ toast('请选择授权签名人','err'); return; }
   let lines=($('#it_text').value||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
   if($('#it_header').checked) lines=lines.slice(1);
   const items=parseTplText(lines.join('\n'));
   if(!items.length){ toast('未解析到检查项','err'); return; }
   $('#it_go').disabled=true;
   const r=await api('/api/admin/import-template',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({key,equip_name:name,model:$('#it_model').value.trim(),source_file:$('#it_src').value.trim(),overwrite:$('#it_overwrite').checked,items})});
+    body:JSON.stringify({key,equip_name:name,model:$('#it_model').value.trim(),source_file:$('#it_src').value.trim(),overwrite:$('#it_overwrite').checked,items,signer_id:sid,password:pw})});
   $('#it_go').disabled=false;
   if(r.error){ toast(r.error,'err'); return; }
   toast(`已生成模板：${r.itemsCount} 条检查项`,'ok'); closeM(); loadTpl();
@@ -1993,14 +2696,19 @@ function makeSigPad(root) {
   const st = { names: [], chars: [], parts: [], out: { h: null, v: null }, dir: 'auto',
                cut: null, cutThr: 0, cutSrc: null };
   const canDraw = () => !!st.names.length;
+  // 当前打开的「放大写」浮层关闭函数（同一时刻只留一个）。用 var 声明，避免任何提前调用的 TDZ 风险。
+  var zoomClose = null;
+  function closeZoom() { if (zoomClose) { const f = zoomClose; zoomClose = null; f(); } }
 
   function cellHTML(i) {
     return '<div class="sp-cell" data-i="' + i + '"><div class="sp-no">' + (i + 1) + '</div>' +
       '<canvas width="264" height="264"></canvas>' +
-      '<div class="sp-ops"><label>上传<input type="file" accept="image/*" hidden></label>' +
-      '<button type="button" data-act="clr">清除</button></div></div>';
+      '<div class="sp-ops"><button type="button" data-act="zoom" title="把这一个字放大到整个大画布上写，更好下笔">⤢ 放大写</button>' +
+      '<label>上传<input type="file" accept="image/*" hidden></label>' +
+      '<button type="button" data-act="clr" title="只清掉这第 ' + (i + 1) + ' 个字，其它字不动">🧹 清除本字</button></div></div>';
   }
   function buildCells() {
+    closeZoom();   // 格子重建（改名/清空/重排）时，残留的放大浮层必须一起收掉，否则会对着旧下标写
     if (!st.names.length) {
       cellsBox.innerHTML = '<div class="sp-empty">输入姓名后，这里会按字拆成一个个书写格（一个字一格）</div>';
       refresh(); return;
@@ -2014,20 +2722,14 @@ function makeSigPad(root) {
   function paintExisting(i) {
     const url = st.chars[i]; if (!url) return;
     const cell = cellsBox.querySelector('.sp-cell[data-i="' + i + '"]'); if (!cell) return;
-    const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
-    // 保持长宽比居中显示：旧版是拉伸铺满整格，切错的图（一格塞进两三个字）会被拉得"看着挺正常"，看不出问题
-    spLoadImg(url).then(im => {
-      if (!im) return;
-      const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
-      if (!iw || !ih) return;
-      const s = Math.min(cv.width / iw, cv.height / ih);
-      const dw = iw * s, dh = ih * s;
-      ctx.drawImage(im, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
-    });
+    paintFit(cell.querySelector('canvas'), url);
   }
-  function bindCell(cell, i) {
-    const cv = cell.querySelector('canvas'), ctx = cv.getContext('2d');
-    ctx.lineWidth = 6.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#16203a';
+  // 笔宽随笔迹画布等比：放大格（560）上写出来的笔画，缩回格子（264）后粗细与直接在小格里写一致
+  const strokeW = cv => Math.max(6.4, cv.width / 41);
+  // 手写笔迹绑定 —— 格内小画布与「放大写」大画布共用同一套落笔逻辑
+  function attachDraw(cv, onCommit) {
+    const ctx = cv.getContext('2d');
+    ctx.lineWidth = strokeW(cv); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#16203a';
     let drawing = false, last = null;
     const pos = e => {
       const r = cv.getBoundingClientRect(), t = e.touches ? e.touches[0] : e;
@@ -2041,14 +2743,40 @@ function makeSigPad(root) {
     };
     const end = () => {
       if (!drawing) return; drawing = false;
-      st.chars[i] = cv.toDataURL('image/png');      // 整格导出，拼装时再按墨迹裁边
-      refresh();
+      if (onCommit) onCommit();
     };
     cv.addEventListener('mousedown', start); cv.addEventListener('mousemove', move);
     cv.addEventListener('mouseup', end); cv.addEventListener('mouseleave', end);
     cv.addEventListener('touchstart', start, { passive: false });
     cv.addEventListener('touchmove', move, { passive: false });
     cv.addEventListener('touchend', end);
+    return { ctx, pos, clear: () => ctx.clearRect(0, 0, cv.width, cv.height) };
+  }
+  // 把已有的字「保持长宽比居中」画进任意画布（旧版是拉伸铺满整格，切错的图会被拉得"看着挺正常"）
+  async function paintFit(cv, url) {
+    if (!url) return;
+    const im = await spLoadImg(url); if (!im) return;
+    const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
+    if (!iw || !ih) return;
+    const ctx = cv.getContext('2d');
+    const s = Math.min(cv.width / iw, cv.height / ih);
+    const dw = iw * s, dh = ih * s;
+    ctx.drawImage(im, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
+  }
+  // 画布上是否有墨迹（放大浮层里用来判断「清空后没写字」）
+  function hasInk(cv) {
+    try {
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      for (let p = 3; p < d.length; p += 4) if (d[p] > 28) return true;
+      return false;
+    } catch (e) { return true; }   // 读不到就当有，宁可保留用户的字
+  }
+  function bindCell(cell, i) {
+    const cv = cell.querySelector('canvas');
+    const dz = attachDraw(cv, () => {
+      st.chars[i] = cv.toDataURL('image/png');      // 整格导出，拼装时再按墨迹裁边
+      refresh();
+    });
     const file = cell.querySelector('input[type=file]');
     file.onchange = e => {
       const f = e.target.files[0]; if (!f) return;
@@ -2056,8 +2784,65 @@ function makeSigPad(root) {
       rd.onload = () => { st.chars[i] = rd.result; redrawCell(i); refresh(); };
       rd.readAsDataURL(f);
     };
+    // 只看这一格：清掉第 i 个字，其它字原样保留（不再需要「一下全部清除」）
     cell.querySelector('[data-act=clr]').onclick = () => {
-      ctx.clearRect(0, 0, cv.width, cv.height); st.chars[i] = ''; refresh();
+      dz.clear(); st.chars[i] = ''; refresh();
+      toast('已清除第 ' + (i + 1) + ' 个字' + (st.names[i] ? '（' + st.names[i] + '）' : ''), 'ok');
+    };
+    cell.querySelector('[data-act=zoom]').onclick = () => openZoom(i);
+  }
+  // 放大书写浮层：一个字占满整块大画布，只影响这一格
+  function openZoom(i) {
+    closeZoom();                                 // 同时只留一个放大浮层
+    const name = st.names[i] || ('第 ' + (i + 1) + ' 字');
+    const ov = document.createElement('div');
+    ov.className = 'sp-zoom-mask';
+    ov.innerHTML =
+      '<div class="sp-zoom">' +
+        '<div class="sp-zoom-hd"><b>放大书写：' + esc(name) + '</b>' +
+          '<span class="sp-zoom-sub">整个白框都能写；写错了点「清空本格」重来，只清这一个字</span></div>' +
+        '<canvas width="560" height="560"></canvas>' +
+        '<div class="sp-zoom-ft">' +
+          '<button class="btn sm" type="button" data-z="clr">🧹 清空本格</button>' +
+          '<button class="btn sm" type="button" data-z="cancel">取消</button>' +
+          '<span class="sp-zoom-sp"></span>' +
+          '<button class="btn sm" type="button" data-z="ok">✓ 应用到第 ' + (i + 1) + ' 格</button>' +
+        '</div>' +
+        '<div class="sp-zoom-tip">提示：这里只改第 ' + (i + 1) + ' 个字，其它格子不受影响。' +
+          '闭合浮层前记得点「应用到第 ' + (i + 1) + ' 格」。</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    const cv = ov.querySelector('canvas');
+    // 落笔句柄：回填完「这一格原有的字」之后才挂载 —— 否则用户抢先下笔，异步回填的图片会盖在他们的笔画上
+    let dz = null;
+    const close = () => {
+      document.removeEventListener('keydown', onKey);
+      if (zoomClose === close) zoomClose = null;
+      ov.remove();
+    };
+    zoomClose = close;
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });   // 点浮层外空白 = 取消
+    // 把这一格已有的字放大后接着改；回填是异步的，回填完成之后才允许落笔
+    paintFit(cv, st.chars[i]).then(() => {
+      if (!document.body.contains(cv)) return;   // 浮层已关就别再挂
+      dz = attachDraw(cv, null);                 // 大画布实时落笔，不每次提交（避免拖动时反复重绘预览）
+    });
+    ov.querySelector('[data-z=clr]').onclick = () => { if (dz) dz.clear(); };   // 只清这块大画布
+    ov.querySelector('[data-z=cancel]').onclick = close;
+    ov.querySelector('[data-z=ok]').onclick = () => {
+      if (!hasInk(cv)) { toast('这格还是空的，先写一个字再点应用（或用「清空本格」清掉它）', 'err'); return; }
+      const out = document.createElement('canvas');
+      out.width = 264; out.height = 264;
+      const x = out.getContext('2d');
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+      x.drawImage(cv, 0, 0, 264, 264);
+      st.chars[i] = out.toDataURL('image/png');
+      // 必须重绘小格：放大格里写的内容只进了 st.chars，格内画布还是空的。
+      // refresh() 只负责重算预览，不会回画书写格 —— 漏了这行就会出现"预览有字、格子里空白"。
+      close(); redrawCell(i); refresh();
+      toast('已应用到第 ' + (i + 1) + ' 个字' + (st.names[i] ? '（' + st.names[i] + '）' : ''), 'ok');
     };
   }
   function redrawCell(i) {
@@ -2074,7 +2859,8 @@ function makeSigPad(root) {
     const done = parts.filter(Boolean).length;
     if (n) {
       tip.textContent = '已写 ' + done + '/' + n + ' 个字' + (done < n ? '（没写的字不会出现在签名里）' : ' ✓') +
-        '　·　每格可手写，也可「上传」单字图片';
+        '　·　每格可直接手写，嫌格子小就点「⤢ 放大写」把这一字放大整屏写；' +
+        '写错了点该格的「🧹 清除本字」，只清这一个字（「清空所有格」才会全清）';
     } else {
       tip.textContent = '请输入姓名，自动按字拆成书写格';
     }
@@ -2092,7 +2878,12 @@ function makeSigPad(root) {
   root.querySelectorAll('input[type=radio]').forEach(r => {
     r.onchange = () => { st.dir = r.value; refresh(); };
   });
-  q('wipe').onclick = () => { st.chars = []; buildCells(); };
+  // 「清空所有格」是重操作：先确认，并明确告诉用户「只想清一个字」该点哪里
+  q('wipe').onclick = () => {
+    const n = st.chars.filter(Boolean).length;
+    if (n && !confirm('「清空所有格」会把已写好的 ' + n + ' 个字一起清掉，无法撤销。\n\n只想改某一个字：关掉本提示，点那一格下方的「🧹 清除本字」。\n想重新写某一个字：点那一格的「⤢ 放大写」。\n\n确定要全部清空吗？')) return;
+    st.chars = []; buildCells();
+  };
   q('split').onclick = async () => {
     if (!st.names.length) { toast('请先输入姓名（用于确定拆成几个字）', 'err'); return; }
     if (!st.srcImage) { toast('当前没有可拆分的整张签名图', 'err'); return; }
@@ -2216,13 +3007,13 @@ $('#sg_add').onclick = async () => {
   try {
     const out = await addPad.gen();
     if (!out.h && !out.v) { toast('签名内容为空，请检查书写格', 'err'); return; }
-    const body = { name, password: pw, sig_chars: await spCharsForSubmit(addPad.chars()), sig_dir: addPad.dir(),
+    const body = { name, password: pw, dept: ($('#sg_dept') ? $('#sg_dept').value : ''), sig_chars: await spCharsForSubmit(addPad.chars()), sig_dir: addPad.dir(),
       signature_image: out.h || out.v, signature_image_v: out.v };
     if (sigBodyTooBig(body)) return;
     const r = await api('/api/signers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (r.error) { toast(r.error, 'err'); return; }
     toast('已添加签名人员', 'ok');
-    $('#sg_name').value = ''; $('#sg_pw').value = ''; addPad.reset(); loadSig();
+    $('#sg_name').value = ''; $('#sg_pw').value = ''; $('#sg_dept').value = ''; addPad.reset(); loadSig();
   } catch (e) {
     // 旧版这里没有 try/catch：请求一旦失败（例如图片过大被服务端掐断连接），
     // 界面上不会有任何反应，用户只觉得「点了没动静、上传没成功」。
@@ -2239,9 +3030,14 @@ function sigVerTag(s) {
   return '<span class="pill ng">无</span>';
 }
 async function loadSig() {
+  // 科室下拉（添加表单 + 编辑弹窗共用一份科室清单）
+  let deptOpts = '<option value="">（不限科室）</option>';
+  try { const d = await api('/api/depts'); deptOpts += (d.depts || []).map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join(''); } catch (e) {}
+  $('#sg_dept').innerHTML = deptOpts;
   const rows = await api('/api/signers');
   $('#sg_list').innerHTML = rows.map(s => `<tr>
     <td>${esc(s.name)}</td>
+    <td>${s.dept ? esc(s.dept) : '<span class="muted tiny">—</span>'}</td>
     <td>${(s.has_sig || s.has_sig_v) ? '<img data-sigimg="' + s.id + '" alt="签名" style="height:30px;max-width:190px;object-fit:contain;background:#fff;border-radius:4px;padding:1px 3px">' : '<span class="muted tiny">未上传</span>'}</td>
     <td>${sigVerTag(s)}${s.chars ? ' <span class="muted tiny">逐字 ' + s.chars + '</span>' : ''}</td>
     <td>${s.active ? '<span class="pill ok">启用</span>' : '<span class="pill ng">停用</span>'}</td>
@@ -2271,6 +3067,7 @@ async function editSig(id) {
   m.innerHTML = `<h3>编辑签名人员 · ${esc(s.name)}</h3>
     <div class="row">
       <div class="field"><label>姓名</label><input id="es_name" value="${esc(s.name)}"></div>
+      <div class="field"><label>所属科室</label><select id="es_dept"></select></div>
       <div class="field"><label>状态</label><select id="es_active"><option value="1" ${s.active ? 'selected' : ''}>启用</option><option value="0" ${!s.active ? 'selected' : ''}>停用</option></select></div>
     </div>
     <div class="field"><label>重置密码（留空则不修改）</label><input type="password" id="es_pw" placeholder="新密码"></div>
@@ -2293,7 +3090,7 @@ async function saveSig(id) {
     toast('正在保存…', '');
     const pw = $('#es_pw').value, active = $('#es_active').value === '1', name = ($('#es_name').value || '').trim();
     if (!name) { toast('姓名不能为空', 'err'); return; }
-    const body = { active, name };
+    const body = { active, name, dept: ($('#es_dept') ? $('#es_dept').value : '') };
     if (pw) body.password = pw;
     if (editPad && !editPad.empty()) {
       const out = await editPad.gen();
@@ -2334,6 +3131,8 @@ async function loadEnvFill(){
   $('#e_pw').value='';
   $('#e_stat').textContent='';
   $('#e_result').innerHTML='';
+  loadEnvRange();   // 随机生成范围回显（未配置时按房间要求生成）
+  loadEnvDel();     // 批量删除区：房间清单加载
 }
 // 截止日期的可选范围：月初 ~ min(今天, 月末)
 function clampEnvEnd(month){
@@ -2347,6 +3146,78 @@ function clampEnvEnd(month){
   const cur=el.value;
   if(!cur||cur<minDate||cur>maxEnd) el.value=maxEnd;
 }
+// ===== 随机生成范围（kv.envfill.range，后台自调） =====
+async function loadEnvRange(){
+  let r; try{ r=await api('/api/admin/env-range'); }catch(e){ return; }
+  const g=r.range||{};
+  $('#er_tmin').value=(g.tMin!=null)?g.tMin:'';
+  $('#er_tmax').value=(g.tMax!=null)?g.tMax:'';
+  $('#er_hmin').value=(g.hMin!=null)?g.hMin:'';
+  $('#er_hmax').value=(g.hMax!=null)?g.hMax:'';
+  $('#er_stat').textContent=r.active?('当前生效：温 '+g.tMin+'~'+g.tMax+'℃ / 湿 '+g.hMin+'~'+g.hMax+'%RH（全部房间）'):'当前未启用 —— 按各房间「综合温湿度要求」生成';
+}
+function envRangeInputs(){
+  const v=id=>String($('#'+id).value).trim();
+  const any=[v('er_tmin'),v('er_tmax'),v('er_hmin'),v('er_hmax')].some(x=>x!=='');
+  if(!any) return {range:null};   // 全空 = 清除
+  const num=id=>{ const n=Number(v(id)); return Number.isFinite(n)?n:NaN; };
+  const range={tMin:num('er_tmin'),tMax:num('er_tmax'),hMin:num('er_hmin'),hMax:num('er_hmax')};
+  if(![range.tMin,range.tMax,range.hMin,range.hMax].every(Number.isFinite)) return {error:'四个数值都必须填写（或全部留空以按房间要求生成）'};
+  if(!(range.tMax>range.tMin)) return {error:'温度上限必须大于下限'};
+  if(!(range.hMax>range.hMin)) return {error:'湿度上限必须大于下限'};
+  if(!(range.hMin>0&&range.hMax<=100)) return {error:'湿度范围应为 0 ~ 100 %RH'};
+  return {range};
+}
+$('#er_save').onclick=async()=>{
+  const chk=envRangeInputs();
+  if(chk.error){ toast(chk.error,'err'); return; }
+  const btn=$('#er_save'); btn.disabled=true;
+  let r; try{ r=await api('/api/admin/env-range',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({range:chk.range})}); }
+  catch(e){ btn.disabled=false; toast('保存失败：'+((e&&e.message)?e.message:e),'err'); return; }
+  btn.disabled=false;
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('随机生成范围已保存','ok'); loadEnvRange();
+};
+$('#er_clear').onclick=async()=>{
+  const btn=$('#er_clear'); btn.disabled=true;
+  let r; try{ r=await api('/api/admin/env-range',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({range:null})}); }
+  catch(e){ btn.disabled=false; toast('操作失败：'+((e&&e.message)?e.message:e),'err'); return; }
+  btn.disabled=false;
+  if(r.error){ toast(r.error,'err'); return; }
+  ['#er_tmin','#er_tmax','#er_hmin','#er_hmax'].forEach(s=>{ $('#'+s.slice(1)).value=''; });
+  toast('已清除 —— 回退按各房间温湿度要求生成','ok'); loadEnvRange();
+};
+// ===== 温湿度记录批量删除（房间 + 月份整表） =====
+async function loadEnvDel(){
+  const tm=localMonth();
+  $('#ed_month').value=tm; $('#ed_month').max=tm;
+  $('#ed_stat').textContent='';
+  let rooms=[]; try{ rooms=await api('/api/rooms'); }catch(e){}
+  $('#ed_rooms').innerHTML=rooms.map(r=>`<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" class="ed_cb" value="${esc(r.name)}">${esc(r.name)}</label>`).join('')||'<span class="muted tiny">（无房间）</span>';
+}
+$('#ed_month').onchange=()=>{ const m=$('#ed_month').value; if(m&&m>localMonth()){ $('#ed_month').value=localMonth(); toast('不能选择未来月份','err'); } };
+$('#ed_all').onclick=()=>{
+  const cbs=[...document.querySelectorAll('.ed_cb')];
+  const allOn=cbs.length&&cbs.every(c=>c.checked);
+  cbs.forEach(c=>{ c.checked=!allOn; });
+};
+$('#ed_del').onclick=async()=>{
+  const ym=$('#ed_month').value;
+  const rooms=[...document.querySelectorAll('.ed_cb')].filter(c=>c.checked).map(c=>c.value);
+  if(!ym){ toast('请选择月份','err'); return; }
+  if(ym>localMonth()){ toast('不能删除未来月份的记录','err'); return; }
+  if(!rooms.length){ toast('请至少勾选一个房间','err'); return; }
+  const scope=rooms.length<=6?rooms.join('、'):(rooms.slice(0,6).join('、')+' 等 '+rooms.length+' 个房间');
+  if(!confirm('将删除 '+ym+' 月这 '+rooms.length+' 个房间的温湿度整表：\n'+scope+'\n\n⚠ 删除的是整月全部格子（温度/湿度/记录员/签名/划线），不可恢复！\n建议先到「数据备份」导出一份。\n\n确定删除吗？')) return;
+  if(!confirm('再次确认：真的要删除 '+ym+' 月 '+rooms.length+' 个房间的温湿度记录吗？此操作无法撤销。')) return;
+  const btn=$('#ed_del'); btn.disabled=true; $('#ed_stat').textContent='删除中…';
+  let r; try{ r=await api('/api/admin/env-records/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:rooms.map(rm=>({room:rm,ym}))})}); }
+  catch(e){ btn.disabled=false; $('#ed_stat').textContent=''; toast('删除失败：'+((e&&e.message)?e.message:e),'err'); return; }
+  btn.disabled=false;
+  if(r.error){ $('#ed_stat').textContent=''; toast(r.error,'err'); return; }
+  $('#ed_stat').textContent='已删 '+r.deleted_count+' 条'+(r.missing&&r.missing.length?('，'+r.missing.length+' 条本就不存在（'+r.missing.map(m=>esc(m.room)).join('、')+'）'):'');
+  toast('温湿度记录已删除 '+r.deleted_count+' 条','ok');
+};
 $('#e_scope').onchange=()=>{ $('#e_roomwrap').style.display=($('#e_scope').value==='room')?'block':'none'; };
 $('#e_month').onchange=()=>clampEnvEnd($('#e_month').value);
 $('#e_go').onclick=async()=>{
@@ -2362,7 +3233,7 @@ $('#e_go').onclick=async()=>{
   const endDay=parseInt(end.slice(8,10),10);
   const who=$('#e_signer').selectedOptions[0]?$('#e_signer').selectedOptions[0].textContent:'';
   const desc=(scope==='room')?('房间「'+room+'」'):'全部房间';
-  if(!confirm('将把 '+month+' 月 1 日 ~ '+endDay+' 日之间【还空着】的温湿度格子填满（'+desc+'），并套用「'+who+'」的电子签名。\n\n· 已有数据的格子（含签名、划线）一律不动\n· 温度 / 湿度按各房间的温湿度要求生成，保证在范围内\n· 未配置温湿度要求的房间会整间跳过\n\n确定继续吗？')) return;
+  if(!confirm('将把 '+month+' 月 1 日 ~ '+endDay+' 日之间【还空着】的温湿度格子填满（'+desc+'），并套用「'+who+'」的电子签名。\n\n· 已有数据的格子（含签名、划线）一律不动\n· 取值来源：'+(envRangeInputs().range?'后台「随机生成范围」（对全部房间生效）':'各房间的温湿度要求（未配置的房间会被跳过）')+'\n\n确定继续吗？')) return;
   const btn=$('#e_go'); btn.disabled=true; $('#e_stat').textContent='填充中…'; $('#e_result').innerHTML='';
   let r;
   try{
@@ -2384,15 +3255,409 @@ $('#e_go').onclick=async()=>{
   toast('温湿度已填充 '+r.cells+' 格','ok');
 };
 
+/* ===== LIMS 实时数据源（配置 / 测试 / 同步） ===== */
+function aliasToText(m){ return Object.entries(m||{}).map(([k,v])=>k+' = '+v).join('\n'); }
+function textToAlias(t){
+  const m={};
+  String(t||'').split('\n').forEach(line=>{
+    const i=line.indexOf('=');
+    if(i<0) return;
+    const k=line.slice(0,i).trim(), v=line.slice(i+1).trim();
+    if(k&&v) m[k]=v;
+  });
+  return m;
+}
+let gLimsRooms=[], gInspectRooms=[], gAlias={}, gAllowShare=[], gNoFetch=[], gRoomCheck=null;
+// v1.26.0：温度数据源（点检房间 → auto|off|LIMS房间）与「显式未映射」房间清单
+let gTempSrc={}, gUnmapped=[];
+function currentLimSource(rn){
+  // v1.26.0：显式「未映射」优先于同名直配 —— 否则点检「冲击室」永远被顶回「冲击室」，怎么改都改不掉
+  if(gUnmapped.includes(rn)) return '';
+  for(const [lr,tr] of Object.entries(gAlias||{})){
+    if(Array.isArray(tr)?tr.indexOf(rn)>=0:tr===rn) return lr;   // 别名值支持数组（一个源给多个房间）
+  }
+  if(gLimsRooms.includes(rn)) return rn;
+  return '';
+}
+// 最近一次「房间名实测校验」的结论 → 图标 + 悬浮说明
+function verdictOf(name){
+  const rs=(gRoomCheck&&gRoomCheck.results)||[];
+  const x=rs.find(r=>r&&r.room===name);
+  const days=(gRoomCheck&&gRoomCheck.days)||7;
+  if(!x) return {v:'',icon:'·',title:'未校验：点「🔍 实测校验房间名」可确认 LIMS 里到底有没有这间'};
+  if(x.verdict==='ok') return {v:'ok',icon:'✅',title:'LIMS 中存在且有数据（回看 '+days+' 天 '+x.points+' 点）'};
+  if(x.verdict==='empty') return {v:'empty',icon:'⚠',title:'LIMS 中房间存在，但回看 '+days+' 天没有任何数据（没挂温湿度计）'};
+  if(x.verdict==='no_room') return {v:'no_room',icon:'❌',title:'❌ LIMS 中不存在这个名字（'+(x.msg||'')+'）→ 选它一定抓不到数据'};
+  return {v:'error',icon:'？',title:'探测失败：'+(x.msg||'')};
+}
+function refreshCatalog(){
+  const cnt={ok:0,empty:0,no_room:0};
+  gLimsRooms.forEach(r=>{ const v=verdictOf(r).v; if(cnt[v]!=null) cnt[v]++; });
+  let s='LIMS 源房间清单（'+gLimsRooms.length+'）'+(gRoomCheck?('　实测：✅'+cnt.ok+' ⚠'+cnt.empty+' ❌'+cnt.no_room+''):'');
+  s+='：'+(gLimsRooms.map(r=>esc(r)+verdictOf(r).icon).join('　')||'（空）');
+  if(gRoomCheck&&gRoomCheck.at) s+='<br><span style="opacity:.75">上次实测校验：'+esc(String(gRoomCheck.at).replace('T',' ').slice(0,19))+'（回看 '+gRoomCheck.days+' 天 · '+esc(gRoomCheck.base||'')+'）</span>';
+  $('#l_catalog').innerHTML=s;
+}
+// 「共用同一数据源」判定：某行选中的源，恰好是**另一个点检房间的名字** —— 那个房间已用同名直配占了它，
+// 所以这一行等于要和它拿同一份读数（曾出现：点检「疲劳，弯曲室」的温湿度与「冲击室」逐格完全相同）。
+// 现在由用户显式勾选「允许共用」放行；未勾选则该行暂停（不自动抓取，需手填）。
+function shareState(rn){
+  const cur=currentLimSource(rn);
+  if(!cur||cur===rn||!gInspectRooms.includes(cur)) return null;
+  // 那个同名房间自己设了「未映射 · 不抓取」→ 它没在用这个源，源是空闲的，谈不上「共用」
+  if(gUnmapped.includes(cur)) return null;
+  return { source:cur, allowed:gAllowShare.includes(rn) };
+}
+function aliasConflicts(){
+  const bySrc={};
+  gInspectRooms.forEach(rn=>{ const s=currentLimSource(rn); if(s){ (bySrc[s]=bySrc[s]||[]).push(rn); } });
+  return Object.entries(bySrc).filter(([,a])=>a.length>1).map(([s,a])=>({s,a}));
+}
+function renderRoomMap(){
+  const box=$('#room_map_box');
+  if(!gInspectRooms.length){ box.innerHTML='<div class="muted">（未取到点检房间，请刷新页面重试）</div>'; return; }
+  // ★ 候选**只取 LIMS 侧房间名**：LIMS 源房间清单 + 各行当前已选中的值（保证历史选择不丢）。
+  //   早前把「点检房间名」也并进候选，下拉里就混进了一堆 LIMS 根本没有的房间
+  //   （危化品库 / 晶间腐蚀室 / 落锤室 / 疲劳，弯曲室 / 金相分析室 / 金相试样间 …），把"选哪个"彻底搞乱。
+  const opts=[...new Set([...(gLimsRooms||[]),...gInspectRooms.map(currentLimSource).filter(Boolean)])]
+    .sort((a,b)=>String(a).localeCompare(String(b),'zh'));
+  const rows=gInspectRooms.map(rn=>{
+    const cur=currentLimSource(rn);
+    const os=['<option value="">（未映射 · 不抓取）</option>'].concat(opts.map(o=>{
+      const sel=o===cur?' selected':'';
+      return `<option value="${esc(o)}"${sel}>${esc(o)} ${verdictOf(o).icon}</option>`;
+    }));
+    const vv=cur?verdictOf(cur):null;
+    const vtag=!cur?'':(vv.v==='no_room'?'<span class="tiny" style="color:#ff8a80;margin-left:8px">源名 LIMS 中不存在</span>'
+      :(vv.v==='empty'?'<span class="tiny" style="color:var(--warn);margin-left:8px">源房间无数据</span>':''));
+    const sh=shareState(rn);
+    const shareTag=sh?('<label class="tiny" style="margin-left:8px;white-space:nowrap;color:'+(sh.allowed?'#7bd88f':'var(--warn)')+'" title="该源是另一个点检房间「'+esc(sh.source)+'」自己的数据源">'
+      +'<input type="checkbox" class="rmshare" data-room="'+esc(rn)+'"'+(sh.allowed?' checked':'')+' onchange="onShareToggle(this)"> 允许与「'+esc(sh.source)+'」共用同一数据源</label>'):'';
+    // 温度行：房间未映射时禁用（没源可跟，自然不抓温度）—— 这是「未映射状态下无法选择、不予抓取」的落点
+    // 没有湿度源（含显式未映射）→ 温度行禁用：没源可跟，也就不抓温度
+    const noSrc=!cur;
+    const tv=noSrc?'off':(gTempSrc[rn]||'auto');
+    const tos=[`<option value="auto"${tv==='auto'?' selected':''}>（跟随湿度源${cur?('：'+esc(cur)):''}）</option>`,
+               `<option value="off"${tv==='off'?' selected':''}>（不抓温度 · 留空手填）</option>`]
+      .concat(opts.map(o=>`<option value="${esc(o)}"${o===tv?' selected':''}>${esc(o)} ${verdictOf(o).icon}</option>`));
+    const tempTag=(tv!=='auto'&&tv!=='off')?`<span class="tiny" style="color:#7bd88f;margin-left:6px" title="湿度仍取自上面那一行的源；只有温度来自这里">🌡 温度取自「${esc(tv)}」（湿度不变）</span>`
+      :(tv==='off'?`<span class="tiny" style="color:var(--warn);margin-left:6px">🌡 不抓温度（留空手填）</span>`:'');
+    const tRow=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;padding-left:8px">`
+      +`<span class="muted tiny" style="min-width:142px">🌡 温度来源</span>`
+      +(noSrc
+        ? `<select class="rmsel-temp" data-room="${esc(rn)}" disabled style="max-width:300px"><option value="off">（未映射 · 不抓温度）</option></select>`
+        : `<select class="rmsel-temp" data-room="${esc(rn)}" style="flex:1;max-width:300px" title="温度数据的来源：跟随湿度源（温湿同点）／单独指向别的 LIMS 房间／不抓温度" onchange="onTempSelChange(this)">${tos.join('')}</select>`)
+      +tempTag+`</div>`;
+    return `<div style="padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.06)">`
+      +`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">`
+      +`<span style="min-width:150px;font-weight:600">${esc(rn)}</span>`
+      +`<span class="muted tiny">湿度</span>`
+      +`<select class="rmsel" data-room="${esc(rn)}" style="flex:1;max-width:300px" onchange="onRoomSelChange(this)">${os.join('')}</select>`
+      +`<label class="tiny" style="white-space:nowrap${gNoFetch.includes(rn)?';color:var(--warn)':''}" title="取消勾选=该房间不参与 LIMS 抓取（整批 / 自动定时 / 手动单抓全部跳过）"><input type="checkbox" class="rmfetch" data-room="${esc(rn)}"${gNoFetch.includes(rn)?'':' checked'} onchange="onFetchToggle(this)"> 抓取</label>`
+      +vtag+shareTag
+      +`</div>`+tRow+`</div>`;
+  }).join('');
+  // 只提示「需要行动」的事，正常状态不刷屏
+  const L=[];
+  const badSrc=opts.filter(o=>verdictOf(o).v==='no_room');
+  if(badSrc.length) L.push('<div style="color:#ff8a80">· ❌ 这些名字实测<b>LIMS 中不存在</b>（选中它必然抓不到数据；点「🧹 清理无效房间名」可一次清掉名字 + 指向它的映射）：'+badSrc.map(esc).join('、')+'</div>');
+  const emptySrc=opts.filter(o=>verdictOf(o).v==='empty');
+  if(emptySrc.length) L.push('<div style="color:var(--warn)">· ⚠ LIMS 里这些房间<b>存在但没挂设备</b>（回看 '+((gRoomCheck&&gRoomCheck.days)||7)+' 天 0 点，选中它抓到的也是空的）：'+emptySrc.map(esc).join('、')+'</div>');
+  if(!gRoomCheck) L.push('<div class="muted tiny">· 还没做过房间名实测校验 → 点下面「🔍 实测校验房间名」，把每个名字拿到 LIMS 里问一遍（每个约 8 秒）</div>');
+  const pend=gInspectRooms.filter(rn=>{ const s=shareState(rn); return s&&!s.allowed; });
+  if(pend.length) L.push('<div style="color:var(--warn)">· ⚠ 以下房间指向了别的点检房间自己的数据源，<b>尚未允许共用</b> → 不自动抓取：'+pend.map(rn=>esc(rn)+' ← '+esc(currentLimSource(rn))).join('、')
+    +'<br><span class="muted tiny">要共用同一份读数就勾选该行的「允许与…共用同一数据源」；不共用就把它改成「（未映射）」。</span></div>');
+  const okShare=gInspectRooms.filter(rn=>{ const s=shareState(rn); return s&&s.allowed; });
+  if(okShare.length) L.push('<div style="color:#7bd88f">· ✅ 已允许共用同一数据源（这些房间会与同名房间填成同一份读数）：'+okShare.map(rn=>esc(rn)+' ← '+esc(currentLimSource(rn))).join('、')+'</div>');
+  const tOther=gInspectRooms.filter(rn=>{const v=gTempSrc[rn]; return v&&v!=='auto'&&v!=='off';});
+  if(tOther.length) L.push('<div style="color:#7bd88f">· 🌡 温度另取自其他 LIMS 房间（湿度不受影响）：'+tOther.map(rn=>esc(rn)+' ← '+esc(gTempSrc[rn])).join('、')+'</div>');
+  const tOff=gInspectRooms.filter(rn=>!currentLimSource(rn)||gTempSrc[rn]==='off');
+  if(tOff.length) L.push('<div class="muted tiny">· 🌡 不抓温度（温度格留空手填）：'+tOff.map(esc).join('、')+'</div>');
+  const none=gInspectRooms.filter(rn=>!currentLimSource(rn));
+  if(none.length) L.push('<div class="muted tiny">· 未映射（不参与自动抓取，需手填）：'+none.map(esc).join('、')+
+    (none.some(rn=>gLimsRooms.includes(rn))?'<br><span class="opacity:.75">　其中与 LIMS 房间同名的（'+none.filter(rn=>gLimsRooms.includes(rn)).map(esc).join('、')+'）不再占用那个 LIMS 房间 → 该房间现在是<b>空闲</b>的，可以映射给别的点检房间，无需勾「允许共用」</span>':'')+'</div>');
+  const nf=gInspectRooms.filter(rn=>gNoFetch.includes(rn));
+  if(nf.length) L.push('<div style="color:var(--warn)">· 🚫 已设为「不抓取」（整批 / 自动 / 手动单抓全部跳过，需手填）：'+nf.map(esc).join('、')+'</div>');
+  box.innerHTML=L.join('')+rows;
+}
+function onShareToggle(el){
+  const rn=el.dataset.room;
+  gAllowShare=el.checked?[...new Set([...gAllowShare,rn])]:gAllowShare.filter(x=>x!==rn);
+  renderRoomMap();
+}
+// 「参与抓取」勾选：勾=参与整批/自动抓取（不在 noFetch）；取消=该房间不抓取
+function onFetchToggle(el){
+  const rn=el.dataset.room;
+  gNoFetch=el.checked? gNoFetch.filter(x=>x!==rn) : [...new Set([...gNoFetch,rn])];
+}
+// 改动某行的数据源后立刻按新值重算（否则「允许共用」勾选框要等保存+刷新才出现）
+function onRoomSelChange(el){
+  const rn=el.dataset.room, v=el.value;
+  // 别名值可能是数组（一个源给多间共用）→ 只把本房间从数组里摘掉，别整条删掉
+  Object.keys(gAlias).forEach(k=>{
+    const t=gAlias[k];
+    if(Array.isArray(t)){ const nt=t.filter(x=>x!==rn); if(nt.length) gAlias[k]=nt; else delete gAlias[k]; }
+    else if(t===rn) delete gAlias[k];
+  });
+  if(v && v!==rn){
+    const cur=gAlias[v];
+    if(Array.isArray(cur)){ if(cur.indexOf(rn)<0) cur.push(rn); }
+    else if(cur && cur!==rn) gAlias[v]=[cur,rn];   // 同源多房间
+    else gAlias[v]=rn;
+  }
+  if(!v){                                                                                          // 选「（未映射 · 不抓取）」
+    gUnmapped=[...new Set([...gUnmapped,rn])];   // 显式未映射（优先于同名直配，服务端认这张表）
+    gTempSrc[rn]='off';                          // 没源可跟 → 温度自然不抓
+    gAllowShare=gAllowShare.filter(x=>x!==rn); gNoFetch=[...new Set([...gNoFetch,rn])];
+  } else {
+    gUnmapped=gUnmapped.filter(x=>x!==rn);       // 重新映射 = 撤销「未映射」
+    if(gTempSrc[rn]==='off') delete gTempSrc[rn]; // 温度回落「跟随湿度源」
+    gNoFetch=gNoFetch.filter(x=>x!==rn);         // 重新映射 = 恢复参与抓取
+  }
+  renderRoomMap();
+}
+function onTempSelChange(el){ gTempSrc[el.dataset.room]=el.value; renderRoomMap(); }
+$('#l_addlimroom').onclick=async()=>{
+  const v=$('#l_newlimroom').value.trim();
+  if(!v) return;
+  if(!gLimsRooms.includes(v)) gLimsRooms.push(v);
+  $('#l_newlimroom').value='';
+  renderRoomMap(); refreshCatalog();
+  await verifyOneRoom(v);      // 加入即核实：名字写错当场就能看到，不会等到抓取时才发现
+};
+// 向 LIMS 核实**单个**房间名（约 8 秒），把结论并进 gRoomCheck 并即时刷新界面
+async function verifyOneRoom(name){
+  const btn=$('#l_addlimroom'); btn.disabled=true;
+  $('#l_stat').textContent='正在向 LIMS 核实「'+name+'」…（约 8 秒）';
+  try{
+    const s=await api('/api/lims/verify-rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rooms:[name]})});
+    if(s.error){ toast(s.error,'err'); return; }
+    const r=await pollLimsJob(s.jobId,()=>{});
+    if(r.status==='error'){ toast('核实失败：'+r.error,'err'); return; }
+    const res=r.result||{};
+    const x=(res.results||[])[0];
+    if(x){
+      const cur=((gRoomCheck&&gRoomCheck.results)||[]).filter(y=>y&&y.room!==x.room);
+      gRoomCheck={at:res.at,days:res.days,base:res.base,results:cur.concat([x])};
+    }
+    renderRoomMap(); refreshCatalog();
+    const vd=x?x.verdict:'';
+    if(vd==='no_room') toast('❌ 「'+name+'」在 LIMS 中不存在（'+esc(x.msg||'')+'）→ 这个名字抓不到数据','err');
+    else if(vd==='empty') toast('⚠ 「'+name+'」在 LIMS 中存在，但回看 '+(res.days||7)+' 天没有数据（没挂温湿度计）','err');
+    else if(vd==='ok') toast('✅ 「'+name+'」存在且有数据（'+(x.points||0)+' 点）','ok');
+    else toast('⚠ 未能核实「'+name+'」：'+((x&&x.msg)||'未知原因'),'err');
+  }catch(e){ toast('核实失败：'+((e&&e.message)||e),'err'); }
+  finally{ btn.disabled=false; $('#l_stat').textContent=''; }
+}
+// 实测校验结果明细（按结论分组，把"名字写错"和"没挂设备"分开说）
+function renderRoomCheck(res){
+  const g=(v)=>res.results.filter(x=>x.verdict===v);
+  let h='<div>🔍 房间名实测完成（回看 '+res.days+' 天 · '+esc(res.base||'')+'）：共 '+res.total+' 个 → '
+    +'<b style="color:#7bd88f">✅ '+res.ok_count+' 有数据</b> · <b style="color:var(--warn)">⚠ '+res.empty_count+' 存在但无数据</b> · '
+    +'<b style="color:#ff8a80">❌ '+res.bad_count+' LIMS 中不存在</b>'+(res.error_count?(' · ？ '+res.error_count+' 探测失败'):'')+'</div>';
+  const sec=(t,arr,col,fmt)=>arr.length?('<div style="margin-top:2px">'+t+'：<span style="color:'+col+'">'+arr.map(fmt).join('、')+'</span></div>'):'';
+  h+=sec('❌ LIMS 中不存在（名字写错 / 该房间未在 LIMS 登记）',g('no_room'),'#ff8a80',x=>esc(x.room));
+  h+=sec('⚠ 房间存在但回看 '+res.days+' 天 0 点（没挂温湿度计）',g('empty'),'var(--warn)',x=>esc(x.room));
+  h+=sec('✅ 存在且有数据（点数=回看窗口内的湿度点数，约 288 点/天）',g('ok'),'#7bd88f',x=>esc(x.room)+'（'+x.points+'）');
+  h+=sec('？ 探测失败（网络/超时）',g('error'),'var(--warn)',x=>esc(x.room)+'（'+esc(x.msg)+'）');
+  if(res.bad_count) h+='<div class="muted tiny" style="margin-top:4px">❌ 的名字建议直接点「🧹 清理无效房间名」；若确实需要该房间，请到 LIMS 里核对准确写法后重新加入。</div>';
+  return h;
+}
+$('#l_verify').onclick=async()=>{
+  const btn=$('#l_verify'); btn.disabled=true;
+  $('#l_stat').textContent='校验中…（每个房间约 8 秒，后台异步）'; $('#l_result').innerHTML='';
+  try{
+    const s=await api('/api/lims/verify-rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(s.error){ toast(s.error,'err'); return; }
+    const r=await pollLimsJob(s.jobId,(p)=>$('#l_stat').textContent='校验中… '+p);
+    if(r.status==='error'){ toast('校验失败：'+r.error,'err'); return; }
+    const res=r.result;
+    gRoomCheck={at:res.at,days:res.days,base:res.base,results:res.results};
+    renderRoomMap(); refreshCatalog();
+    $('#l_result').innerHTML=renderRoomCheck(res);
+    toast('校验完成：✅'+res.ok_count+' / ⚠'+res.empty_count+' / ❌'+res.bad_count,'ok');
+  }catch(e){ toast('校验失败：'+((e&&e.message)||e),'err'); }
+  finally{ btn.disabled=false; $('#l_stat').textContent=''; }
+};
+$('#l_prune').onclick=()=>{
+  // 两类「错名字」一起清理：① 清单里被加错的（写错/不存在） ② 映射当前指向的错名字
+  const badList=gLimsRooms.filter(r=>verdictOf(r).v==='no_room');
+  const badUsed=gInspectRooms.filter(rn=>{ const s=currentLimSource(rn); return !!s && verdictOf(s).v==='no_room'; });
+  const badSrc=[...new Set([...badList,...badUsed.map(rn=>currentLimSource(rn))])];
+  if(!badSrc.length){ toast('没有实测为「LIMS 中不存在」的房间名，无需清理','ok'); return; }
+  let msg='实测「LIMS 中不存在」的名字：'+badSrc.join('、')+'\n\n将执行：';
+  msg+='\n· 从 LIMS 源房间清单移除：'+(badList.join('、')||'（无）');
+  msg+='\n· 清空这些房间的映射（改为「未映射」，需手填）：'+(badUsed.length?('\n  '+badUsed.map(rn=>'  · '+rn+' ← '+currentLimSource(rn)).join('\n')):'（无）');
+  msg+='\n\n（清完记得点「💾 保存 LIMS 配置」）\n确定吗？';
+  if(!confirm(msg)) return;
+  gLimsRooms=gLimsRooms.filter(r=>!badSrc.includes(r));
+  const tl=new Set(badUsed);
+  Object.keys(gAlias).forEach(k=>{ if(tl.has(gAlias[k])||badSrc.includes(k)) delete gAlias[k]; });
+  gAllowShare=gAllowShare.filter(x=>!tl.has(x));
+  renderRoomMap(); refreshCatalog();
+  toast('已清理 '+badSrc.length+' 个无效名字'+(badUsed.length?('、'+badUsed.length+' 个房间改为未映射'):'')+'（还需点「💾 保存 LIMS 配置」落盘）','ok');
+};
+async function loadLims(){
+  try{
+    const c=await api('/api/lims/config');
+    if(c.error){ $('#l_stat').textContent='（'+c.error+'）'; return; }
+    $('#l_enabled').value=c.enabled?'1':'0';
+    $('#l_base').value=c.base||'';
+    $('#l_user').value=c.user||'';
+    $('#l_pass').value=''; $('#l_pass').placeholder=c.pass_set?'留空 = 不修改':'（未设置）';
+    $('#l_strategy').value=c.strategy||'random';
+    $('#l_recorder').value=c.recorder||'';
+    $('#l_overwrite').value=c.overwrite?'1':'0';
+    gLimsRooms=(c.limsRooms||[]).slice();
+    gAlias=c.roomAlias||{};
+    gRoomCheck=c.roomCheck||null;
+    gAllowShare=(c.allowShare||[]).slice();
+    // ★ v1.26.0 修 bug：这三行以前缺了 noFetch —— 界面永远当「都参与抓取」渲染，
+    //   于是①「未映射」的行勾选框仍显示已勾、②一保存就把服务端的 noFetch 整份清空（用户的「不抓取」白设了）
+    gNoFetch=(c.noFetch||[]).slice();
+    gTempSrc=Object.assign({},c.tempSource||{});
+    gUnmapped=(c.unmapped||[]).slice();
+    try{ const rs=await api('/api/rooms'); gInspectRooms=(rs||[]).map(r=>r.name).filter(Boolean); }catch(e){ gInspectRooms=[]; }
+    renderRoomMap();
+    refreshCatalog();
+    $('#l_auto').value=(c.auto&&c.auto.enabled)?'1':'0';
+    $('#l_times').value=(c.auto&&c.auto.times||[]).join(',');
+    $('#l_auto_rec').value=(c.auto&&c.auto.recorder)||'';
+    let h='';
+    if(c.lastAuto&&c.lastAuto.at){
+      const rs=c.lastAuto.results||[];
+      h+='<div>🕘 上次定时填充：'+esc(String(c.lastAuto.at).replace('T',' ').slice(0,19))+'（触发 '+esc(c.lastAuto.slot||'')+'）· '
+        +rs.filter(r=>!r.error).length+'/'+rs.length+' 成功'
+        +rs.filter(r=>r.error).map(r=>' · '+esc(r.room)+'：'+esc(r.error)).join('')+'</div>';
+    }
+    $('#l_result').innerHTML=h;
+  }catch(e){ $('#l_stat').textContent='（读取失败：'+((e&&e.message)||e)+'）'; }
+}
+$('#l_save').onclick=async()=>{
+  const base=$('#l_base').value.trim();
+  if(base&&!/^https?:\/\//.test(base)){ toast('LIMS 地址要以 http:// 或 https:// 开头','err'); return; }
+  const btn=$('#l_save'); btn.disabled=true; $('#l_stat').textContent='保存中…';
+  const r=await api('/api/lims/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    enabled:$('#l_enabled').value==='1',
+    base,user:$('#l_user').value.trim(),
+    pass:$('#l_pass').value,                       // 留空 = 沿用旧密码
+    strategy:$('#l_strategy').value,
+    recorder:$('#l_recorder').value.trim(),
+    overwrite:$('#l_overwrite').value==='1',
+    // v1.26.0：多间选到同一个 LIMS 源时收成数组（一个源给多间共用），别让后选的把先选的顶掉
+    roomAlias:(function(){ const m={}; document.querySelectorAll('.rmsel').forEach(sel=>{
+      const rn=sel.dataset.room, src=sel.value; if(!src||src===rn) return;
+      const cur=m[src];
+      if(cur===undefined) m[src]=rn;
+      else if(Array.isArray(cur)){ if(cur.indexOf(rn)<0) cur.push(rn); }
+      else if(cur!==rn) m[src]=[cur,rn];
+    }); return m; })(),
+    limsRooms:(function(){ const used=new Set(gLimsRooms);
+      document.querySelectorAll('.rmsel').forEach(sel=>{ if(sel.value) used.add(sel.value); });
+      document.querySelectorAll('.rmsel-temp').forEach(sel=>{ const v=sel.value; if(v&&v!=='auto'&&v!=='off') used.add(v); });
+      return [...used]; })(),
+    allowShare:[...new Set(gAllowShare)],
+    noFetch:[...new Set(gNoFetch)],
+    unmapped:[...new Set(gUnmapped)],
+    // 温度数据源：按「点检房间 → 源」收集（与湿度映射方向相反，一个源可以给多间用）
+    tempSource:(function(){ const m={}; document.querySelectorAll('.rmsel-temp').forEach(sel=>{ if(sel.disabled) return; const rn=sel.dataset.room, v=sel.value; if(v&&v!=='auto') m[rn]=v; }); return m; })(),
+    auto:{ enabled:$('#l_auto').value==='1', times:$('#l_times').value, recorder:$('#l_auto_rec').value.trim() },
+  })});
+  btn.disabled=false; $('#l_stat').textContent='';
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('LIMS 配置已保存','ok'); loadLims();
+};
+$('#l_test').onclick=async()=>{
+  const btn=$('#l_test'); btn.disabled=true; $('#l_stat').textContent='测试中…（LIMS 接口较慢，约 10 秒）'; $('#l_result').innerHTML='';
+  let r;
+  try{ r=await api('/api/lims/test',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }
+  catch(e){ btn.disabled=false; $('#l_stat').textContent=''; toast('测试失败：'+((e&&e.message)||e),'err'); return; }
+  btn.disabled=false; $('#l_stat').textContent='';
+  let h='';
+  if(!r.ok){ h='<div style="color:var(--warn)">❌ '+esc(r.error||'测试失败')+'</div>'
+    +'<div class="muted">请检查 LIMS 地址 / 账号密码，以及本机到 LIMS 的网络（本机端口转发地址 LIMS 服务地址，内网设备直连一般用 LIMS 服务地址）。</div>'; }
+  else{
+    h='<div>✅ 登录成功（'+esc(r.user)+' @ '+esc(r.base)+'）</div>'
+     +'<div>· 探测房间「'+esc(r.probe_room)+'」'+r.probe_month+' 湿度 <b>'+r.probe_points+'</b> 点'+(r.probe_points?('（'+esc(r.probe_first)+' ~ '+esc(r.probe_last)+'）'):'')+'</div>'
+     +'<div>· 温度通道：'+(r.temperature_available?('✅ 有读数（最新 '+esc(r.temperature_value)+'，窗口内 '+r.temperature_points+' 点'+(r.temperature_last_time?('，'+esc(r.temperature_last_time)):'')+'）'):'<span style="color:var(--warn)">本时段无温度读数（温度格需手填）</span>')+'</div>'
+     +'<div>· 已映射 '+((r.mapped_rooms||[]).length)+' 个点检房间：'+esc((r.mapped_rooms||[]).join('、')||'（无）')+'</div>'
+     +auditHint(r.map_audit);
+  }
+  $('#l_result').innerHTML=h;
+};
+async function pollLimsJob(jobId, onProgress){
+  const t0=Date.now();
+  while(Date.now()-t0 < 30*60*1000){
+    const r=await api('/api/lims/job/'+encodeURIComponent(jobId));
+    if(r.error) throw new Error(r.error);
+    if(r.status==='done'||r.status==='error'){ if(onProgress) onProgress(r.progress||'', r.status); return r; }
+    if(onProgress) onProgress(r.progress||'处理中…', r.status);
+    await new Promise(res=>setTimeout(res,1500));
+  }
+  throw new Error('轮询超时（30 分钟）');
+}
+// 映射体检提示（「测试连接」与「同步完成」共用）：把"房间对错"直接说出来，不靠用户猜
+function auditHint(aud){
+  aud=aud||{}; let s='';
+  // ① 最该修的先说：映射用到的源名实测不存在
+  if((aud.invalid_sources||[]).length) s+='<div style="color:#ff8a80">· ❌ 映射用到的源名实测<b>在 LIMS 中不存在</b>（这些房间必然抓不到数据，改名或改成「未映射」）：'+esc(aud.invalid_sources.join('、'))+'</div>';
+  if((aud.empty_sources||[]).length) s+='<div style="color:var(--warn)">· ⚠ 映射用到的源房间实测<b>存在但没挂设备</b>（抓到的是空的）：'+esc(aud.empty_sources.join('、'))+'</div>';
+  // ② 共用同一数据源（要么已放行，要么待确认）
+  const sh=aud.shared||[], cs=aud.can_share||[];
+  if(sh.length) s+='<div style="color:#7bd88f">· ✅ 已允许共用同一数据源（会与同名房间填成同一份读数）：'+sh.map(x=>esc(x.room+' ← '+x.source)).join('、')+'</div>';
+  if(cs.length) s+='<div style="color:var(--warn)">· ⚠ 想共用同一数据源但<b>未勾选「允许共用」</b>（这些房间不会自动抓取，需手填）：'+cs.map(x=>esc(x.room+'（原指向「'+x.source+'」）')).join('、')+'</div>';
+  const cf=aud.conflicts||[];
+  if(cf.length) s+='<div class="muted tiny">· 同一个 LIMS 源被多个点检房间使用（共用即可，读数会一样）：'+cf.map(c=>esc('「'+c.source+'」← '+c.rooms.join('、'))).join('；')+'</div>';
+  if((aud.unmapped_rooms||[]).length) s+='<div class="muted">· 点检房间无 LIMS 数据源（不参与自动抓取）：'+esc(aud.unmapped_rooms.join('、'))+'</div>';
+  if((aud.unused_lims_rooms||[]).length) s+='<div class="muted">· LIMS 有但点检系统无对应的房间（自动跳过）：'+esc(aud.unused_lims_rooms.join('、'))+'</div>';
+  if(aud.check_at) s+='<div class="muted tiny">· 源名有效性来自 '+esc(String(aud.check_at).replace('T',' ').slice(0,19))+' 的实测校验</div>';
+  else s+='<div class="muted tiny">· 还没做过房间名实测校验 → 到「LIMS 数据源」区点「🔍 实测校验房间名」</div>';
+  return s;
+}
+function renderSyncResult(r){
+  let h='<div>✅ '+r.ym+' 同步完成：'+r.rooms+' 个房间，共填 <b>'+r.filled_total+'</b> 格'
+    +(r.temp_filled_total?('，其中补温度 <b>'+r.temp_filled_total+'</b> 格'):'<span class="muted">（本次没补到温度）</span>')+'</div>'+auditHint(r.map_audit);
+  h+='<div>明细：<br>'+(r.results||[]).map(x=>x.error
+      ?('· <span style="color:var(--warn)">'+esc(x.room)+'：'+esc(x.error)+'</span>')
+      :('· '+esc(x.room)+'（湿度源 '+esc(x.source)+(x.temp_source&&x.temp_source!==x.source?(' · 温度源 '+esc(x.temp_source)):(x.temp_mode==='off'?' · 不抓温度':''))+'）填 '+x.filled+' 格'
+        +(x.temp_filled?('、补温度 '+x.temp_filled+' 格'):'')+(x.skipped?('，跳过已有 '+x.skipped+' 格'):'')+(x.no_data?('，无数据 '+x.no_data+' 格'):'')
+        +(x.temp_skipped_budget?('<span style="color:var(--warn)">，⚠ 温度窗口预算跳过 '+x.temp_skipped_budget+' 个</span>'):''))).join('<br>')+'</div>';
+  return h;
+}
+$('#l_syncall').onclick=async()=>{
+  const ym=localMonth();
+  if(!confirm('从 LIMS 同步 '+ym+' 整月【温湿度】到全部有映射的房间，并直接写入记录？\n\n· 湿度：整月空格（各自的数据源）\n· 温度：逐时段窗口抓「温湿同点」读数，含把「有湿度但缺温度」的格子补上\n  （缺得多时受窗口预算限制，跑完再点一次可续补；后台已把原来的「补全房间历史温度」并进这个按钮）\n· 只补空格：已有记录 / 签名 / 划线一律不动\n· 后台异步执行，可继续操作，进度实时显示\n\n确定继续吗？')) return;
+  const btn=$('#l_syncall'); btn.disabled=true; $('#l_stat').textContent='同步中…（后台异步）'; $('#l_result').innerHTML='';
+  try{
+    const s=await api('/api/lims/sync-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ym,with_temp:true,temp_scope:'all',backfill_temp:true})});
+    if(s.error){ toast(s.error,'err'); return; }
+    const r=await pollLimsJob(s.jobId,(p)=>$('#l_stat').textContent='同步中… '+p);
+    if(r.status==='error'){ toast('同步失败：'+r.error,'err'); return; }
+    $('#l_result').innerHTML=renderSyncResult(r.result)+(r.result?('<div class="muted" style="margin-top:4px">可到「温湿度」页面逐房间核对。温度只在房间配了温度来源、且 LIMS 那一间确实有温湿同点数据时才会填上。</div>'):'');
+    toast('LIMS 同步完成，共填 '+r.result.filled_total+' 格'+(r.result.temp_filled_total?('，其中温度 '+r.result.temp_filled_total+' 格'):''),'ok');
+  }catch(e){ toast('同步失败：'+((e&&e.message)||e),'err'); }
+  finally{ btn.disabled=false; $('#l_stat').textContent=''; }
+};
+// v1.26.0：原「🌡 补全房间历史温度」按钮已并入上面的「⬇ 同步整月（含温度）」，不再单独存在。
+
 // 记录
 async function loadRec(){
-  const no=$('#r_no').value,date=$('#r_date').value;
-  let q='';if(no)q+='?device_id='+encodeURIComponent(no);if(date)q+=(q?'&':'?')+'date='+date;
-  const rows=await api('/api/inspections'+q);
+  // 房间下拉只初始化一次
+  if($('#r_room') && $('#r_room').options.length<=1){
+    try{ const rs=await api('/api/rooms'); $('#r_room').innerHTML='<option value="">（全部房间）</option>'+rs.map(r=>`<option value="${esc(r.name)}">${esc(r.name)}</option>`).join(''); }catch(e){}
+  }
+  const no=$('#r_no').value,date=$('#r_date').value,name=$('#r_signer').value.trim(),room=$('#r_room').value;
+  const p=new URLSearchParams();
+  if(no)p.set('device_id',no);
+  if(date)p.set('date',date);
+  if(name)p.set('name',name);
+  if(room)p.set('room',room);
+  const q=p.toString();
+  const rows=await api('/api/inspections'+(q?'?'+q:''));
   $('#r_stat').textContent=`共 ${rows.length} 条`;
   $('#r_list').innerHTML=rows.map(r=>`<tr>
     <td><input type="checkbox" class="rck" value="${r.id}" onchange="updCnt()"></td>
-    <td class="tiny">${r.inspect_date}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td>
+    <td class="tiny">${r.inspect_date}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td><td>${esc(r.room)||'—'}</td>
     <td><span class="pill ${r.status}">${r.status==='ok'?'正常':r.status==='ng'?'异常':'—'}</span></td>
     <td>${r.signed_by||'—'}</td><td class="tiny">${r.abnormal_note||''}</td>
     <td><button class="btn sm danger" onclick="delRec('${r.id}')">删</button></td></tr>`).join('');
@@ -2507,15 +3772,27 @@ $('#m_go').onclick=async()=>{
   const today=new Date(); const tDay=String(today.getDate()).padStart(2,'0');
   if(month===localMonth() && endDay>+tDay){toast(`不能点检今天（${tDay} 日）之后的日期`,'err');return;}
   const sname = $('#m_signer').selectedOptions[0] ? $('#m_signer').selectedOptions[0].text : '';
+  const rand = $('#m_rand') && $('#m_rand').checked;
   const rangeDesc = endDay===dim ? `整月（${dim} 天）` : `1 日至 ${endDay} 日（共 ${endDay} 天，剩余 ${dim-endDay} 天不点检）`;
-  if(!confirm(`将${mScopeDesc()} ${month} ${rangeDesc} 标记为「正常」并套用「${sname}」的电子签名？`))return;
+  const signDesc = rand
+    ? `并按科室随机分派签名人（设备所在房间→归属科室→每天从该科室启用签名人中随机选一人；房间未设科室或科室无可用签名人时，该格回退用「${sname}」）`
+    : `并套用「${sname}」的电子签名`;
+  if(!confirm(`将${mScopeDesc()} ${month} ${rangeDesc} 标记为「正常」，${signDesc}？\n\n（周检设备只点检查日=周一，其余日期自动划「/」）`))return;
   $('#m_go').disabled=true;
-  const r=await api('/api/admin/inspect-month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({month, signer_id:sid, password:pw, device_id, room, end_day:endDay})});
+  const r=await api('/api/admin/inspect-month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({month, signer_id:sid, password:pw, device_id, room, end_day:endDay, random_dept:rand})});
   $('#m_go').disabled=false;
   if(r.error){toast(r.error,'err');return;}
   $('#m_pw').value='';   // 成功后清空签名密码，防止误触重复提交
-  toast(`已点检：${r.devices} 台 × ${r.days} 天`,'ok');
-  $('#m_stat').textContent=`${month} · ${mScopeDesc()}：${r.devices} 台 × ${r.days} 天 · 签名人 ${r.signer}`;
+  // 周检设备只点周一：提示里把这件事说清楚，否则会以为"有的设备没点检"
+  const wk = r.weekly_devices ? `（其中 ${r.weekly_devices} 台周检只点周一，各 ${r.weekly_days} 天）` : '';
+  if(r.random){
+    const okRooms=(r.assignments||[]).filter(a=>a.people.length).map(a=>`${a.room}（${a.people.join('/')}）`).join('、') || '无';
+    toast(`已点检：${r.devices} 台 × ${r.days} 天（按科室随机分派）${r.weekly_devices?`，周检 ${r.weekly_devices} 台只点周一`:''}`,'ok');
+    $('#m_stat').textContent=`${month} · ${mScopeDesc()}：${r.devices} 台 × ${r.days} 天${wk} · 随机分派 ${okRooms} · 回退「${r.signer}」${r.fallback} 格`;
+  }else{
+    toast(`已点检：${r.devices} 台 × ${r.days} 天${r.weekly_devices?`，周检 ${r.weekly_devices} 台只点周一`:''}`,'ok');
+    $('#m_stat').textContent=`${month} · ${mScopeDesc()}：${r.devices} 台 × ${r.days} 天${wk} · 签名人 ${r.signer}`;
+  }
 };
 
 // 打印全部设备整月（打开 print-all.html 新窗口）
@@ -2526,6 +3803,124 @@ $('#m_print').onclick=()=>{
   window.open(url, '_blank');
 };
 
+// ===== 专项检查表 · 整月一键生成（复制上一次点检的数据）=====
+// 服务端口径见 server.js handleAdminCheckMonth：只补空格、签名格不照抄、跨月找「上一次」。
+let CM_PROGS = [], CM_DEVS = [];
+function cmDevices(){
+  const pid = $('#cm_prog').value;
+  const ids = new Set();
+  CM_PROGS.filter(p => pid ? p.id === pid : true).forEach(p => (p.device_ids||[]).forEach(id => ids.add(id)));
+  return CM_DEVS.filter(d => ids.has(d.id));
+}
+function cmSyncScope(){
+  const scope = $('#cm_scope').value;
+  $('#cm_roomwrap').style.display = scope === 'room' ? 'block' : 'none';
+  $('#cm_devwrap').style.display  = scope === 'one'  ? 'block' : 'none';
+  if (scope === 'one'){
+    const ds = cmDevices();
+    $('#cm_dev').innerHTML = ds.length
+      ? ds.map(d => `<option value="${d.id}">${esc(d.no)} ${esc(d.name||'')} · ${esc(d.location||'')}</option>`).join('')
+      : '<option value="">（该项目下没有设备）</option>';
+  }
+}
+// 截止日期上下限：不得超过该月最后一天；当前月截到今天（与整月点检同一口径）
+function cmClampEnd(){
+  const month = $('#cm_month').value;
+  if (!month) return;
+  const [yy, mm] = month.split('-');
+  const dim = dimOf(yy, mm);
+  const minD = `${month}-01`;
+  const maxD = `${month}-${String(dim).padStart(2,'0')}`;
+  const maxEnd = (month === localMonth()) ? localToday() : maxD;
+  $('#cm_end').min = minD;
+  $('#cm_end').max = maxEnd;
+  const cur = $('#cm_end').value;
+  if (!cur || cur < minD || cur > maxEnd) $('#cm_end').value = maxEnd;
+}
+async function loadCheckMonth(){
+  let progs = [], devs = [], rooms = [], signers = [];
+  try{ [progs, devs, rooms, signers] = await Promise.all([
+    api('/api/programs'), api('/api/devices'), api('/api/rooms'), api('/api/signers/public')]); }catch(e){}
+  CM_PROGS = (progs||[]).filter(p => (p.device_ids||[]).length);
+  CM_DEVS  = devs||[];
+  $('#cm_prog').innerHTML = `<option value="">全部专项检查表（${CM_PROGS.length} 张）</option>` +
+    CM_PROGS.map(p => `<option value="${esc(p.id)}">${esc(p.name)}（${(p.device_ids||[]).length} 台 · ${p.row_unit==='week'?'周检':'日检'}）</option>`).join('');
+  $('#cm_signer').innerHTML = '<option value="">（不落签，签名格留空）</option>' +
+    (signers||[]).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  $('#cm_room').innerHTML = (rooms||[]).map(r => `<option value="${esc(r.name)}">${esc(r.name)}（${r.count} 台）</option>`).join('');
+  const cur = localMonth();
+  $('#cm_month').value = cur;
+  $('#cm_month').max = cur;      // 与整月点检一致：不允许未来月份
+  $('#cm_end').value = localToday();
+  cmClampEnd();
+  cmSyncScope();
+}
+$('#cm_prog').onchange = cmSyncScope;
+$('#cm_scope').onchange = cmSyncScope;
+$('#cm_month').onchange = cmClampEnd;
+let CM_BUSY = false;
+async function cmRun(dry){
+  if (CM_BUSY) return;
+  const month = $('#cm_month').value;
+  if (!month){ toast('请选择月份','err'); return; }
+  const fmReject = rejectFutureMonth(month);
+  if (fmReject){ toast(fmReject,'err'); return; }
+  const endDate = $('#cm_end').value;
+  if (!endDate){ toast('请选择截止日期','err'); return; }
+  const endDay = parseInt(endDate.split('-')[2], 10);
+  if (isNaN(endDay) || endDay < 1){ toast('截止日期无效','err'); return; }
+  const sid = $('#cm_signer').value, pw = $('#cm_pw').value;
+  if (sid && !pw){ toast('选了签名人就必须输入签名密码','err'); return; }
+  const scope = $('#cm_scope').value;
+  if (scope==='one' && !$('#cm_dev').value){ toast('请选择设备','err'); return; }
+  if (scope==='room' && !$('#cm_room').value){ toast('请选择房间','err'); return; }
+  const overwrite = $('#cm_overwrite').value === '1';
+  const progs = $('#cm_prog').value || '';
+  const pname = progs ? $('#cm_prog').selectedOptions[0].text : `全部专项检查表（${CM_PROGS.length} 张）`;
+  const devDesc = scope==='one' ? `设备「${$('#cm_dev').selectedOptions[0] ? $('#cm_dev').selectedOptions[0].text.trim() : ''}」`
+                : scope==='room' ? `房间「${$('#cm_room').value}」` : '全部设备';
+  const ovDesc = overwrite ? '【整份替换】目标月已有的数据会被覆盖' : '只补空格（已有内容的日期不动）';
+
+  if (!dry){
+    const sd = sid ? `，并用「${$('#cm_signer').selectedOptions[0].text}」落签` : '，签名格留空';
+    if (!confirm(`将为 ${month} 1 日至 ${endDay} 日生成专项检查表：\n\n检查项目：${pname}\n设备范围：${devDesc}\n已有数据：${ovDesc}\n签名：${sid?'套用所选签名人':'留空待签'}\n\n数据来源 = 每台设备「上一次点检」的记录。\n${overwrite?'\n⚠️ 已选「整份替换」，目标月现有数据会被新版覆盖！':''}\n确定生成？`)) return;
+  }
+  const btn = dry ? $('#cm_preview') : $('#cm_go');
+  CM_BUSY = true; btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = dry ? '预览中…' : '生成中…';
+  let r = null;
+  try{
+    r = await api('/api/admin/check-month', { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ month, end_day: endDay, program_id: progs,
+        device_id: scope==='one' ? $('#cm_dev').value : '',
+        room: scope==='room' ? $('#cm_room').value : '',
+        signer_id: sid, password: pw, overwrite, dry_run: !!dry }) });
+  }catch(e){ toast('请求失败：'+e.message,'err'); }
+  CM_BUSY = false; btn.disabled = false; btn.textContent = old;
+  if (!r) return;
+  if (r.error){ toast(r.error,'err'); $('#cm_result').innerHTML = `<b style="color:var(--warn)">${esc(r.error)}</b>`; return; }
+  if (!dry) $('#cm_pw').value = '';       // 成功后清空签名密码，防误触重复提交
+  const head = `${r.month} · 1~${r.end_day} 日 · 检查表 ${r.programs} 张`
+    + (dry ? ' · <b>预览（未写库）</b>' : '')
+    + ` · 新建 ${r.created} 份 / 更新 ${r.updated} 份`
+    + (r.kept ? ` / 保留 ${r.kept} 份` : '')
+    + ` · 复制 ${r.rows} 行`
+    + (r.signer ? ` · 签名人 ${esc(r.signer)}` : ' · 未落签（签名格留空）');
+  const rows = (r.results||[]).map(x => {
+    const act = x.action==='created' ? '<span style="color:#7fe0a0">新建</span>'
+              : x.action==='updated' ? '<span style="color:#8fc7ff">更新</span>' : '<span style="color:#e6c07b">保留</span>';
+    return `&nbsp;&nbsp;${act} ${esc(x.device)} <span class="muted">· ${esc(x.program)}</span> ← 复制自 ${esc(x.source_ym)}：${x.copied} 行 / 共 ${x.rows} 行${x.note?'（'+esc(x.note)+'）':''}`;
+  }).join('<br>');
+  const skip = (r.skipped||[]).map(x => `&nbsp;&nbsp;跳过 ${esc(x.device||'—')} <span class="muted">· ${esc(x.program)}</span>：${esc(x.reason)}`).join('<br>');
+  $('#cm_result').innerHTML = '<div>' + head + '</div>'
+    + (rows ? '<div style="margin-top:4px">' + rows + '</div>' : '')
+    + (skip ? '<div style="margin-top:4px;color:#c9a227">' + skip + '</div>' : '');
+  $('#cm_stat').textContent = dry ? '预览完成（未写库）' : `已生成：新建 ${r.created} / 更新 ${r.updated}，共复制 ${r.rows} 行`;
+  toast(dry ? '预览完成（未写库）' : `已生成：新建 ${r.created} 份 / 更新 ${r.updated} 份`, 'ok');
+}
+$('#cm_preview').onclick = () => cmRun(true);
+$('#cm_go').onclick = () => cmRun(false);
 // 一键取消当月点检
 $('#m_cancel').onclick=async()=>{
   const month=$('#m_month').value;
@@ -2573,10 +3968,33 @@ $('#m_cancel').onclick=async()=>{
 // 系统
 $('#npw_go').onclick=async()=>{const r=await api('/api/admin/changepw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#npw').value})});if(r.error){toast(r.error,'err');return;}toast('密码已修改','ok');$('#npw').value='';};
 
-function closeM(){$('#mask').classList.remove('show');}
+// ===== 签名免密开关（系统 tab）=====
+// 与点检页 / 温湿度页的「签名密码」输入框联动：服务端 GET /api/settings 下发当前值，
+// 两个页面据此隐藏密码框并放行前端校验。真正的放行判定在服务端 verifySigner()。
+async function loadSysSignNoPw(){
+  if(!$('#sys_signnopw')) return;
+  try{
+    const st=await api('/api/settings');
+    const on=!!(st&&st.signNoPw);
+    $('#sys_signnopw').checked=on;
+    if($('#sys_signnopw_stat')) $('#sys_signnopw_stat').textContent = on
+      ? '当前：✅ 已开启免密 —— 点检页 / 温湿度页选中签名人即可落签'
+      : '当前：需要签名密码（默认）';
+  }catch(e){}
+}
+if($('#sys_signnopw')) $('#sys_signnopw').onchange=async()=>{
+  const v=$('#sys_signnopw').checked;
+  const r=await api('/api/admin/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({signNoPw:v})});
+  if(r.error){ toast(r.error,'err'); $('#sys_signnopw').checked=!v; return; }
+  toast(v?'已开启免密签名（刷新点检页生效）':'已恢复签名密码校验','ok');
+  loadSysSignNoPw();
+};
+loadSysSignNoPw();
+
+function closeM(){$('#mask').classList.remove('show');var mm=$('#modal');if(mm)mm.style.maxWidth='';}
 $('#mask').onclick=e=>{if(e.target.id==='mask')closeM();};
 me().then(r=>{if(r.ok)enter();}).then(async()=>{
-  // 深链支持：/admin?tab=room&room=车间A
+  // 深链支持：/admin?tab=room&room=持久蠕变室1
   // 供温湿度页「去后台补填」直达该房间的温湿度表头配置，省去手动找房间
   const p=new URLSearchParams(location.search);
   const t=p.get('tab'), rm=p.get('room');
@@ -2594,5 +4012,43 @@ me().then(r=>{if(r.ok)enter();}).then(async()=>{
 // 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
 fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
 </script>
+
+<script>
+/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+(function () {
+  if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
+  function banner() {
+    if (document.getElementById('ro-banner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'ro-banner';
+    bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
+    (document.body || document.documentElement).appendChild(bar);
+  }
+  function hideWrites() {
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    document.querySelectorAll('button,a,.btn').forEach(function (el) {
+      if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
+      var t = (el.textContent || '').replace(/\s+/g, '');
+      if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';
+    });
+  }
+  if (document.readyState !== 'loading') { banner(); hideWrites(); }
+  document.addEventListener('DOMContentLoaded', function () { banner(); hideWrites(); });
+  setTimeout(hideWrites, 400); setTimeout(hideWrites, 1200); setTimeout(hideWrites, 2500);
+  var _fetch = window.fetch ? window.fetch.bind(window) : null;
+  if (_fetch) {
+    window.fetch = function (u, o) {
+      return _fetch(u, o).then(function (r) {
+        if (r && r.status === 403) {
+          try { r.clone().json().then(function (j) { if (j && j.readonly) alert('演示站为只读展示模式，禁止写入操作'); }); } catch (e) {}
+        }
+        return r;
+      });
+    };
+  }
+})();
+</script>
+
 </body>
 </html>

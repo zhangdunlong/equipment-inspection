@@ -137,3 +137,10 @@ tbody tr:hover{background:rgba(255,255,255,.04)}
 .dept-bar.admin a{color:var(--cyan);text-decoration:none;font-weight:700}
 .dept-bar.admin a:hover{text-decoration:underline}
 @media print{.dept-bar{display:none!important}}
+
+/* v1.27.0 左上角品牌图（白底片保证黑字在深色导航上可读） */
+.brand .brand-logo {
+  height:34px; width:auto; display:block; flex:none;   /* 34 = 26 内容 + 上下各 4 内边距（两个表都开了 border-box，写 26 会被吃掉） */
+  background:#fff; border-radius:8px; padding:4px 8px;
+  box-shadow:0 1px 8px rgba(0,0,0,.35);
+}

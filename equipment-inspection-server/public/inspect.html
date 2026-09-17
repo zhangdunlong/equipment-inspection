@@ -1,28 +1,69 @@
 <!DOCTYPE html>
-<!-- v2026-08-21-5: 月度点检「只勾一次」标记恢复居中显示(此前误判为bug强制靠左) -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>点检作业</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/v2/theme.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
+<script src="/assets/v2/core.js"></script>
 <script src="/assets/dept.js"></script>
 <script src="/assets/sig.js"></script>
 <style>
-:root{ --line:#000; --glass-bd:rgba(255,95,162,.35); --pink:#ff5fa2; --cyan:#1aa6c4; }
-*{box-sizing:border-box}
-body{ color:#1a1a2e; }
+/* ==========================================================================
+   屏幕态：v2 设计系统（深蓝灰工业风）
+   打印态：完全沿用 v1 已调好的 A4 横版规则（见文件末尾 @media print）
+   —— 打印相关的类名与 DOM 结构不做改动，保证每台设备每月正好一页
+   ========================================================================== */
 
-/* ===== 设备信息头部（模板式） ===== */
-.dev-header{ position:relative; background:#fff; border:2px solid var(--line); border-radius:8px; padding:12px 16px; margin-top:14px; }
+/* ---------- 工具条 ---------- */
+.toolbar { display:flex; align-items:center; gap:var(--s-3); flex-wrap:wrap;
+  padding:var(--s-3) var(--s-4); margin-bottom:var(--s-4);
+  background:var(--bg-2); border:1px solid var(--line-1); border-radius:var(--r-lg); }
+.toolbar .field { gap:4px; }
+.toolbar .field > label { font-size:var(--fs-xs); }
+.toolbar .sep { width:1px; height:24px; background:var(--line-1); }
+
+/* ---------- 设备组合框（可搜索 + 键盘可达） ---------- */
+.combo { position:relative; }
+.combo-input { min-height:34px; }
+.combo-list {
+  position:absolute; z-index:70; left:0; right:0; top:calc(100% + 4px);
+  max-height:290px; overflow:auto; padding:4px;
+  background:var(--bg-3); border:1px solid var(--line-2); border-radius:var(--r-md);
+  box-shadow:var(--sh-3);
+}
+.combo-list[hidden] { display:none; }
+.combo-opt { display:block; width:100%; text-align:left; padding:7px 10px; border-radius:var(--r-sm);
+  background:transparent; border:none; color:var(--tx-1); font-size:var(--fs-sm); }
+.combo-opt:hover, .combo-opt.active { background:var(--accent-soft); }
+.combo-opt .n { font-weight:700; }
+.combo-opt .m { color:var(--tx-3); margin-left:6px; }
+.combo-empty { padding:14px; text-align:center; color:var(--tx-3); font-size:var(--fs-sm); }
+
+/* ---------- 状态摘要条 ---------- */
+.sumbar { display:flex; align-items:center; gap:var(--s-4); flex-wrap:wrap;
+  padding:var(--s-3) var(--s-4); margin-bottom:var(--s-4);
+  background:var(--bg-2); border:1px solid var(--line-1); border-radius:var(--r-lg); font-size:var(--fs-sm); }
+.sumbar .i { display:flex; align-items:baseline; gap:6px; }
+.sumbar .i i { font-style:normal; color:var(--tx-3); }
+.sumbar .i b { font-size:var(--fs-lg); font-variant-numeric:tabular-nums; }
+
+/* ---------- 未保存提示 ---------- */
+.dirty { display:none; }
+.dirty.on { display:flex; }
+
+/* ---------- 点检表容器（白底，贴近纸质单据） ---------- */
+.sheet { background:#fff; color:#1a1a2e; border-radius:var(--r-lg); padding:var(--s-4); }
+.sheet .dh-code, .sheet .print-code { color:#888; }
+
+.dev-header{ position:relative; background:#fff; border:2px solid #000; border-radius:8px; padding:12px 16px; margin-top:14px; }
 .dh-title{ text-align:center; font-size:18px; font-weight:800; letter-spacing:2px; margin-bottom:4px; }
 .dh-title .en{ font-size:10px; color:#666; letter-spacing:.5px; display:block; }
 .dh-meta{ display:flex; flex-wrap:wrap; gap:6pt 20pt; align-items:center; font-size:13px; border-top:1.5px solid #ddd; border-bottom:1.5px solid #ddd; padding:6pt 0; margin-top:4pt; }
-.dh-meta b{ font-weight:700; border-bottom:1px solid #999; padding:0 6pt; min-width:36px; display:inline-block;text-align:center;}
-.dh-meta .no-input{ font-weight:700; border:none; border-bottom:1px solid #999; width:90px; text-align:center; outline:none; background:transparent; }
+.dh-meta b{ font-weight:700; border-bottom:1px solid #999; padding:0 6pt; min-width:36px; display:inline-block; text-align:center; }
 
-/* ===== 月度点检表（模板 序号|内容|频率|1..31日） ===== */
-.grid-wrap{ margin-top:10px; border:2px solid var(--line); border-radius:8px; overflow:auto; background:#fff; }
+.grid-wrap{ margin-top:10px; border:2px solid #000; border-radius:8px; overflow:auto; background:#fff; }
 .mtable{ border-collapse:collapse; width:100%; min-width:980px; font-size:12px; table-layout:fixed; }
 .mtable th,.mtable td{ border:1px solid #ccc; padding:3px 2px; text-align:center; vertical-align:middle; }
 .mtable thead th{ background:#f3f3f3; font-weight:700; color:#222; font-size:10.5px; }
@@ -34,76 +75,84 @@ body{ color:#1a1a2e; }
 .mtable .c-day .dow{ display:block; font-size:8px; color:#aaa; font-weight:400; }
 .mtable tbody td.sn{ font-weight:700; background:#fafafa; }
 .mcell{ cursor:pointer; font-size:13px; font-weight:700; user-select:none; transition:background .1s; }
-.mcell:hover{ background:#fff0f7; }
+.mcell:hover{ background:#eef4ff; }
 .mcell.ok{ color:#0a8f3c; }
 .mcell.ng{ color:#d11; background:#fdeaea; }
 .mcell.holiday{ color:#b8860b; background:#fff8e1; }
 .mcell.empty{ color:#ccc; }
 .mcell.future{ color:#ccc; cursor:not-allowed; background:#fafafa; }
+.mcell.auto-slash{ background:#f7f7f7; color:#9a9a9a; }
 .mcell-monthly{ background:#f0f7ff !important; font-size:14px !important; text-align:center !important; }
 .mlegend{ font-size:11px; color:#888; margin-top:4pt; }
 .mlegend b{ color:#333; }
-.mtable .sigrow{ margin-top:0; }
+.wk-hint{ font-size:11.5px; color:#8a6d1b; background:#fff8e1; border:1px solid #f0e0a8; border-radius:6px; padding:5px 9px; margin-top:6px; }
+.wk-hint b{ color:#6b5200; }
+.del-hint{ font-size:11.5px; color:#8c3b3b; background:#fdf0f0; border:1px solid #f2d0d0; border-radius:6px; padding:5px 9px; margin-top:6px; }
+.del-hint b{ color:#a02020; }
+.sigdel-demo{ display:inline-block; width:14px; height:14px; line-height:13px; border-radius:50%;
+  background:#e57373; color:#fff; font-size:10px; font-weight:700; text-align:center; vertical-align:-2px; }
 .mtable .sigrow td.sn{ background:#f3f3f3; font-weight:700; }
 .mtable .sigrow .c-content{ font-size:10px; }
-.sigcell{ position:relative; vertical-align:middle; height:108px; padding:2px 1px; text-align:center; cursor:pointer; }
-.sigcell:hover{ background:#fff0f7; }
-.sigthumb{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center; max-width:28px; max-height:100px; }
+.sigcell{ position:relative; vertical-align:middle; height:78px; padding:2px 1px; text-align:center; cursor:pointer; }
+.sigcell:hover{ background:#eef4ff; }
+.sigthumb{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center; max-width:28px; max-height:72px; }
 .sph{ font-size:11px; color:#ccc; }
+.sigcell.struck{ cursor:default; background:#fafafa; }
+.sigcell.struck:hover{ background:#fafafa; }
+.sigslash{ font-size:15px; font-weight:700; color:#b8860b; }
+.sigdel{ position:absolute; top:1px; right:2px; z-index:3; width:15px; height:15px; line-height:14px;
+  border-radius:50%; background:#e57373; color:#fff; font-size:11px; font-weight:700; text-align:center;
+  cursor:pointer; opacity:.55; transition:opacity .12s,transform .12s; user-select:none; }
+.sigcell:hover .sigdel{ opacity:1; transform:scale(1.15); }
+.sigdel:hover{ background:#d11; opacity:1; }
+.sigcell:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 
-/* ===== 签名 / 备注 / 操作 ===== */
-.sig-ops{ background:#fff; border:2px solid var(--line); border-radius:8px; margin-top:14px; padding:12pt; }
-.so-title{ font-weight:700; margin-bottom:6pt; }
-.so-tabs{ display:flex; gap:6pt; flex-wrap:wrap; margin-bottom:8pt; }
-.so-tabs button{ font-size:12px; padding:5pt 12pt; border-radius:8pt; border:1px solid var(--glass-bd); background:#fff; cursor:pointer; }
-.so-tabs button.active{ background:linear-gradient(135deg,#ff5fa2,#1aa6c4); color:#fff; border:none; }
-.so-box{ display:none; }
-.so-box.active{ display:block; }
-.so-box canvas{ background:#fff; border:1px solid #ccc; border-radius:8px; touch-action:none; cursor:crosshair; max-width:100%; }
-.so-prev{ margin-top:6pt; }
-.so-prev img{ max-height:48px; border:1px solid #ccc; border-radius:6px; background:#fff; padding:2pt 4pt; vertical-align:middle; }
-.so-meta{ display:flex; gap:8pt; flex-wrap:wrap; align-items:center; margin-top:6pt; }
-.so-meta input,.so-meta select{ font-size:12px; padding:5pt 8pt; border:1px solid #ccc; border-radius:6pt; }
-.sig-line{ margin-top:10pt; padding-top:6pt; border-top:1px dashed #ddd; font-size:13px; }
-.sig-line #s_sigprev{ display:inline-block; vertical-align:middle; min-width:60px; }
-.sig-line #s_sigprev img{ height:42px; border:none; }
-/* ===== 异常情况及处理记录（屏幕编辑 + 打印只读两套 DOM） ===== */
-.abn-section{ margin-top:12pt; border:2px solid var(--line); border-radius:8px; padding:10pt 12pt; background:#fff; }
-.abn-section .abn-h{ font-weight:800; font-size:14px; margin-bottom:6pt; color:#b00; }
-.abn-empty{ color:#888; font-size:12px; padding:6pt 0; }
-.abn-table{ width:100%; border-collapse:collapse; font-size:12px; }
-.abn-table th,.abn-table td{ border:1px solid #ccc; padding:4pt 6pt; vertical-align:top; text-align:left; }
-.abn-table th{ background:#f3f3f3; font-weight:700; }
-.abn-table .c-sn{ width:40px; } .abn-table .c-content{ width:150px; } .abn-table .c-abn{ width:200px; } .abn-table .c-handle{ width:200px; } .abn-table .c-person{ width:80px; } .abn-table .c-hdate{ width:120px; }
-.abn-table .ac{ font-size:11px; color:#333; }
-.abn-input{ width:100%; font-size:12px; padding:3pt 4pt; border:1px solid #ccc; border-radius:4pt; box-sizing:border-box; font-family:inherit; background:#fff; }
-textarea.abn-input{ min-height:34pt; resize:vertical; }
+/* ---------- 签名区 / 异常区（屏幕态） ---------- */
+.sig-ops{ background:var(--bg-2); border:1px solid var(--line-1); border-radius:var(--r-lg); margin-top:var(--s-4); padding:var(--s-4); }
+.so-title{ font-weight:700; margin-bottom:var(--s-3); font-size:var(--fs-md); color:var(--tx-1); }
+.so-meta{ display:flex; gap:var(--s-3); flex-wrap:wrap; align-items:center; }
+.so-meta select, .so-meta input { max-width:240px; }
+.so-prev{ margin-top:var(--s-3); }
+.so-prev img{ max-height:44px; border:1px solid var(--line-2); border-radius:var(--r-sm); background:#fff; padding:2px 6px; vertical-align:middle; }
+.sig-line{ margin-top:var(--s-3); padding-top:var(--s-3); border-top:1px dashed var(--line-1); font-size:var(--fs-md); color:var(--tx-2); }
+#s_sigprev img{ height:38px; }
+
+.abn-section{ margin-top:var(--s-4); border:1px solid var(--line-2); border-radius:var(--r-lg); padding:var(--s-4); background:var(--bg-2); }
+.abn-section .abn-h{ font-weight:800; font-size:var(--fs-md); margin-bottom:var(--s-3); color:#ff9aa0; }
+.abn-empty{ color:var(--tx-3); font-size:var(--fs-sm); padding:6px 0; }
+.abn-table{ width:100%; border-collapse:collapse; font-size:var(--fs-sm); }
+.abn-table th,.abn-table td{ border:1px solid var(--line-1); padding:6px 8px; vertical-align:top; text-align:left; }
+.abn-table th{ background:var(--bg-3); font-weight:700; color:var(--tx-2); }
+.abn-table .c-sn{ width:44px; } .abn-table .c-abn{ width:200px; } .abn-table .c-handle{ width:200px; }
+.abn-table .c-person{ width:90px; } .abn-table .c-hdate{ width:130px; }
+.abn-table .ac{ font-size:var(--fs-sm); color:var(--tx-2); }
+.abn-input{ width:100%; font-size:var(--fs-sm); padding:5px 7px; border:1px solid var(--line-2);
+  border-radius:var(--r-sm); box-sizing:border-box; font-family:inherit; background:var(--bg-1); color:var(--tx-1); }
+textarea.abn-input{ min-height:52px; resize:vertical; }
+.abn-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
 .print-only{ display:none; }
-.note-line{ margin-top:8pt; font-size:12px; color:#333; line-height:1.5; }
-.actions{ margin-top:12pt; display:flex; gap:10pt; flex-wrap:wrap; }
-.btn{ cursor:pointer; border:none; border-radius:10px; padding:9pt 18pt; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg,var(--pink),var(--cyan)); box-shadow:0 4px 12px rgba(255,95,162,.3); }
-.btn:hover{ filter:brightness(1.05); }
-.btn.ghost{ background:#fff; color:var(--pink); border:1px solid var(--pink); box-shadow:none; }
+.note-line{ margin-top:var(--s-3); font-size:var(--fs-sm); color:var(--tx-2); line-height:1.6; }
+.actions{ margin-top:var(--s-4); display:flex; gap:var(--s-3); flex-wrap:wrap; }
 
-/* ===== 打印：整月一张 A4 横页（紧凑单页） ===== */
+/* ---------- 一键点检（管理员） ---------- */
+.batch-list { max-height:420px; overflow:auto; }
+
+/* ==========================================================================
+   打印：整月一张 A4 横页（与 v1 完全一致，勿改）
+   ========================================================================== */
 .print-code{ display:none; }
 .dev-header .dh-code{ position:absolute; right:8mm; top:5mm; font-size:8pt; color:#888; font-weight:600; letter-spacing:.5px; pointer-events:none; }
 @media print {
 @page { size: A4 landscape; margin: 5mm 6mm; }
-/* 文档编号放在 dev-block 顶部最右（流式元素避免 position:fixed 幽灵尾页） */
 .print-code{ display:block; text-align:right; font-size:8pt; color:#333; font-weight:600; letter-spacing:.5px; margin-bottom:1pt; padding-right:1mm; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 body{ background:#fff !important; color:#000 !important; margin:0!important; padding:0!important; min-height:0!important; height:auto!important; overflow:visible!important; }
 html{ margin:0!important; padding:0!important; min-height:0!important; height:auto!important; }
-nav,.tabs,.panel:not(#p_single),.toast,.no-print,
-.row,.field,
-.sig-ops .so-tabs,.sig-ops .so-box,.sig-ops .so-prev,canvas,input[type=file],
-.actions,.abn-row textarea,.mlegend,
-.sig-ops{ display:none !important; }
-
-.wrap{ max-width:none!important; margin:0!important; padding:0!important; }
-#p_single{ display:block!important; background:transparent!important; box-shadow:none!important; border:none!important; padding:0!important; }
-/* 表头与内容作为一个整体，禁止跨页断裂 */
+.app-nav,.toolbar,.tabs,.sumbar,.banner,.toast-host,.no-print,.combo-list,
+.sig-ops .so-meta,.sig-ops .so-prev,.sig-ops .so-title,canvas,input[type=file],
+.actions,.mlegend,.sig-ops{ display:none !important; }
+.page{ max-width:none!important; margin:0!important; padding:0!important; }
+.sheet{ background:transparent!important; padding:0!important; border-radius:0!important; }
 .dev-block{ display:block; page-break-inside:avoid; break-inside:avoid; }
 .dev-header{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; color:#000!important;
   font-family:"SimSun","宋体","Microsoft YaHei",serif!important; margin-top:0!important; padding:2pt 6pt!important; }
@@ -112,374 +161,257 @@ nav,.tabs,.panel:not(#p_single),.toast,.no-print,
 .dev-header .dh-code{ display:none!important; }
 .dh-meta{ border-top:1.5px solid #000!important; border-bottom:1.5px solid #000!important; font-size:8pt!important; padding:1pt 0!important; margin-top:2pt!important; line-height:1.25!important; }
 .dh-meta b{ border-bottom:1px solid #000!important; color:#000!important; }
-.dh-meta .no-input{ border-bottom:1px solid #000!important; color:#000!important; }
-
-/* 表格区 */
 .grid-wrap{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; break-inside:avoid; color:#000!important;
   font-family:"SimSun","宋体","Microsoft YaHei",serif!important; margin-top:2pt!important; display:block; overflow:visible!important; }
 .mtable{ min-width:0!important; font-size:6.5pt!important; width:100%!important; height:auto!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
 .mtable th,.mtable td{ border:1px solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
 .mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:6pt; }
-/* td height 强制行高（tr height 在 Chrome 打印中不可靠） */
 .mtable tbody td{ vertical-align:middle!important; height:18pt; box-sizing:border-box; }
 .mtable .c-sn{ width:14pt!important; font-size:6pt; }
 .mtable .c-content{ width:210pt!important; font-size:6pt!important; line-height:1.1!important; white-space:nowrap!important; overflow:hidden!important; }
 .mtable .c-freq{ width:20pt!important; font-size:5.5pt!important; }
 .mtable .c-day{ width:15pt!important; font-size:6pt; }
-
-/* ===== 签名行：彻底解决外溢 ===== */
-/* 关键修复：.mtable .sigrow（有空格）= .sigrow 是 .mtable 的后代元素；原写法 .mtable.sigrow（无空格）意为同一元素同时有两类，但 HTML 中 .mtable 在 <table>、.sigrow 在 <tr>，是不同元素，导致打印态约束全部不生效、回退到屏幕态 28px×100px 绝对定位 */
 .mtable .sigrow{ margin-top:0!important; }
 .mtable .sigrow td{ height:22pt!important; padding:0!important; overflow:hidden!important; }
-/* 签名格子：flex 居中 + overflow:hidden 双保险 */
 .mtable .sigrow .sigcell{ padding:0!important; text-align:center!important; vertical-align:middle!important; line-height:0!important; overflow:hidden!important; }
-/* 签名图：强制 inline-block + 固定 pt 宽高 + object-fit:contain */
 .mtable .sigrow .sigthumb{
-  display:inline-block!important;
-  position:static!important; top:auto!important; left:auto!important; transform:none!important;
+  display:inline-block!important; position:static!important; top:auto!important; left:auto!important; transform:none!important;
   margin:0 auto!important; padding:0!important; vertical-align:middle!important;
   width:10pt!important; height:13pt!important; max-width:10pt!important; max-height:13pt!important;
   object-fit:contain!important; object-position:center center!important;
-  border:0!important; outline:0!important; background:transparent!important;
-}
+  border:0!important; outline:0!important; background:transparent!important; }
 .mtable .sigrow .sph{ display:none!important; }
 .mcell{ font-size:7pt!important; }
-.mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; } .mcell.holiday{ color:#000!important; } .mcell-monthly{ text-align:center!important; } .mtable .c-content-monthly{ text-align:center !important; }
+.mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; }
+.mcell.holiday{ color:#000!important; } .mcell-monthly{ text-align:center!important; }
+.mtable .c-content-monthly{ text-align:center !important; }
 .sig-ops{ display:none !important; }
 .sig-line{ display:none !important; }
-.abn-row{ display:none !important; }
-  .actions{ display:none !important; }
-  /* 异常区块：屏幕编辑区隐藏，打印只读区显示 */
-  #abn_zone{ display:none !important; }
-  #abn_print{ display:block !important; }
-  .abn-section{ border:1.5px solid #000!important; border-radius:0!important; margin-top:4pt!important; padding:3pt 5pt!important; page-break-inside:avoid; break-inside:avoid; font-family:"SimSun","宋体",serif!important; color:#000!important; background:transparent!important; }
-  .abn-section .abn-h{ font-size:9.5pt!important; font-weight:800!important; margin-bottom:2pt!important; color:#000!important; }
-  .abn-table{ font-size:6.5pt!important; width:100%!important; border-collapse:collapse!important; }
-  .abn-table th,.abn-table td{ border:1px solid #000!important; color:#000!important; padding:.6pt 2pt!important; vertical-align:top!important; text-align:left!important; }
-  .abn-table th{ background:#eee!important; }
-  .abn-table .ac{ font-size:6pt!important; }
-  .abn-empty{ color:#000!important; font-size:7pt!important; }
-  .note-line{ margin-top:3pt!important; font-size:6.5pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
+#abn_zone{ display:none !important; }
+#abn_print{ display:block !important; }
+.abn-section{ border:1.5px solid #000!important; border-radius:0!important; margin-top:4pt!important; padding:3pt 5pt!important;
+  page-break-inside:avoid; break-inside:avoid; font-family:"SimSun","宋体",serif!important; color:#000!important; background:transparent!important; }
+.abn-section .abn-h{ font-size:9.5pt!important; font-weight:800!important; margin-bottom:2pt!important; color:#000!important; }
+.abn-table{ font-size:6.5pt!important; width:100%!important; border-collapse:collapse!important; }
+.abn-table th,.abn-table td{ border:1px solid #000!important; color:#000!important; padding:.6pt 2pt!important; vertical-align:top!important; text-align:left!important; }
+.abn-table th{ background:#eee!important; }
+.abn-table .ac{ font-size:6pt!important; }
+.abn-empty{ color:#000!important; font-size:7pt!important; }
+.note-line{ margin-top:3pt!important; font-size:6.5pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
+.sigdel{ display:none !important; }
+.wk-hint,.del-hint,.mlegend{ display:none !important; }
 }
-.muted.tiny{ font-size:11px; color:#888; }
 </style>
 </head>
 <body>
-<nav class="nav">
-  <div class="brand">⚡ 设备点检中心</div>
+
+<nav class="app-nav" data-nav>
+  <div class="brand"><span class="brand-text">设备点检系统</span></div>
   <div class="sp"></div>
-  <a href="/">设备大屏</a>
-  <a href="/inspect" class="active">点检作业</a>
-  <a href="/admin" id="nav_admin" style="display:none">管理后台</a>
-  <span data-appver style="color:rgba(234,241,251,.45);font-size:11px;white-space:nowrap"></span>
-  <a href="/logout">退出</a>
+  <span class="ver" data-appver></span>
+  <button class="nav-toggle" aria-label="展开菜单" aria-expanded="false">☰</button>
+  <div class="links"></div>
 </nav>
 
-<div class="wrap">
-  <div class="tabs">
-    <button class="active" data-t="batch" id="tab_batch" style="display:none">⚡ 每日点检（全部设备）</button>
-    <button data-t="single" id="tab_single">🔧 单台点检（月度）</button>
+<div class="page">
+
+  <!-- ================= 工具条 ================= -->
+  <div class="toolbar" id="tb">
+    <div class="field" style="max-width:200px">
+      <label for="f_room">房间</label>
+      <select id="f_room"></select>
+    </div>
+    <div class="field combo" style="min-width:260px;flex:1">
+      <label for="f_dev">设备（输入编号 / 名称筛选，↑↓ 选择，Enter 确认）</label>
+      <input type="text" id="f_dev" class="input combo-input" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="devlist" placeholder="🔍 输入编号或名称…">
+      <div class="combo-list" id="devlist" role="listbox" hidden></div>
+    </div>
+    <div class="field" style="max-width:170px">
+      <label for="f_month">月份</label>
+      <input type="month" id="f_month">
+    </div>
+    <div class="sep"></div>
+    <a class="btn btn-sm btn-ghost" id="go_env">🌡 温湿度表</a>
+    <a class="btn btn-sm btn-ghost" id="go_all">🖨 批量打印</a>
   </div>
 
-  <!-- 一键点检（仅管理员可见：普通用户隐藏，见下方角色判断 IIFE） -->
-  <div class="panel active glass" id="p_batch" style="display:none">
-    <h3 style="margin-bottom:6px">一键点检 · 全部设备（当日）</h3>
-    <p class="muted tiny">默认将全部设备标记为「正常」并一次性签名；如需标记异常，请在下方列表勾选并填写说明。</p>
-    <div class="row mt">
-      <div class="field"><label>点检日期</label><input type="date" id="b_date"></div>
-      <div class="field"><label>签名人</label><select id="b_signer"></select></div>
-      <div class="field"><label>签名密码</label><input type="password" id="b_pw" placeholder="签名人密码"></div>
-    </div>
-    <div class="flex mb">
-      <button class="btn primary" id="b_go">⚡ 一键点检所有设备（当日）</button>
-      <span class="muted tiny" id="b_stat"></span>
-    </div>
-    <div class="scroll glass" style="max-height:420px">
-      <table><thead><tr><th style="width:90px">编号</th><th>设备</th><th style="width:90px">型号</th><th style="width:90px">标记异常</th><th>异常说明</th></tr></thead>
-        <tbody id="b_list"></tbody></table>
+  <div id="alert"></div>
+
+  <!-- ================= 一键点检（仅管理员） ================= -->
+  <div class="panel" id="p_batch" hidden>
+    <div class="panel-head"><h2>⚡ 一键点检 · 全部设备（当日）</h2><span class="sp"></span>
+      <span class="sm muted">默认全部标记「正常」并一次性签名；需标记异常请在下方勾选并填写说明</span></div>
+    <div class="panel-pad">
+      <div class="row">
+        <div class="field" style="max-width:180px"><label>点检日期</label><input type="date" id="b_date"></div>
+        <div class="field" style="max-width:200px"><label>签名人</label><select id="b_signer"></select></div>
+        <div class="field" style="max-width:200px" id="b_pw_box"><label>签名密码</label><input type="password" id="b_pw" placeholder="签名人密码"></div>
+      </div>
+      <div class="flex mt-3 mb-3">
+        <button class="btn btn-primary" id="b_go">⚡ 一键点检所有设备（当日）</button>
+        <span class="sm muted" id="b_stat"></span>
+      </div>
+      <div class="table-wrap batch-list">
+        <table class="tbl"><thead><tr><th style="width:90px">编号</th><th>设备</th><th style="width:100px">型号</th>
+          <th style="width:88px">标记异常</th><th>异常说明</th></tr></thead><tbody id="b_list"></tbody></table>
+      </div>
     </div>
   </div>
 
-  <!-- 单台点检（月度） -->
-  <div class="panel glass" id="p_single">
-    <div class="row">
-      <div class="field" style="max-width:210px"><label>房间</label><select id="s_room"></select></div>
-      <div class="field" style="flex:2"><label>选择设备（编号 / 名称搜索）</label>
-        <input type="text" id="s_search" placeholder="输入编号或名称筛选…" list="devlist">
-        <datalist id="devlist"></datalist></div>
-      <div class="field" style="max-width:200px"><label>月份</label><input type="month" id="s_month"></div>
-    </div>
-    <div class="flex mb" style="gap:8px">
-      <a class="btn sm ghost no-print" id="go_env" href="/env" title="跳到本房间的温湿度监测记录（DEMO-QR-008）">🌡 本房间温湿度表 →</a>
-      <a class="btn sm ghost no-print" id="go_all" href="/print-all" title="批量打印本房间全部设备的月度点检表">🖨 批量打印本房间 →</a>
-    </div>
-    <div id="s_body" class="mt"><p class="muted">请选择设备后加载本月点检表。</p></div>
+  <!-- ================= 单台点检 ================= -->
+  <div class="sumbar" id="sumbar" hidden>
+    <span class="i"><i>设备</i><b id="sm_dev">—</b></span>
+    <span class="i"><i>已签名</i><b id="sm_sig" style="color:var(--ok)">0</b><i>天</i></span>
+    <span class="i"><i>异常</i><b id="sm_ng" style="color:var(--ng)">0</b><i>项</i></span>
+    <span class="sp" style="flex:1"></span>
+    <span class="banner warn dirty" id="dirty" style="margin:0;padding:5px 12px">
+      <span>● 有未保存的修改</span><span class="sp"></span>
+      <button class="btn btn-sm btn-primary" id="dirty_save">立即保存</button>
+    </span>
   </div>
+
+  <div id="s_body">
+    <div class="panel"><div class="empty"><span class="ico">🔧</span>
+      <div class="t">请选择设备</div>
+      <div class="d">在上方输入设备编号或名称，从列表中选择后加载本月点检表</div></div></div>
+  </div>
+
 </div>
 
-<div class="toast" id="toast"></div>
-
-
 <script>
-const $=s=>document.querySelector(s);
-const api=(p,opt)=>fetch(p,opt).then(r=>r.json());
-function toast(m,t){const e=$('#toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(()=>e.className='toast',2600);}
-function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const { $, $$, esc, api, toast, mountNav, localToday, thisMonth, daysInMonth, debounce } = CORE;
 
-// 房间下拉选项：一律显示完整房间名；有分组的房间用 <optgroup> 归到组名之下。
-// 用 optgroup 而不是给选项加前缀，是因为下拉收起时只显示选项文本——选项写完整房间名，
-// 收起/展开都能看清是哪个房间，同时展开时仍能看出分组归属。
-function roomOpts(list,cur,allLabel){
-  const opt=r=>`<option value="${esc(r.name)}" ${r.name===cur?'selected':''}>${esc(r.name)}</option>`;
-  const groups=[]; const plain=[];
-  (list||[]).forEach(r=>{
-    const g=String(r.group||'').trim();
-    if(g){ let e=groups.find(x=>x.g===g); if(!e){ e={g:g,items:[]}; groups.push(e); } e.items.push(r); }
-    else plain.push(r);
-  });
-  let h=(allLabel!=null)?`<option value="" ${cur===''?'selected':''}>${esc(allLabel)}</option>`:'';
-  h+=groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('');
-  h+=plain.map(opt).join('');
-  return h;
+/* ================= 常量与状态 ================= */
+const DOW = ['日','一','二','三','四','五','六'];
+const ST = { ok:{mark:'√',cls:'ok',next:'ng'}, ng:{mark:'×',cls:'ng',next:'holiday'},
+             holiday:{mark:'/',cls:'holiday',next:'none'}, none:{mark:'',cls:'empty',next:'ok'} };
+
+let DEVICES=[], SIGNERS=[], ROOMS=[], CUR_ROOM='', ROOM_SCOPE=null;
+let CUR=null, CUR_MONTH=null, SIG_ASSETS={}, CAN_DELETE=false, SIGN_NO_PW=false;
+let STATE={ items:[], dailyItems:[], monthlyItems:[], matrix:{}, monthlyStatus:{}, abnormal:[],
+            abnormalSaved:[], days:{}, autoSlash:{}, touched:{} };
+let DIRTY=false;
+const MONTH_CACHE = new Map();   // 月 → /api/monthly 结果（切换设备不再重复请求）
+
+function setDirty(v){
+  DIRTY = v;
+  $('#dirty').classList.toggle('on', !!v);
 }
+function markDirty(){ setDirty(true); }
 
-const DOW=['日','一','二','三','四','五','六'];
-const ST={ ok:{mark:'√',cls:'ok',next:'ng'}, ng:{mark:'×',cls:'ng',next:'holiday'}, holiday:{mark:'/',cls:'holiday',next:'none'}, none:{mark:'',cls:'empty',next:'ok'} };
-const thisMonth=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
-// 用本地时间（非 UTC）计算今天，避免 GMT+8 上午时区偏差把"今天"算成昨天 → 误判为未来日期
-const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
-const dimOf=(yy,mm)=>new Date(+yy,+mm,0).getDate();
-
-let DEVICES=[],SIGNERS=[],CUR=null,CUR_MONTH=null,SIG_ASSETS={},STATE={items:[],dailyItems:[],monthlyItems:[],matrix:{},monthlyStatus:{},abnormal:[]};
-
-$('#b_date').value=localToday();
-$('#b_date').max=localToday();   // 禁止选择未来日期
-$('#s_month').value=thisMonth();
-
-// 角色控制：管理后台导航 + 「一键点检全部设备」，仅管理员显示（普通用户登录后两者都隐藏）
-(async()=>{try{
-  const me=await api('/api/admin/me');
-  if(me && me.ok && me.role==='admin'){
-    const a=document.getElementById('nav_admin'); if(a) a.style.display='';
-    const tb=document.getElementById('tab_batch'); if(tb) tb.style.display='';
-    const pb=document.getElementById('p_batch'); if(pb) pb.style.display='';
-  } else {
-    // 普通用户：隐藏一键点检全部设备，默认展示「单台点检」
-    const tb=document.getElementById('tab_batch'); if(tb) tb.classList.remove('active');
-    const ts=document.getElementById('tab_single'); if(ts) ts.classList.add('active');
-    const pb=document.getElementById('p_batch'); if(pb) pb.classList.remove('active');
-    const ps=document.getElementById('p_single'); if(ps) ps.classList.add('active');
+/* ================= 设备组合框 ================= */
+const combo = {
+  idx: -1, list: [],
+  open(){ const b=$('#devlist'); if(!b.hidden) return; b.hidden=false; $('#f_dev').setAttribute('aria-expanded','true'); },
+  close(){ const b=$('#devlist'); b.hidden=true; $('#f_dev').setAttribute('aria-expanded','false'); this.idx=-1; },
+  pool(){
+    return DEVICES.filter(d => CUR_ROOM ? (d.location===CUR_ROOM)
+                                        : (!ROOM_SCOPE || ROOM_SCOPE.has(String(d.location||'').trim())));
+  },
+  render(q){
+    const box = $('#devlist');
+    const kw = (q||'').trim().toLowerCase();
+    let list = this.pool();
+    if (kw) list = list.filter(d =>
+      String(d.no||'').toLowerCase().includes(kw) ||
+      String(d.name||'').toLowerCase().includes(kw) ||
+      String(d.model||'').toLowerCase().includes(kw));
+    if (list.length > 300) list = list.slice(0,300);
+    this.list = list;
+    if (!list.length) { box.innerHTML = '<div class="combo-empty">没有匹配的设备</div>'; return; }
+    box.innerHTML = list.map((d,i)=>
+      `<button type="button" class="combo-opt" role="option" data-i="${i}">
+         <span class="n">${esc(d.no)}</span><span>${esc(d.name)}</span>
+         <span class="m">${esc(d.model||'')}</span></button>`).join('');
+    $$('#devlist .combo-opt').forEach(b=>b.addEventListener('click',()=>{
+      pick(this.list[+b.dataset.i]);
+    }));
+  },
+  move(step){
+    const opts = $$('#devlist .combo-opt');
+    if(!opts.length) return;
+    this.idx = (this.idx + step + opts.length) % opts.length;
+    opts.forEach((o,i)=>o.classList.toggle('active', i===this.idx));
+    opts[this.idx].scrollIntoView({block:'nearest'});
   }
-}catch(e){}})();
-
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
-});
-
-// 收集当前点检表中所有「× 异常」项，生成/保留异常明细清单（屏幕编辑 + 打印只读两套 DOM）
-function syncAbnormalList(){
-  if(!CUR_MONTH) return;
-  const ng = new Map();
-  for(const dd in STATE.matrix){
-    const row = STATE.matrix[dd];
-    for(const sn in row){
-      if(row[sn]==='ng'){
-        const it = STATE.dailyItems.find(x=>String(x.sn)===String(sn));
-        ng.set(dd+'#'+sn, { key:dd+'#'+sn, date:dd, sn:+sn, freq: it?it.frequency:'每日', content: it?it.content:'' });
-      }
-    }
-  }
-  for(const sn in STATE.monthlyStatus){
-    if(STATE.monthlyStatus[sn]==='ng'){
-      const it = STATE.monthlyItems.find(x=>String(x.sn)===String(sn));
-      ng.set('M#'+sn, { key:'M#'+sn, date:'', sn:+sn, freq:'每月', content: it?it.content:'' });
-    }
-  }
-  const kept=[];
-  ng.forEach((meta,key)=>{
-    const exist = STATE.abnormal.find(a=>a.key===key);
-    if(exist){ Object.assign(exist, meta); kept.push(exist); }
-    else { kept.push(Object.assign({ id:key, abnormal:'', handle:'', handler:'', handle_date:'' }, meta)); }
-  });
-  STATE.abnormal = kept;
-  renderAbnormal();
-}
-function renderAbnormal(){
-  // 屏幕编辑区：跟随 ng 状态（用于录入）；打印只读区：显示全部已保存明细（保证归档追溯完整）
-  const list = STATE.abnormal||[];
-  const saved = STATE.abnormalSaved && STATE.abnormalSaved.length ? STATE.abnormalSaved : list;
-  if(!list.length){
-    $('#abn_list').innerHTML = '<div class="abn-empty">本月暂无异常；在点检格点击切换为「×」后，此处自动列出需填写的异常项。</div>';
-  } else {
-    const head = '<table class="abn-table"><thead><tr><th class="c-date">日期</th><th class="c-sn">序号</th><th class="c-content">检查内容</th><th class="c-abn">异常情况</th><th class="c-handle">处理记录(措施)</th><th class="c-person">处理人</th><th class="c-hdate">处理日期</th></tr></thead><tbody>';
-    const bodyEdit = list.map(ab=>`<tr data-key="${ab.key}">
-     <td>${ab.freq==='每月'?'本月':esc(ab.date)}</td>
-     <td>${ab.sn}</td>
-     <td class="ac">${esc(ab.content)}</td>
-     <td><textarea class="abn-input" data-f="abnormal" data-key="${ab.key}" placeholder="异常情况描述">${esc(ab.abnormal||'')}</textarea></td>
-     <td><textarea class="abn-input" data-f="handle" data-key="${ab.key}" placeholder="处理记录/措施">${esc(ab.handle||'')}</textarea></td>
-     <td><input class="abn-input" data-f="handler" data-key="${ab.key}" value="${esc(ab.handler||'')}" placeholder="处理人"></td>
-     <td><input type="date" class="abn-input" data-f="handle_date" data-key="${ab.key}" value="${esc(ab.handle_date||'')}"></td>
-   </tr>`).join('');
-    $('#abn_list').innerHTML = head + bodyEdit + '</tbody></table>';
-  }
-  if(!saved.length){
-    $('#abn_print_list').innerHTML = '<div class="abn-empty">本月无异常情况记录。</div>';
-  } else {
-    const headP = '<table class="abn-table"><thead><tr><th class="c-date">日期</th><th class="c-sn">序号</th><th class="c-content">检查内容</th><th class="c-abn">异常情况</th><th class="c-handle">处理记录(措施)</th><th class="c-person">处理人</th><th class="c-hdate">处理日期</th></tr></thead><tbody>';
-    const bodyPrint = saved.map(ab=>`<tr>
-     <td>${ab.freq==='每月'?'本月':esc(ab.date)}</td>
-     <td>${ab.sn}</td>
-     <td class="ac">${esc(ab.content)}</td>
-     <td>${esc(ab.abnormal||'—')}</td>
-     <td>${esc(ab.handle||'—')}</td>
-     <td>${esc(ab.handler||'—')}</td>
-     <td>${esc(ab.handle_date||'—')}</td>
-   </tr>`).join('');
-    $('#abn_print_list').innerHTML = headP + bodyPrint + '</tbody></table>';
-  }
-}
-
-// 房间上下文：与温湿度表 / 大屏 / 批量打印共用同一个「当前房间」（?room= 或 sessionStorage）
-let ROOMS=[], CUR_ROOM='', ROOM_SCOPE=null;  // ROOM_SCOPE：本科室房间名集合（null = 不限，看全部）
-function syncRoomLinks(){
-  const q=encodeURIComponent(CUR_ROOM||'');
-  const a=$('#go_env'); if(a) a.href='/env?room='+q;
-  const b=$('#go_all'); if(b) b.href='/print-all?room='+q+'&month='+encodeURIComponent($('#s_month').value||thisMonth())+'&auto=1';
-  // 选了具体房间→限该房间；选「全部房间」→仍限于本科室可⻅房间（ROOM_SCOPE），避免越科室看到别人设备
-  const inRoom=d=>CUR_ROOM ? (d.location===CUR_ROOM)
-                            : (!ROOM_SCOPE || ROOM_SCOPE.has(String(d.location||'').trim()));
-  $('#devlist').innerHTML=DEVICES.filter(inRoom).map(d=>`<option value="${d.no}">${d.no} ${d.name}</option>`).join('');
-}
-async function initRooms(){
-  // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间
-  try{ if(window.DEPT) await DEPT.load(); }catch(e){}
-  let _all=[];
-  try{ _all=await api('/api/rooms'); }catch(e){ _all=[]; }
-  ROOMS=(window.DEPT ? DEPT.filterRooms(_all) : _all);
-  ROOM_SCOPE=(window.DEPT && !DEPT.canSeeAll()) ? new Set(ROOMS.map(r=>r.name)) : null;
-  const qs=new URLSearchParams(location.search);
-  const rp=qs.get('room'); let sr='';
-  try{ sr=sessionStorage.getItem('selected_room')||''; }catch(e){}
-  if(rp&&ROOMS.some(r=>r.name===rp)) CUR_ROOM=rp;
-  else if(sr&&ROOMS.some(r=>r.name===sr)) CUR_ROOM=sr;
-  const sel=$('#s_room');
-  if(sel){
-    sel.innerHTML=roomOpts(ROOMS,CUR_ROOM,'全部房间');
-    sel.onchange=()=>{
-      CUR_ROOM=sel.value;
-      try{ sessionStorage.setItem('selected_room',CUR_ROOM); }catch(e){}
-      syncRoomLinks();
-      $('#s_search').value=''; $('#s_body').innerHTML='<p class="muted">请选择设备后加载本月点检表。</p>'; CUR=null;
-    };
-  }
-  syncRoomLinks();
-}
-
-async function init(){
-  // 异常明细输入委托：编辑区 textarea/input 实时写入 STATE.abnormal
-  $('#s_body').addEventListener('input', e=>{
-    const el=e.target.closest('.abn-input'); if(!el) return;
-    const item=STATE.abnormal.find(a=>a.key===el.dataset.key); if(!item) return;
-    item[el.dataset.f]=el.value;
-  });
-  DEVICES=await api('/api/devices');
-  SIGNERS=await api('/api/signers/public');
-  const so=$('#b_signer');so.innerHTML=SIGNERS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-  renderBatch();
-  await initRooms();
-  // 支持从大屏 / 链接直接定位到某台设备的单台点检（?device=编号 或 ?dev=ID）
-  const qs=new URLSearchParams(location.search);
-  const devParam=qs.get('device')||qs.get('dev');
-  const monthParam=qs.get('month');
-  if(devParam){
-    const singleBtn=document.querySelector('.tabs button[data-t="single"]');
-    if(singleBtn) singleBtn.click();
-    $('#s_search').value=devParam;
-    if(monthParam) $('#s_month').value=monthParam;
-    await loadMonth();
-  }
-}
-function renderBatch(){
-  $('#b_list').innerHTML=DEVICES.map(d=>`<tr>
-    <td>${d.no}</td><td>${d.name}</td><td>${d.model||''}</td>
-    <td style="text-align:center"><input type="checkbox" class="abn" data-id="${d.id}"></td>
-    <td><input type="text" class="abn_note" data-id="${d.id}" placeholder="异常说明"></td></tr>`).join('');
-}
-$('#b_go').onclick=async()=>{
-  const sid=$('#b_signer').value,pw=$('#b_pw').value,date=$('#b_date').value;
-  if(!sid||!pw){toast('请选择签名人并输入密码','err');return;}
-  if(!date){toast('请选择点检日期','err');return;}
-  const today=localToday();
-  if(date>today){toast('不能点检未来日期','err');return;}
-  const devices=[];
-  document.querySelectorAll('.abn').forEach(c=>{if(c.checked){const id=c.dataset.id;
-    const note=document.querySelector('.abn_note[data-id="'+id+'"]').value;
-    devices.push({device_id:id,abnormal:true,note});}});
-  $('#b_go').disabled=true;
-  const r=await api('/api/inspect/batch',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({date,signer_id:sid,password:pw,devices})});
-  $('#b_go').disabled=false;
-  if(r.error){toast(r.error,'err');return;}
-  $('#b_stat').textContent=`已点检 ${r.signed} 台（异常 ${devices.length} 台）· 签名人：${r.signer}`;
-  toast(`一键点检完成：${r.signed} 台`,'ok');
 };
+function pick(d){
+  if(!d) return;
+  combo.close();
+  $('#f_dev').value = d.no + ' · ' + d.name;
+  CUR = d;
+  loadMonth();
+}
 
-// ===== 单台点检（月度模板表） =====
-$('#s_search').addEventListener('change',()=>loadMonth());
-$('#s_search').addEventListener('input',()=>{if($('#s_search').value.length>1)loadMonth();});
-$('#s_month').addEventListener('change',()=>{ if(CUR) loadMonth(); });
+/* ================= 数据加载 ================= */
+async function fetchMonth(month, force){
+  if (!force && MONTH_CACHE.has(month)) return MONTH_CACHE.get(month);
+  const data = await api('/api/monthly?month=' + encodeURIComponent(month));
+  if (!data.__error) MONTH_CACHE.set(month, data);
+  return data;
+}
 
 async function loadMonth(){
-  const q=$('#s_search').value.trim();
-  const pool=DEVICES.filter(d=>CUR_ROOM ? (d.location===CUR_ROOM)
-                                        : (!ROOM_SCOPE || ROOM_SCOPE.has(String(d.location||'').trim())));   // 只在本房间（或本科室）内匹配
-  const dev=pool.find(d=>String(d.no)===q)
-    ||pool.find(d=>String(d.id)===q)
-    ||pool.find(d=>(d.name||'')===q)
-    ||pool.find(d=>d.name&&d.name.includes(q));
-  if(!dev){$('#s_body').innerHTML='<p class="muted">请选择设备</p>';CUR=null;return;}
-  CUR=dev;
-  const month=$('#s_month').value||thisMonth();
-  CUR_MONTH=month;
-  const mon=await api('/api/monthly?month='+encodeURIComponent(month)).catch(()=>({devices:[]}));
-  SIG_ASSETS=mon.sig_assets||{};
-  const dmon=(mon.devices||[]).find(d=>d.id===dev.id)||{items:[],days:{}};
-  renderMonth(dev, month, dmon);
+  if(!CUR) return;
+  const month = $('#f_month').value || thisMonth();
+  CUR_MONTH = month;
+  if (STATE._mk !== CUR.id + '|' + month) { STATE.touched = {}; STATE._mk = CUR.id + '|' + month; }
+
+  $('#sumbar').hidden = false;
+  $('#sm_dev').textContent = CUR.no + ' ' + (CUR.name||'');
+  $('#s_body').innerHTML = '<div class="panel"><div class="empty"><div class="t">加载中…</div></div></div>';
+
+  const mon = await fetchMonth(month);
+  if (mon.__error) {
+    $('#s_body').innerHTML = `<div class="panel"><div class="empty"><span class="ico">⚠️</span>
+      <div class="t">加载点检表失败</div><div class="d">${esc(mon.__error)}</div>
+      <div class="mt-4"><button class="btn btn-primary" id="retry">重试</button></div></div></div>`;
+    $('#retry').onclick = () => { MONTH_CACHE.delete(month); loadMonth(); };
+    return;
+  }
+  SIG_ASSETS = mon.sig_assets || {};
+  const dmon = (mon.devices||[]).find(d=>d.id===CUR.id) || { items:[], days:{} };
+  renderMonth(CUR, month, dmon);
+  setDirty(false);
 }
 
+/* ================= 渲染月度表 ================= */
 function renderMonth(dev, month, dmon){
-  const [yy,mm]=month.split('-');
-  const dim=dimOf(yy,mm);
-  const today=localToday();
-  const items=(dmon.items&&dmon.items.length)?dmon.items:[];
-  const days=dmon.days||{};
-  // 表头（表单编号 / 中文标题 / 英文标题）取自后台「点检模板」配置，未配置时回退公司通用表头
-  const formHead=[dmon.form_code||'DEMO-QR-001', dmon.form_rev||'Rev.A1'].join(' ');
-  const tblTitle=dmon.title||'设备维护保养记录';
-  const tblTitleEn=dmon.title_en||'Maintenance Record of Equipment';
+  const [yy,mm] = month.split('-');
+  const dim = daysInMonth(yy,mm);
+  const today = localToday();
+  const items = (dmon.items && dmon.items.length) ? dmon.items : [];
+  const days = dmon.days || {};
+  const formHead = [dmon.form_code||'PK-JC-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
+  const tblTitle = dmon.title || '设备维护保养记录';
+  const tblTitleEn = dmon.title_en || 'Maintenance Record of Equipment';
 
-  const dailyItems=items.filter(it=>it.frequency!=='每月');
-  const monthlyItems=items.filter(it=>it.frequency==='每月');
+  const dailyItems = items.filter(it=>it.frequency!=='每月');
+  const monthlyItems = items.filter(it=>it.frequency==='每月');
   STATE.items=items; STATE.dailyItems=dailyItems; STATE.monthlyItems=monthlyItems;
-  STATE.matrix={}; STATE.monthlyStatus={};
-  STATE.abnormal=(dmon.abnormal||[]).map(a=>Object.assign({key: a.freq==='每月'?'M#'+a.sn:a.date+'#'+a.sn}, a));
-  STATE.abnormalSaved = STATE.abnormal.map(a=>({...a}));
-  for(let day=1;day<=dim;day++){
-    const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
-    const cell=days[dd];
-    const row={};
-    dailyItems.forEach(it=>{ row[it.sn]= cell? (cell.bySn&&cell.bySn[it.sn]?cell.bySn[it.sn]:'ok') : 'none'; });
+  STATE.days=days; STATE.matrix={}; STATE.monthlyStatus={}; STATE.autoSlash={};
+  STATE.touched=STATE.touched||{};
+  STATE.abnormal=(dmon.abnormal||[]).map(a=>Object.assign({key:a.freq==='每月'?'M#'+a.sn:a.date+'#'+a.sn}, a));
+  STATE.abnormalSaved=STATE.abnormal.map(a=>Object.assign({},a));
+
+  const isWeekly = dailyItems.length>0 && dailyItems.every(it=>String(it.frequency||'').indexOf('周')>=0);
+  STATE.isWeekly = isWeekly;
+  for(let day=1; day<=dim; day++){
+    const dd = `${yy}-${mm}-${CORE.p2(day)}`;
+    const cell = days[dd]; const row = {};
+    dailyItems.forEach(it=>{ row[it.sn] = cell ? (cell.bySn&&cell.bySn[it.sn] ? cell.bySn[it.sn] : 'ok') : 'none'; });
+    if(isWeekly && !cell && !STATE.touched[dd] && dd<=today && new Date(+yy,+mm-1,day).getDay()!==1){
+      dailyItems.forEach(it=>{ row[it.sn]='holiday'; });
+      STATE.autoSlash[dd]=true;
+    }
     STATE.matrix[dd]=row;
   }
   monthlyItems.forEach(it=>{
     let status='none';
-    for(let day=1;day<=dim;day++){
-      const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
-      const cell=days[dd];
-      if(cell&&cell.bySn&&cell.bySn[it.sn]){
+    for(let day=1; day<=dim; day++){
+      const dd=`${yy}-${mm}-${CORE.p2(day)}`; const cell=days[dd];
+      if(cell && cell.bySn && cell.bySn[it.sn]){
         const s=cell.bySn[it.sn];
         if(s==='ng'){status='ng';break;}
         if(s==='ok'&&status==='none')status='ok';
@@ -488,198 +420,503 @@ function renderMonth(dev, month, dmon){
     STATE.monthlyStatus[it.sn]=status;
   });
 
-  // 打印用行高：A4 横版单页约束 —— 每台设备每月必须正好一页
-  // 可用高度 ≈ 561pt（A4 横 210mm − 上下边距 10mm）；固定开销（表头+表首+签名行+边框）≈ 100pt
-  // 剩余 ≈ 380pt 均分给全部内容行（最小 12pt，最大 28pt）
   const totalRowCount = Math.max(1, dailyItems.length + monthlyItems.length);
-  const dailyRowPt = Math.max(12, Math.min(28, Math.floor(380 / totalRowCount)));
-  const monthlyRowPt = Math.max(16, dailyRowPt + 4);
+  const dailyRowPt = Math.max(12, Math.min(28, Math.floor(380/totalRowCount)));
+  const monthlyRowPt = Math.max(16, dailyRowPt+4);
 
   let dayHeads='';
-  for(let day=1;day<=dim;day++){
-    const dow=DOW[new Date(+yy,+mm-1,day).getDay()];
-    dayHeads+=`<th class="c-day">${day}<span class="dow">${dow}</span></th>`;
+  for(let day=1; day<=dim; day++){
+    dayHeads += `<th class="c-day">${day}<span class="dow">${DOW[new Date(+yy,+mm-1,day).getDay()]}</span></th>`;
   }
   let rows='';
   if(!items.length){
-    rows=`<tr><td class="sn"></td><td class="c-content" colspan="2">该设备无点检项，请先在后台关联模板</td>${'<td></td>'.repeat(dim)}</tr>`;
+    rows = `<tr><td class="sn"></td><td class="c-content" colspan="2">该设备无点检项，请先在后台关联模板</td>${'<td></td>'.repeat(dim)}</tr>`;
   } else {
-      dailyItems.forEach(it=>{
+    dailyItems.forEach(it=>{
       let cells='';
-      for(let day=1;day<=dim;day++){
-        const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+      for(let day=1; day<=dim; day++){
+        const dd=`${yy}-${mm}-${CORE.p2(day)}`;
         const st=STATE.matrix[dd][it.sn]||'none'; const meta=ST[st];
         const isFuture = dd > today;
-        cells+=`<td class="mcell ${meta.cls}${isFuture?' future':''}" data-day="${dd}" data-sn="${it.sn}" data-st="${st}"${isFuture?' data-future="1"':''} title="${isFuture?'未来日期不可点检':'点击切换：√正常 / ×异常 / 节假日 / 空'}">${meta.mark}</td>`;
+        const auto = STATE.autoSlash[dd] ? ' data-auto="1"' : '';
+        const ttl = isFuture ? '未来日期不可点检'
+          : (STATE.autoSlash[dd] ? '周检设备非检查日（非周一）已自动划杠；点击可改为实际点检结果'
+                                 : '点击切换：√正常 / ×异常 / 节假日 / 空');
+        cells += `<td class="mcell ${meta.cls}${isFuture?' future':''}${STATE.autoSlash[dd]?' auto-slash':''}"
+          data-day="${dd}" data-sn="${it.sn}" data-st="${st}"${isFuture?' data-future="1"':''}${auto} title="${ttl}">${meta.mark}</td>`;
       }
-      rows+=`<tr style="height:18pt!important"><td class="sn">${it.sn}</td><td class="c-content">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td>${cells}</tr>`;
+      rows += `<tr style="height:${dailyRowPt}pt"><td class="sn">${it.sn}</td><td class="c-content">${esc(it.content)}</td>
+        <td class="c-freq">${esc(it.frequency)}</td>${cells}</tr>`;
     });
     monthlyItems.forEach(it=>{
       const st=STATE.monthlyStatus[it.sn]||'none'; const meta=ST[st];
       const mFuture = month > today.slice(0,7);
-      rows+=`<tr style="height:18pt!important"><td class="sn">${it.sn}</td><td class="c-content c-content-monthly">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td><td class="mcell mcell-monthly ${meta.cls}" data-sn="${it.sn}" data-monthly="1" data-st="${st}"${mFuture?' data-future="1"':''} colspan="${dim}" title="${mFuture?'未来月份不可点检':'每月只需点检一次：点击切换 √正常 / ×异常 / 空'}">${meta.mark}</td></tr>`;
+      rows += `<tr style="height:${monthlyRowPt}pt"><td class="sn">${it.sn}</td>
+        <td class="c-content c-content-monthly">${esc(it.content)}</td><td class="c-freq">${esc(it.frequency)}</td>
+        <td class="mcell mcell-monthly ${meta.cls}" data-sn="${it.sn}" data-monthly="1" data-st="${st}"${mFuture?' data-future="1"':''}
+        colspan="${dim}" title="${mFuture?'未来月份不可点检':'每月只需点检一次：点击切换 √正常 / ×异常 / 空'}">${meta.mark}</td></tr>`;
     });
   }
 
-  let sigStripCells='';
-  for(let day=1;day<=dim;day++){
-    const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
+  let sigCells='';
+  for(let day=1; day<=dim; day++){
+    const dd=`${yy}-${mm}-${CORE.p2(day)}`;
     const cell=days[dd];
     const simg=cell&&cell.signature_image?cell.signature_image:null;
     const asset=(cell&&cell.signer_id&&SIG_ASSETS[cell.signer_id])||{};
-    const sh=asset.h||simg, sv=asset.v||simg;   // 高窄格自动用竖版
-    sigStripCells+=`<td class="sigcell c-day" data-day="${dd}" title="${dd}｜点击用下方签名人电子签名到此日" onclick="onSigCellClick('${dd}')">${sh?`<img src="${sh}"${SIGFIT.attrs(sh,sv)} class="sigthumb" alt="签名">`:'<span class="sph">＋</span>'}</td>`;
+    const sh=asset.h||simg, sv=asset.v||simg;
+    const struck=dayStruck(dd);
+    const body = struck ? '<span class="sigslash">/</span>'
+      : (sh?`<img src="${sh}"${SIGFIT.attrs(sh,sv)} class="sigthumb" alt="签名">`:'<span class="sph">＋</span>');
+    const cls='sigcell c-day'+(struck?' struck':'');
+    const ttl= struck ? `${dd}｜非检查日 / 已划杠，无需签名` : `${dd}｜点击用下方签名人电子签名到此日`;
+    sigCells += `<td class="${cls}" data-day="${dd}" tabindex="0" role="button" title="${ttl}">${sigDelHTML(dd)}${body}</td>`;
   }
 
-  const so=SIGNERS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const so = SIGNERS.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
 
-  $('#s_body').innerHTML=`
-  <div class="print-code">${esc(formHead)}</div>
-  <div class="dev-block">
-  <div class="dev-header">
-    <div class="dh-code">${esc(formHead)}</div>
-    <div class="dh-title">${esc(tblTitle)}<span class="en">${esc(tblTitleEn)}</span></div>
-    <div class="dh-meta">
-      <span>年 <b>${yy}</b></span><span>月 <b>${mm}</b></span>
-      <span>设备名称 Name of Equipments：<b>${esc(dev.name)}</b></span>
-      <span>型号 Model：<b>${esc(dev.model)}</b></span>
-      <span>编号 No.：<b>${esc(dev.no)}</b></span>
+  $('#s_body').innerHTML = `
+  <div class="sheet">
+    <div class="print-code">${esc(formHead)}</div>
+    <div class="dev-block">
+      <div class="dev-header">
+        <div class="dh-code">${esc(formHead)}</div>
+        <div class="dh-title">${esc(tblTitle)}<span class="en">${esc(tblTitleEn)}</span></div>
+        <div class="dh-meta">
+          <span>年 <b>${yy}</b></span><span>月 <b>${mm}</b></span>
+          <span>设备名称 Name of Equipments：<b>${esc(dev.name)}</b></span>
+          <span>型号 Model：<b>${esc(dev.model)}</b></span>
+          <span>编号 No.：<b>${esc(dev.no)}</b></span>
+        </div>
+      </div>
+      <div class="grid-wrap">
+        <table class="mtable">
+          <thead><tr><th class="c-sn">序号<br>SN</th><th class="c-content">检查内容 Contents</th>
+            <th class="c-freq">频率<br>Freq</th>${dayHeads}</tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr class="sigrow"><td class="sn">签名</td>
+            <td class="c-content" colspan="2">维护人员<br>Signer</td>${sigCells}</tr></tfoot>
+        </table>
+      </div>
     </div>
-  </div>
+    ${isWeekly?`<div class="wk-hint">📅 本设备为<b>周检</b>（检查日固定为<b>周一</b>）：非检查日已自动划「/」，签名行同步杠掉，这些日期不写入数据；如需在非检查日补点检，直接点击该格改为 √/× 即可。</div>`:''}
+    ${CAN_DELETE?`<div class="del-hint">🗑 删除：签名格右上角的 <span class="sigdel-demo">✕</span> 删掉<b>该日</b>的点检内容与电子签名；下方「🗑 删除本月点检」清空<b>整月</b>。两项都不可恢复。</div>`:''}
+    <div class="mlegend">🖱 点击状态格切换：<b>√正常</b> → <b>×异常</b> → <b>/节假日</b> → <b>空</b> → √　|　底部选好<b>签名人+密码</b>后，点签名行任意「＋」即<b>电子签名到该日</b></div>
 
-  <div class="grid-wrap">
-    <table class="mtable">
-      <thead><tr><th class="c-sn">序号<br>SN</th><th class="c-content">检查内容 Contents</th><th class="c-freq">频率<br>Freq</th>${dayHeads}</tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr class="sigrow"><td class="sn">签名</td><td class="c-content" colspan="2">维护人员<br>Signer</td>${sigStripCells}</tr></tfoot>
-    </table>
-  </div>
-  </div>
-  <div class="mlegend" style="display:none">🖱 点击状态格切换：<b>√正常</b> → <b>×异常</b> → <b>/节假日</b> → <b>空</b> → √　|　底部选好<b>签名人+密码</b>后，点签名行任意「＋」即<b>电子签名到该日</b>（用该签名人电子签名）　|　「保存整月」可一次性补签/覆盖全部有状态的日期</div>
-
-  <div class="sig-ops">
-    <div class="so-title">🔐 本月签名 Signature（登记签名人 + 密码，电子签名由后台统一上传）</div>
-    <div class="so-meta">
-      <select id="s_signer">${so}</select>
-      <input type="password" id="s_pw" placeholder="签名人密码">
+    <div class="sig-ops">
+      <div class="so-title">🔐 本月签名 Signature（${SIGN_NO_PW?'已开启免密：选好签名人，点签名行的「＋」即签':'登记签名人 + 密码，电子签名由后台统一上传'}）</div>
+      <div class="so-meta">
+        <select id="s_signer">${so}</select>
+        <input type="password" id="s_pw" placeholder="签名人密码"${SIGN_NO_PW?' hidden':''}>
+        ${SIGN_NO_PW?'<span class="sm muted">免密已开启</span>':''}
+      </div>
+      <div class="so-prev" data-so="prev"></div>
+      <div class="sig-line">维护人员 Maintainer：<span id="s_sigprev"><span class="muted">未签名</span></span></div>
     </div>
-    <div class="so-prev" data-so="prev"></div>
-    <div class="sig-line">维护人员 Maintainer：
-      <span id="s_sigprev"><span class="muted">未签名</span></span>
+
+    <div class="abn-section" id="abn_zone">
+      <div class="abn-h">⚠ 异常情况及处理记录（点检中标记「×」的项将自动列出）</div>
+      <div id="abn_list"></div>
     </div>
-  </div>
+    <div class="abn-section print-only" id="abn_print">
+      <div class="abn-h">异常情况及处理记录</div>
+      <div id="abn_print_list"></div>
+    </div>
+    ${dmon.note?`<div class="note-line"><b>备注 Note：</b>${esc(dmon.note)}</div>`:''}
 
-  <div class="abn-section" id="abn_zone">
-    <div class="abn-h">⚠ 异常情况及处理记录（点检中标记「×」的项将自动列出）</div>
-    <div id="abn_list"></div>
-  </div>
-  <div class="abn-section print-only" id="abn_print">
-    <div class="abn-h">异常情况及处理记录</div>
-    <div id="abn_print_list"></div>
-  </div>
-  ${dmon.note?`<div class="note-line"><b>备注 Note：</b>${esc(dmon.note)}</div>`:''}
-
-  <div class="actions">
-    <button class="btn" id="s_save">💾 保存整月</button>
-    <button class="btn ghost" id="s_print">🖨 打印本月</button>
+    <div class="actions">
+      <button class="btn btn-primary" id="s_save">💾 保存整月</button>
+      <button class="btn btn-ghost" id="s_print">🖨 打印本月</button>
+      ${CAN_DELETE?`<button class="btn btn-danger" id="s_delmonth">🗑 删除本月点检</button>`:''}
+    </div>
   </div>`;
 
-  $('#s_body').querySelectorAll('.mcell').forEach(c=>c.onclick=onCellClick);
-  // 异常输入通过 #s_body 委托处理（见 init 绑定）
-  $('#s_signer').addEventListener('change',updateSigPreview);
-  $('#s_save').onclick=saveMonth;
-  $('#s_print').onclick=()=>window.print();
+  bindSheet();
   SIGFIT.fit($('#s_body'));
   syncAbnormalList();
   updateSigPreview();
+  updateSummary();
 }
 
-function onCellClick(e){
-  const c=e.currentTarget;
+function dayStruck(dd){
+  const row=STATE.matrix[dd]; if(!row) return false;
+  const items=STATE.dailyItems||[]; if(!items.length) return false;
+  return items.every(it=>(row[it.sn]||'none')==='holiday');
+}
+function sigDelHTML(dd){
+  if(!CAN_DELETE || !(STATE.days&&STATE.days[dd])) return '';
+  return `<span class="sigdel" data-delday="${dd}" role="button" tabindex="0"
+    title="删除 ${dd} 的点检内容与电子签名（不可恢复）">✕</span>`;
+}
+
+function bindSheet(){
+  $$('#s_body .mcell').forEach(c=>c.addEventListener('click',()=>onCellClick(c)));
+  $$('#s_body .sigcell').forEach(td=>{
+    if(td.classList.contains('struck')) return;
+    const dd = td.dataset.day;
+    td.addEventListener('click', ()=>onSigCellClick(dd));
+    td.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onSigCellClick(dd); } });
+  });
+  $$('#s_body .sigdel').forEach(el=>{
+    if (el.dataset.bound) return; el.dataset.bound = '1';
+    const dd = el.dataset.delday;
+    el.addEventListener('click', e=>{ e.stopPropagation(); deleteDay(dd); });
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); deleteDay(dd); } });
+  });
+  // 异常明细输入（事件委托）
+  $('#s_body').addEventListener('input', e=>{
+    const el = e.target.closest && e.target.closest('.abn-input'); if(!el) return;
+    const item = STATE.abnormal.find(a=>a.key===el.dataset.key); if(!item) return;
+    item[el.dataset.f] = el.value;
+    markDirty();
+  });
+  const ss=$('#s_signer'); if(ss) ss.addEventListener('change', updateSigPreview);
+  $('#s_save').onclick = saveMonth;
+  $('#s_print').onclick = ()=>window.print();
+  const dm=$('#s_delmonth'); if(dm) dm.onclick = deleteMonth;
+}
+
+function updateSummary(){
+  const sigN = Object.keys(STATE.days||{}).length;
+  let ngN = 0;
+  for(const dd in STATE.matrix){ const r=STATE.matrix[dd]; for(const sn in r) if(r[sn]==='ng') ngN++; }
+  for(const sn in STATE.monthlyStatus) if(STATE.monthlyStatus[sn]==='ng') ngN++;
+  const e1=$('#sm_sig'), e2=$('#sm_ng');
+  if(e1) e1.textContent = sigN;
+  if(e2) e2.textContent = ngN;
+}
+
+/* ================= 交互 ================= */
+function onCellClick(c){
   if(c.dataset.future){ toast('未来日期不可点检','err'); return; }
   const cur=c.dataset.st||'none'; const nxt=ST[cur].next;
-  c.dataset.st=nxt; c.className='mcell'+(c.dataset.monthly?' mcell-monthly':'')+' '+ST[nxt].cls; c.textContent=ST[nxt].mark;
+  c.dataset.st=nxt;
+  c.className='mcell'+(c.dataset.monthly?' mcell-monthly':'')+' '+ST[nxt].cls;
+  c.textContent=ST[nxt].mark;
   if(c.dataset.monthly){
-    const sn=+c.dataset.sn;
-    STATE.monthlyStatus[sn]=nxt;
+    STATE.monthlyStatus[+c.dataset.sn]=nxt;
   } else {
     const dd=c.dataset.day, sn=+c.dataset.sn;
-    if(!STATE.matrix[dd])STATE.matrix[dd]={};
+    if(!STATE.matrix[dd]) STATE.matrix[dd]={};
     STATE.matrix[dd][sn]=nxt;
+    STATE.touched[dd]=true;
+    delete STATE.autoSlash[dd];
+    c.dataset.auto=''; c.classList.remove('auto-slash');
+    refreshSigCell(dd);
   }
-  syncAbnormalList();
+  syncAbnormalList(); updateSummary(); markDirty();
 }
 
-// 点击签名格的「＋」：使用下方已选的签名人+密码，直接电子签名到该日（无需整月保存）
+function refreshSigCell(dd){
+  const td=document.querySelector('.sigcell[data-day="'+dd+'"]'); if(!td) return;
+  const cell=STATE.days?STATE.days[dd]:null;
+  const simg=cell&&cell.signature_image?cell.signature_image:null;
+  const asset=(cell&&cell.signer_id&&SIG_ASSETS[cell.signer_id])||{};
+  const sh=asset.h||simg, sv=asset.v||simg;
+  const struck=dayStruck(dd);
+  td.className='sigcell c-day'+(struck?' struck':'');
+  td.title=struck ? (dd+'｜非检查日 / 已划杠，无需签名') : (dd+'｜点击用下方签名人电子签名到此日');
+  td.innerHTML=sigDelHTML(dd)+(struck?'<span class="sigslash">/</span>'
+    :(sh?`<img src="${sh}"${SIGFIT.attrs(sh,sv)} class="sigthumb" alt="签名">`:'<span class="sph">＋</span>'));
+  // 重新绑定（innerHTML 重写后旧监听失效）
+  $$('#s_body .sigdel').forEach(el=>{
+    if(el.dataset.bound) return; el.dataset.bound='1';
+    const dd = el.dataset.delday;
+    el.addEventListener('click', e=>{ e.stopPropagation(); deleteDay(dd); });
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); deleteDay(dd); } });
+  });
+  if(!struck) td.onclick=()=>onSigCellClick(dd);
+  SIGFIT.fit(td);
+}
+
 async function onSigCellClick(day){
   if(!CUR){ toast('请先选择设备','err'); return; }
   if(day>localToday()){ toast('未来日期不能电子签名','err'); return; }
-  const sid=$('#s_signer').value, pw=$('#s_pw').value;
-  if(!sid||!pw){ toast('请先在下方选择签名人并输入密码','err'); return; }
-  const td=document.querySelector('.sigcell[data-day="'+day+'"]');
+  const sid=$('#s_signer').value, pw=$('#s_pw')?$('#s_pw').value:'';
+  if(!sid||(!SIGN_NO_PW&&!pw)){ toast(SIGN_NO_PW?'请先在下方选择签名人':'请先在下方选择签名人并输入密码','err'); return; }
   const r=await api('/api/inspect/day-sig',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({device_id:CUR.id,date:day,signer_id:sid,password:pw})});
-  if(r.error){ toast(r.error,'err'); return; }
+  if(r.__error||r.error){ toast(r.__error||r.error,'err'); return; }
   toast('已电子签名：'+day,'ok');
-  const s=SIGNERS.find(x=>x.id==sid);
-  if(td){
-    // 立即就地显示该日签名图（来自签名人预存电子签名），无需整页重渲
-    if(s){ const sh=s.signature_image||s.signature_image_v||'', sv=s.signature_image_v||sh;
-      td.innerHTML='<img src="'+sh+'"'+SIGFIT.attrs(sh,sv)+' class="sigthumb" alt="签名">'; SIGFIT.fit(td); }
-    else { td.innerHTML=''; }
-  }
-  // 同步该日每日状态格：原本为空的置为 √（保留用户已点选的 ×/节假日）
+  const s=SIGNERS.find(x=>String(x.id)===String(sid));
+  STATE.touched[day]=true; delete STATE.autoSlash[day];
+  if(!STATE.days) STATE.days={};
+  const prev=STATE.days[day]||{};
+  STATE.days[day]=Object.assign({},prev,{
+    signature_image:(s&&(s.signature_image||s.signature_image_v))||prev.signature_image||null,
+    signer_id:sid, bySn:Object.assign({},prev.bySn||{})
+  });
   if(STATE.matrix[day]){
-    document.querySelectorAll('.mcell[data-day="'+day+'"]').forEach(c=>{
+    STATE.dailyItems.forEach(it=>{ if((STATE.matrix[day][it.sn]||'none')==='none') STATE.matrix[day][it.sn]='ok'; });
+    $$('#s_body .mcell[data-day="'+day+'"]').forEach(c=>{
       if(c.dataset.monthly) return;
-      if((c.dataset.st||'none')==='none'){
-        c.dataset.st='ok'; c.className='mcell ok'; c.textContent='√';
-        STATE.matrix[day][+c.dataset.sn]='ok';
-      }
+      if((c.dataset.st||'none')==='none'){ c.dataset.st='ok'; c.className='mcell ok'; c.textContent='√'; }
     });
   }
-  updateSigPreview();
+  refreshSigCell(day); syncAbnormalList(); updateSummary(); updateSigPreview();
+  MONTH_CACHE.delete(CUR_MONTH);   // 服务端已变更，清掉缓存
 }
 
+async function deleteDay(day){
+  if(!CAN_DELETE){ toast('权限不足：删除点检记录需要「批量点检操作」权限','err'); return; }
+  if(!CUR) return;
+  if(!confirm(`确认删除「${CUR.no} ${CUR.name}」${day} 的点检内容与电子签名？\n此操作不可恢复。`)) return;
+  const r=await api('/api/inspect/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({device_id:CUR.id,dates:[day]})});
+  if(r.__error||r.error){ toast(r.__error||r.error,'err'); return; }
+  if(!r.deleted){ toast(`${day} 本来就没有点检记录`,'err'); return; }
+  toast(`已删除 ${day} 的点检记录与签名`,'ok');
+  MONTH_CACHE.delete(CUR_MONTH);
+  await loadMonth();
+}
+
+async function deleteMonth(){
+  if(!CAN_DELETE){ toast('权限不足：删除点检记录需要「批量点检操作」权限','err'); return; }
+  if(!CUR||!CUR_MONTH) return;
+  const n=Object.keys(STATE.days||{}).length;
+  if(!n){ toast(`${CUR_MONTH} 没有可删除的点检记录`,'err'); return; }
+  if(!confirm(`⚠️ 将永久删除「${CUR.no} ${CUR.name}」${CUR_MONTH} 整月全部点检记录（${n} 天）\n包含点检结果与电子签名，不可恢复！\n\n确定继续？`)) return;
+  const r=await api('/api/inspect/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({device_id:CUR.id,month:CUR_MONTH})});
+  if(r.__error||r.error){ toast(r.__error||r.error,'err'); return; }
+  toast(`已删除 ${CUR_MONTH} 整月点检：${r.deleted} 条${r.abn_deleted?`（含异常明细 ${r.abn_deleted} 条）`:''}`,'ok');
+  STATE.touched={};
+  MONTH_CACHE.delete(CUR_MONTH);
+  await loadMonth();
+}
+
+/* ================= 异常明细 ================= */
+function syncAbnormalList(){
+  if(!CUR_MONTH) return;
+  const ng=new Map();
+  for(const dd in STATE.matrix){
+    const row=STATE.matrix[dd];
+    for(const sn in row){
+      if(row[sn]==='ng'){
+        const it=STATE.dailyItems.find(x=>String(x.sn)===String(sn));
+        ng.set(dd+'#'+sn,{key:dd+'#'+sn,date:dd,sn:+sn,freq:it?it.frequency:'每日',content:it?it.content:''});
+      }
+    }
+  }
+  for(const sn in STATE.monthlyStatus){
+    if(STATE.monthlyStatus[sn]==='ng'){
+      const it=STATE.monthlyItems.find(x=>String(x.sn)===String(sn));
+      ng.set('M#'+sn,{key:'M#'+sn,date:'',sn:+sn,freq:'每月',content:it?it.content:''});
+    }
+  }
+  const kept=[];
+  ng.forEach((meta,key)=>{
+    const exist=STATE.abnormal.find(a=>a.key===key);
+    if(exist){ Object.assign(exist,meta); kept.push(exist); }
+    else kept.push(Object.assign({id:key,abnormal:'',handle:'',handler:'',handle_date:''},meta));
+  });
+  STATE.abnormal=kept;
+  renderAbnormal();
+}
+function renderAbnormal(){
+  const list=STATE.abnormal||[];
+  const saved=(STATE.abnormalSaved&&STATE.abnormalSaved.length)?STATE.abnormalSaved:list;
+  const head='<table class="abn-table"><thead><tr><th class="c-date">日期</th><th class="c-sn">序号</th><th>检查内容</th><th class="c-abn">异常情况</th><th class="c-handle">处理记录(措施)</th><th class="c-person">处理人</th><th class="c-hdate">处理日期</th></tr></thead><tbody>';
+  const e1=$('#abn_list'), e2=$('#abn_print_list'); if(!e1||!e2) return;
+  e1.innerHTML = list.length ? head + list.map(ab=>`<tr data-key="${esc(ab.key)}">
+      <td>${ab.freq==='每月'?'本月':esc(ab.date)}</td><td>${ab.sn}</td><td class="ac">${esc(ab.content)}</td>
+      <td><textarea class="abn-input" data-f="abnormal" data-key="${esc(ab.key)}" placeholder="异常情况描述">${esc(ab.abnormal||'')}</textarea></td>
+      <td><textarea class="abn-input" data-f="handle" data-key="${esc(ab.key)}" placeholder="处理记录/措施">${esc(ab.handle||'')}</textarea></td>
+      <td><input class="abn-input" data-f="handler" data-key="${esc(ab.key)}" value="${esc(ab.handler||'')}" placeholder="处理人"></td>
+      <td><input type="date" class="abn-input" data-f="handle_date" data-key="${esc(ab.key)}" value="${esc(ab.handle_date||'')}"></td>
+    </tr>`).join('') + '</tbody></table>'
+    : '<div class="abn-empty">本月暂无异常；在点检格点击切换为「×」后，此处自动列出需填写的异常项。</div>';
+  e2.innerHTML = saved.length ? head + saved.map(ab=>`<tr>
+      <td>${ab.freq==='每月'?'本月':esc(ab.date)}</td><td>${ab.sn}</td><td class="ac">${esc(ab.content)}</td>
+      <td>${esc(ab.abnormal||'—')}</td><td>${esc(ab.handle||'—')}</td>
+      <td>${esc(ab.handler||'—')}</td><td>${esc(ab.handle_date||'—')}</td>
+    </tr>`).join('') + '</tbody></table>'
+    : '<div class="abn-empty">本月无异常情况记录。</div>';
+}
+
+/* ================= 签名 ================= */
 async function updateSigPreview(){
-  const el=document.querySelector('#s_sigprev'); if(!el)return;
-  const sid=$('#s_signer').value; const s=SIGNERS.find(x=>x.id==sid);
+  const el=$('#s_sigprev'); if(!el) return;
+  const sid=$('#s_signer')?$('#s_signer').value:'';
+  const s=SIGNERS.find(x=>String(x.id)===String(sid));
   if(!s){ el.innerHTML='<span class="muted">未选择</span>'; return; }
   el.innerHTML=`<b>${esc(s.name)}</b> <span class="muted">（登记签名人）</span>`;
-  try{ const r=await api('/api/signers/'+sid+'/sig'); if(r.image) el.innerHTML=`<img src="${r.image}" style="height:38px;vertical-align:middle;border:1px solid #ddd;border-radius:4px;background:#fff;padding:2px 4px"> <b>${esc(s.name)}</b>`; }catch(e){}
-}
-
-async function getMonthSig(){
-  const sid=$('#s_signer').value, pw=$('#s_pw').value;
-  if(!sid||!pw){toast('请选择登记签名人并输入密码','err');return null;}
-  return {signer_id:sid, password:pw};
+  const r=await api('/api/signers/'+sid+'/sig');
+  if(r && r.image) el.innerHTML=`<img src="${r.image}" style="height:38px;vertical-align:middle;border:1px solid #ddd;border-radius:4px;background:#fff;padding:2px 4px"> <b>${esc(s.name)}</b>`;
 }
 
 async function saveMonth(){
-  if(!CUR)return;
+  if(!CUR) return;
   syncAbnormalList();
-  const sig=await getMonthSig(); if(!sig)return;
-  const days={};
-  const today=localToday();
+  const sid=$('#s_signer').value, pw=$('#s_pw')?$('#s_pw').value:'';
+  if(!sid||(!SIGN_NO_PW&&!pw)){ toast(SIGN_NO_PW?'请选择登记签名人':'请选择登记签名人并输入密码','err'); return; }
+  const days={}; const today=localToday();
   for(const dd in STATE.matrix){
-    if(dd>today) continue;   // 跳过未来日期，不保存
+    if(dd>today) continue;
+    if(STATE.autoSlash[dd] && !STATE.touched[dd]) continue;
     const row=STATE.matrix[dd]; let any=false; const bySn={};
-    STATE.dailyItems.forEach(it=>{ const st=row[it.sn]||'none'; if(st!=='none'){ bySn[it.sn]=st; any=true; } });
-    STATE.monthlyItems.forEach(it=>{ const st=STATE.monthlyStatus[it.sn]||'none'; if(st!=='none'){ bySn[it.sn]=st; any=true; } });
+    STATE.dailyItems.forEach(it=>{ const st=row[it.sn]||'none'; if(st!=='none'){bySn[it.sn]=st;any=true;} });
+    STATE.monthlyItems.forEach(it=>{ const st=STATE.monthlyStatus[it.sn]||'none'; if(st!=='none'){bySn[it.sn]=st;any=true;} });
     if(any) days[dd]={bySn};
   }
-  const payload=Object.assign({device_id:CUR.id, month:CUR_MONTH, days, abnormal: STATE.abnormal}, sig);
-  const r=await api('/api/inspect/month',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if(r.error){toast(r.error,'err');return;}
+  const btn=$('#s_save'); btn.disabled=true; btn.textContent='保存中…';
+  const r=await api('/api/inspect/month',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({device_id:CUR.id,month:CUR_MONTH,days,abnormal:STATE.abnormal,signer_id:sid,password:pw})});
+  btn.disabled=false; btn.textContent='💾 保存整月';
+  if(r.__error||r.error){ toast(r.__error||r.error,'err'); return; }
   toast(`已保存整月：${r.created} 新建 / ${r.updated} 更新`,'ok');
-  loadMonth();
+  MONTH_CACHE.delete(CUR_MONTH);
+  await loadMonth();
 }
 
+/* ================= 一键点检 ================= */
+function renderBatch(){
+  $('#b_list').innerHTML = DEVICES.map(d=>`<tr>
+    <td>${esc(d.no)}</td><td>${esc(d.name)}</td><td>${esc(d.model||'')}</td>
+    <td style="text-align:center"><input type="checkbox" class="abn" data-id="${esc(d.id)}" aria-label="标记 ${esc(d.no)} 异常"></td>
+    <td><input type="text" class="abn_note" data-id="${esc(d.id)}" placeholder="异常说明"></td></tr>`).join('');
+}
+$('#b_go').onclick = async ()=>{
+  const sid=$('#b_signer').value, pw=$('#b_pw')?$('#b_pw').value:'', date=$('#b_date').value;
+  if(!sid||(!SIGN_NO_PW&&!pw)){ toast(SIGN_NO_PW?'请选择签名人':'请选择签名人并输入密码','err'); return; }
+  if(!date){ toast('请选择点检日期','err'); return; }
+  if(date>localToday()){ toast('不能点检未来日期','err'); return; }
+  const devices=[];
+  $$('#b_list .abn').forEach(c=>{
+    if(!c.checked) return;
+    const n=$('#b_list .abn_note[data-id="'+c.dataset.id+'"]');
+    devices.push({device_id:c.dataset.id, abnormal:true, note: n?n.value:''});
+  });
+  $('#b_go').disabled=true;
+  const r=await api('/api/inspect/batch',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({date,signer_id:sid,password:pw,devices})});
+  $('#b_go').disabled=false;
+  if(r.__error||r.error){ toast(r.__error||r.error,'err'); return; }
+  $('#b_stat').textContent=`已点检 ${r.signed} 台（异常 ${devices.length} 台）· 签名人：${r.signer}`;
+  toast(`一键点检完成：${r.signed} 台`,'ok');
+  MONTH_CACHE.clear();
+};
 
+/* ================= 初始化 ================= */
+function syncRoomLinks(){
+  const q=encodeURIComponent(CUR_ROOM||'');
+  $('#go_env').href='/env?room='+q;
+  $('#go_all').href='/print-all?room='+q+'&month='+encodeURIComponent($('#f_month').value||thisMonth())+'&auto=1';
+}
+function roomOpts(list, cur, allLabel){
+  const opt=r=>`<option value="${esc(r.name)}"${r.name===cur?' selected':''}>${esc(r.name)}</option>`;
+  const groups=[], plain=[];
+  (list||[]).forEach(r=>{
+    const g=String(r.group||'').trim();
+    if(g){ let e=groups.find(x=>x.g===g); if(!e){e={g:g,items:[]};groups.push(e);} e.items.push(r); }
+    else plain.push(r);
+  });
+  return (allLabel!=null?`<option value=""${cur===''?' selected':''}>${esc(allLabel)}</option>`:'')
+    + groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('')
+    + plain.map(opt).join('');
+}
+
+async function init(){
+  // 登录信息 / 导航
+  let me={ok:false};
+  try{ me=await CORE.me(); }catch(e){}
+  mountNav({ me });
+  // 权限判定必须与 server.js PERM_DEFS 一致：inspect_batch 默认 0（关闭）。
+  // 注意 me.perms 为 null（从未配置过的老账号）或对象里缺该 key 时，都按默认 0 处理。
+  CAN_DELETE = !!(me && me.ok && (me.role==='admin'
+    || (me.perms && Object.prototype.hasOwnProperty.call(me.perms,'inspect_batch') && !!me.perms.inspect_batch)));
+  if(me && me.ok && me.role==='admin') $('#p_batch').hidden=false;
+
+  $('#b_date').value = localToday();
+  $('#b_date').max   = localToday();
+  $('#f_month').value = thisMonth();
+
+  DEVICES = await api('/api/devices'); if(!Array.isArray(DEVICES)) DEVICES=[];
+  SIGNERS = await api('/api/signers/public'); if(!Array.isArray(SIGNERS)) SIGNERS=[];
+  const st = await api('/api/settings'); SIGN_NO_PW = !!(st && st.signNoPw);
+  $('#b_pw_box').hidden = SIGN_NO_PW;
+  $('#b_signer').innerHTML = SIGNERS.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  renderBatch();
+
+  // 房间
+  if(window.DEPT){ try{ await DEPT.load(); }catch(e){} }
+  let all=[]; try{ all=await api('/api/rooms'); }catch(e){ all=[]; }
+  ROOMS = (window.DEPT?DEPT.filterRooms(all):all) || [];
+  ROOM_SCOPE = (window.DEPT && !DEPT.canSeeAll()) ? new Set(ROOMS.map(r=>r.name)) : null;
+  const qs=new URLSearchParams(location.search);
+  const rp=qs.get('room');
+  if(rp && ROOMS.some(r=>r.name===rp)) CUR_ROOM=rp;
+  else if(ROOMS.some(r=>r.name===CORE.session.room)) CUR_ROOM=CORE.session.room;
+  $('#f_room').innerHTML = roomOpts(ROOMS, CUR_ROOM, '全部房间');
+  $('#f_room').onchange = ()=>{
+    CUR_ROOM = $('#f_room').value;
+    CORE.session.room = CUR_ROOM;
+    syncRoomLinks();
+    $('#f_dev').value=''; CUR=null;
+    $('#sumbar').hidden=true;
+    $('#s_body').innerHTML='<div class="panel"><div class="empty"><div class="t">请选择设备</div></div></div>';
+  };
+  syncRoomLinks();
+
+  // 组合框交互
+  const inp=$('#f_dev');
+  inp.addEventListener('focus', ()=>{ combo.render(''); combo.open(); });
+  inp.addEventListener('input', debounce(()=>{ combo.render(inp.value); combo.open(); }, 160));
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='ArrowDown'){ e.preventDefault(); combo.open(); combo.move(1); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); combo.move(-1); }
+    else if(e.key==='Enter'){
+      e.preventDefault();
+      if(combo.idx>=0 && combo.list[combo.idx]) pick(combo.list[combo.idx]);
+      else { const first=combo.pool(); if(first.length===1) pick(first[0]); }
+    }
+    else if(e.key==='Escape'){ combo.close(); inp.blur(); }
+  });
+  document.addEventListener('click', e=>{
+    const t = e.target;
+    if (t && t.closest && t.closest('.combo')) return;
+    combo.close();
+  });
+
+  $('#f_month').addEventListener('change', ()=>{ if(CUR) loadMonth(); });
+  $('#dirty_save').onclick = saveMonth;
+
+  // 未保存离开拦截
+  window.addEventListener('beforeunload', e=>{
+    if(!DIRTY) return;
+    e.preventDefault(); e.returnValue='';
+  });
+
+  // 支持从大屏直接定位（?device=编号 / ?dev=ID）
+  const devParam=qs.get('device')||qs.get('dev'), monthParam=qs.get('month');
+  if(monthParam) $('#f_month').value=monthParam;
+  if(devParam){
+    const pool=DEVICES.filter(d=>CUR_ROOM?(d.location===CUR_ROOM):(!ROOM_SCOPE||ROOM_SCOPE.has(String(d.location||'').trim())));
+    // 精确编号/ID 视为深链接（大屏卡片就是按编号跳的），不受当前房间筛选影响，
+    // 否则会话房间停在冲击室时，点显微镜的编号链接会变成「未找到设备」；
+    // 模糊匹配（整名/片段）仍只在当前房间内找，避免越房间乱跳。
+    const d = DEVICES.find(x=>String(x.no)===devParam) || DEVICES.find(x=>String(x.id)===devParam)
+           || pool.find(x=>(x.name||'')===devParam) || pool.find(x=>x.name&&x.name.includes(devParam));
+    if(d){
+      try{
+        // v1.24.0：一台设备可以「既有自己的点检模板、又参与独立检查项目」（冲击机 = 设备点检 + 摩擦风阻）。
+        // 只有**没有**自身点检模板（如旧显微镜模板已清理）的设备才把旧点检页让给检查表页；
+        // 否则设备卡会被劫持到专项表，它自己的点检表就再也进不去了。
+        const [prgs,tpls]=await Promise.all([api('/api/programs'),api('/api/templates')]);
+        const mine=(Array.isArray(tpls)?tpls:[]).some(t=>t&&t.id===d.template_id);
+        const hit=mine?null:(Array.isArray(prgs)?prgs:[]).find(p=>(p.devices||[]).some(x=>String(x.no)===String(d.no)));
+        if(hit){
+          // 该设备没有自身点检表、只归属「独立检查项目」→ 旧点检页停用，直达检查表页
+          location.replace('/check.html?program='+encodeURIComponent(hit.id)+'&device='+encodeURIComponent(d.no)+(monthParam?'&ym='+encodeURIComponent(monthParam):''));
+          return;
+        }
+      }catch(e){}
+      pick(d);
+    }
+    else toast('未找到设备：'+devParam,'err');
+  }
+}
 init();
-
-// 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
-fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
 </script>
 </body>
 </html>

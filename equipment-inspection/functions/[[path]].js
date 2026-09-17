@@ -1,7 +1,9 @@
 // Cloudflare Pages Functions —— 设备点检巡检系统后端
 // 单文件 catch-all 路由，所有 /api/* 请求在此处理。
-// 移植自本地最新版 server.js（v1.0.0 / 2026-09-09：声明式路由表 + 房间管理 + 版本接口 +
-// 数据备份 + CSV 导出 + 单台明细 + 多用户角色权限 + 后台用户管理）。
+// 移植自本地最新版 server.js（v1.7.0 / 2026-09-15：声明式路由表 + 科室管理 + 房间温湿度配置 +
+// 温湿度点检（按房间+年月）一键填充/批量删除/CSV 导出 + LIMS 数据源抓取 + 整月按科室随机分派签名 +
+// 模板高级编辑（改表头/整体替换检查项/复制/删除/导入）+ 数据备份 + CSV 导出 + 单台明细 +
+// 多用户角色权限 + 后台用户管理）。
 // 数据存于 KV 命名空间 INSPECTION_DATA（绑定名见 wrangler.toml），单键 STORE 存整个 store 对象。
 // 签名去重：每条巡检记录【不】内嵌 signature_image（避免 2424 份重复导致 STORE 膨胀到 41MB），
 // 读取时由 signerSignature() 按 signer_id 从签名人记录注入签名图，前端零改动。
@@ -29,6 +31,24 @@ async function hmac(key, msg) {
 async function buildToken(user, secret) { return user + '.' + await hmac(secret, user); }
 function uuid() {
   try { return crypto.randomUUID(); } catch { return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2); }
+}
+
+// 单张签名图上限（base64 字符数）。超限一律「拒绝并报错」，绝不静默截断 —— 被截断的 base64 是坏数据。
+const SIG_IMG_MAX = 2000000;   // ≈1.5MB 图片，够放下高清手写/扫描签名
+// 落记录快照时用：横版优先，没有横版才退回竖版（老数据）
+function pickSigImage(s) {
+  if (!s) return null;
+  return s.signature_image || s.signature_image_v || null;
+}
+function normSigDir(v) { return v === 'v' ? 'v' : (v === 'h' ? 'h' : 'auto'); }
+function sigImageNorm(v) {
+  if (v == null || v === '') return { value: null };
+  if (typeof v !== 'string' || !/^data:image\//.test(v)) return { value: null };
+  if (v.length > SIG_IMG_MAX) {
+    return { error: '电子签名图过大（约 ' + Math.round(v.length / 1024) +
+      'KB，上限 ' + Math.round(SIG_IMG_MAX / 1024) + 'KB）。请把图片裁小/压缩后再上传' };
+  }
+  return { value: v };
 }
 
 // 用户名允许中文/英文/数字及常用符号（2-32 位）。
@@ -62,7 +82,7 @@ function adminCookie(token) {
 
 // ---------- 数据存储（KV 单键 STORE） ----------
 function defaultStore() {
-  return { admin: null, devices: [], templates: [], signers: [], inspections: [], abnormalRecords: [], rooms: [], users: [], pepper: '', secret: '' };
+  return { admin: null, devices: [], templates: [], signers: [], inspections: [], abnormalRecords: [], rooms: [], users: [], depts: [], envRecords: [], pepper: '', secret: '' };
 }
 async function loadStore(env) {
   const v = await env.INSPECTION_DATA.get(KV_KEY);
@@ -290,33 +310,55 @@ async function handleDeleteUser(ctx) {
 // ---------- 签名人员 ----------
 async function handlePublicSigners(ctx) {
   const list = ctx.kvget('signers', []);
-  return json(list.filter(s => s.active).map(s => ({ id: s.id, name: s.name, signature_image: s.signature_image || null })));
+  return json(list.filter(s => s.active).map(s => ({ id: s.id, name: s.name,
+    signature_image: s.signature_image || null, signature_image_v: s.signature_image_v || null,
+    sig_dir: normSigDir(s.sig_dir) })));
 }
 async function handleListSigners(ctx) {
   const list = ctx.kvget('signers', []);
-  return json(list.map(s => ({ id: s.id, name: s.name, active: !!s.active, has_sig: !!s.signature_image })));
+  return json(list.map(s => ({ id: s.id, name: s.name, active: !!s.active, dept: s.dept || '',
+    has_sig: !!s.signature_image, has_sig_v: !!s.signature_image_v, sig_dir: normSigDir(s.sig_dir),
+    chars: (s.sig_chars || []).length })));
 }
 async function handleCreateSigner(ctx) {
   const b = ctx.body;
   if (!b.name || !b.password) return json({ error: '姓名与密码必填' }, 400);
+  const him = sigImageNorm(b.signature_image);
+  if (him.error) return json({ error: him.error }, 413);
+  const vim = sigImageNorm(b.signature_image_v);
+  if (vim.error) return json({ error: vim.error }, 413);
   const list = ctx.kvget('signers', []);
   list.push({ id: uuid(), name: b.name, active: true, password_hash: await sha256(b.password + ctx.store.pepper),
-    signature_image: b.signature_image || null });
+    dept: String(b.dept || '').trim(),
+    signature_image: him.value, signature_image_v: vim.value,
+    sig_chars: Array.isArray(b.sig_chars) ? b.sig_chars.map(x => sigImageNorm(x).value || '').slice(0, 12) : [],
+    sig_dir: normSigDir(b.sig_dir) });
   ctx.kvset('signers', list);
   return json({ ok: true });
 }
 async function handleGetSignerSignature(ctx) {
   const s = (ctx.kvget('signers', [])).find(x => x.id === ctx.params.id);
-  return json({ image: s ? (s.signature_image || null) : null });
+  if (!s) return json({ image: null, image_h: null, image_v: null, chars: [], dir: 'h' });
+  return json({ image: pickSigImage(s), image_h: s.signature_image || null, image_v: s.signature_image_v || null,
+    chars: s.sig_chars || [], dir: normSigDir(s.sig_dir) });
 }
 async function handleUpdateSigner(ctx) {
   const b = ctx.body;
   const list = ctx.kvget('signers', []);
   const s = list.find(x => x.id === ctx.params.id);
   if (!s) return json({ error: '签名人不存在' }, 404);
+  const him = ('signature_image' in b) ? sigImageNorm(b.signature_image) : {};
+  if (him.error) return json({ error: him.error }, 413);
+  const vim = ('signature_image_v' in b) ? sigImageNorm(b.signature_image_v) : {};
+  if (vim.error) return json({ error: vim.error }, 413);
+  if (typeof b.name === 'string' && b.name.trim()) s.name = b.name.trim().slice(0, 40);
   if (typeof b.active === 'boolean') s.active = b.active;
+  if ('dept' in b) s.dept = String(b.dept || '').trim();
   if (b.password) s.password_hash = await sha256(b.password + ctx.store.pepper);
-  if ('signature_image' in b) s.signature_image = b.signature_image || null;
+  if ('signature_image' in b) s.signature_image = him.value;
+  if ('signature_image_v' in b) s.signature_image_v = vim.value;
+  if ('sig_chars' in b && Array.isArray(b.sig_chars)) s.sig_chars = b.sig_chars.map(x => sigImageNorm(x).value || '').slice(0, 12);
+  if ('sig_dir' in b) s.sig_dir = normSigDir(b.sig_dir);
   ctx.kvset('signers', list);
   return json({ ok: true });
 }
@@ -548,17 +590,44 @@ async function handleAdminInspectMonth(ctx) {
   if (endErr) return json({ error: endErr }, 400);
   let devices = ctx.kvget('devices', []);
   if (b.device_id) devices = devices.filter(d => d.id === b.device_id);
-  let created = 0, updated = 0;
+  else if (b.room) devices = devices.filter(d => (d.location || '') === b.room);
+  if (!devices.length) {
+    return json({ error: b.device_id ? '找不到该设备' : (b.room ? ('房间「' + b.room + '」下没有设备') : '没有可点检的设备') }, 400);
+  }
+  // 按科室随机分派（可选）：设备所在房间 → 房间归属科室 → 该科室「启用且有签名图」的签名人池，
+  // 每天每房间随机选一人签名；房间未设科室 / 科室下无可用签名人时，回退为授权人（fallback 计数返回前端提示）。
+  const randomDept = !!b.random_dept;
+  const days = monthDays(month, endDay);
+  const roomAssign = {};
+  if (randomDept) {
+    const roomDept = {};
+    ctx.kvget('rooms', []).forEach(r => { roomDept[r.name] = r.dept || ''; });
+    const signers = ctx.kvget('signers', []);
+    for (const room of [...new Set(devices.map(d => String(d.location || '').trim()))]) {
+      const dept = roomDept[room] || '';
+      const pool = dept ? signers.filter(s => s.active !== false && s.dept === dept && pickSigImage(s)) : [];
+      const byDay = {};
+      if (pool.length) for (const dd of days) byDay[dd] = pool[Math.floor(Math.random() * pool.length)];
+      roomAssign[room] = { dept, pool, byDay };
+    }
+  }
+  let created = 0, updated = 0, fallback = 0;
   for (const d of devices) {
     const items = await deviceItems(ctx.store, d);
     const bySn = buildBySn(items, 'ok');
-    for (const dd of monthDays(month, endDay)) {
+    const ra = randomDept ? roomAssign[String(d.location || '').trim()] : null;
+    for (const dd of days) {
+      const who = (ra && ra.byDay[dd]) || signer;
+      if (!(ra && ra.byDay[dd])) fallback++;
       const r = await upsertInspection(ctx, { device_id: d.id, inspect_date: dd },
-        { status: 'ok', signed_by: signer.name, signer_id: signer.id, abnormal_note: '', bySn, signed_at: randMorningTime(dd) });
+        { status: 'ok', signed_by: who.name, signer_id: who.id, abnormal_note: '', bySn, signed_at: randMorningTime(dd) });
       if (r === 'created') created++; else updated++;
     }
   }
-  return json({ devices: devices.length, days: endDay, signer: signer.name, created, updated });
+  const assignments = randomDept ? Object.entries(roomAssign).map(([room, v]) => ({
+    room, dept: v.dept, people: [...new Set(v.pool.map(s => s.name))], covered: Object.keys(v.byDay).length })) : null;
+  return json({ devices: devices.length, days: endDay, signer: signer.name, created, updated, room: b.room || '',
+    random: randomDept, fallback, assignments });
 }
 async function handleAdminCancelInspectMonth(ctx) {
   const b = ctx.body;
@@ -655,14 +724,17 @@ async function handleDeviceDetail(ctx) {
 
 // ===================== 系统版本 =====================
 async function handleVersion(ctx) {
-  return json({ version: APP_VERSION, date: APP_VERSION_DATE });
+  return json({ version: APP_VERSION, date: APP_VERSION_DATE, readonly: true, demo: true });
 }
 
 // ===================== 房间管理 =====================
 async function handleListRooms(ctx) {
   const rooms = ctx.kvget('rooms', []);
   const c = roomCounts(ctx.store);
-  return json(rooms.map(r => ({ name: r.name, desc: r.desc || '', count: c[r.name] || 0 })));
+  return json(rooms.map(r => ({ name: r.name, desc: r.desc || '', count: c[r.name] || 0,
+    group: r.group || '', dept: r.dept || '',
+    thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '',
+    thermo_requirement: r.thermo_requirement || '' })));
 }
 async function handleCreateRoom(ctx) {
   const b = ctx.body;
@@ -671,7 +743,7 @@ async function handleCreateRoom(ctx) {
   if (name.length > 40) return json({ error: '房间名称不能超过 40 字' }, 400);
   const rooms = ctx.kvget('rooms', []);
   if (rooms.some(r => r.name === name)) return json({ error: '房间「' + name + '」已存在' }, 400);
-  rooms.push({ name, desc: String(b.desc || '').trim() });
+  rooms.push({ name, desc: String(b.desc || '').trim(), group: String(b.group || '').trim(), dept: String(b.dept || '').trim() });
   ctx.kvset('rooms', rooms);
   return json({ ok: true });
 }
@@ -686,6 +758,11 @@ async function handleUpdateRoom(ctx) {
   if (newName.length > 40) return json({ error: '房间名称不能超过 40 字' }, 400);
   if (newName !== oldName && rooms.some(x => x.name === newName)) return json({ error: '房间「' + newName + '」已存在' }, 400);
   if (b.desc != null) r.desc = String(b.desc).trim();
+  if (b.group != null) r.group = String(b.group).trim();
+  if (b.dept != null) r.dept = String(b.dept).trim();
+  if (b.thermo_apparatus != null) r.thermo_apparatus = String(b.thermo_apparatus);
+  if (b.thermo_equipment != null) r.thermo_equipment = String(b.thermo_equipment);
+  if (b.thermo_requirement != null) r.thermo_requirement = String(b.thermo_requirement);
   r.name = newName;
   if (newName !== oldName) {
     const devs = ctx.kvget('devices', []);
@@ -706,6 +783,628 @@ async function handleDeleteRoom(ctx) {
   rooms.splice(i, 1);
   ctx.kvset('rooms', rooms);
   return json({ ok: true });
+}
+
+// ===================== 科室管理 =====================
+async function handleListDepts(ctx) {
+  return json({ depts: ctx.kvget('depts', []) });
+}
+async function handleCreateDept(ctx) {
+  const name = String(ctx.body.name || '').trim();
+  if (!name) return json({ error: '科室名称必填' }, 400);
+  if (name.length > 20) return json({ error: '科室名称不能超过 20 字' }, 400);
+  const depts = ctx.kvget('depts', []);
+  if (depts.includes(name)) return json({ error: '科室「' + name + '」已存在' });
+  depts.push(name);
+  ctx.kvset('depts', depts);
+  return json({ ok: true });
+}
+async function handleDeleteDept(ctx) {
+  const name = decodeURIComponent(ctx.params.name);
+  const depts = ctx.kvget('depts', []);
+  if (!depts.includes(name)) return json({ error: '科室不存在' }, 404);
+  const roomCnt = ctx.kvget('rooms', []).filter(r => (r.dept || '') === name).length;
+  const userCnt = ctx.kvget('users', []).filter(u => (u.dept || '') === name).length;
+  if (roomCnt || userCnt) return json({ error: '该科室仍被 ' + roomCnt + ' 个房间 / ' + userCnt + ' 个用户引用，请先改派后再删除' });
+  ctx.kvset('depts', depts.filter(d => d !== name));
+  return json({ ok: true });
+}
+
+// ===================== 模板高级编辑 =====================
+async function handleUpdateTemplate(ctx) {
+  const b = ctx.body || {};
+  const tpls = ctx.kvget('templates', []);
+  const t = tpls.find(x => x.id === ctx.params.id);
+  if (!t) return json({ error: '模板不存在' }, 404);
+  if (b.key !== undefined) {
+    const nk = String(b.key).trim();
+    if (!nk) return json({ error: '模板标识 key 不能为空' });
+    if (tpls.some(x => x.id !== t.id && String(x.key).trim() === nk)) return json({ error: `模板标识「${nk}」已被其它模板占用` }, 409);
+    t.key = nk;
+  }
+  if (b.equip_name !== undefined) {
+    const en = String(b.equip_name).trim();
+    if (!en) return json({ error: '设备名称不能为空' });
+    t.equip_name = en;
+  }
+  ['model', 'note', 'form_code', 'form_rev', 'title', 'title_en', 'source_file'].forEach(f => {
+    if (b[f] !== undefined) t[f] = String(b[f]).trim();
+  });
+  ctx.kvset('templates', tpls);
+  return json({ ok: true, template: t });
+}
+async function handleSaveTemplateItems(ctx) {
+  const b = ctx.body || {};
+  const raw = Array.isArray(b.items) ? b.items : [];
+  const tpls = ctx.kvget('templates', []);
+  const t = tpls.find(x => x.id === ctx.params.id);
+  if (!t) return json({ error: '模板不存在' }, 404);
+  const items = []; const map = {};
+  for (const it of raw) {
+    const content = ((it && it.content) || '').toString().trim();
+    if (!content) continue;
+    const frequency = ((it && it.frequency) || '').toString().trim();
+    const newSn = items.length + 1;
+    const rawSn = it && it.sn;
+    const oldSn = (rawSn === undefined || rawSn === null || rawSn === '') ? null : Number(rawSn);
+    if (oldSn !== null && !Number.isNaN(oldSn)) map[oldSn] = newSn;
+    items.push({ sn: newSn, content, frequency });
+  }
+  if (!items.length) return json({ error: '至少保留一条检查项' });
+  const devIds = new Set(ctx.kvget('devices', []).filter(d => d.template_id === t.id).map(d => d.id));
+  t.items = items;
+  ctx.kvset('templates', tpls);
+  let migrated = 0, dropped = 0;
+  if (devIds.size) {
+    const insp = ctx.kvget('inspections', []);
+    for (const r of insp) {
+      if (!devIds.has(r.device_id) || !r.bySn) continue;
+      const nb = {}; let ch = false;
+      for (const k in map) {
+        const v = r.bySn[k];
+        if (v !== undefined && v !== 'none' && v !== '') { nb[map[k]] = v; if (map[k] !== Number(k)) ch = true; }
+      }
+      for (const k in r.bySn) { if (!(k in map)) { ch = true; dropped++; } }
+      if (ch) { r.bySn = nb; migrated++; }
+    }
+    if (migrated) ctx.kvset('inspections', insp);
+  }
+  return json({ ok: true, count: items.length, migrated, dropped, devices: devIds.size });
+}
+async function handleDuplicateTemplate(ctx) {
+  const b = ctx.body || {};
+  const tpls = ctx.kvget('templates', []);
+  const t = tpls.find(x => x.id === ctx.params.id);
+  if (!t) return json({ error: '模板不存在' }, 404);
+  let key = (b.key ? String(b.key) : (String(t.key) + '-副本')).trim();
+  if (tpls.some(x => String(x.key).trim() === key)) key = key + '-' + Date.now().toString().slice(-4);
+  const nt = JSON.parse(JSON.stringify(t));
+  nt.id = uuid();
+  nt.key = key;
+  if (b.equip_name !== undefined && String(b.equip_name).trim()) nt.equip_name = String(b.equip_name).trim();
+  delete nt.use_count;
+  tpls.push(nt); ctx.kvset('templates', tpls);
+  return json({ ok: true, template: nt });
+}
+async function handleDeleteTemplate(ctx) {
+  const tpls = ctx.kvget('templates', []);
+  const t = tpls.find(x => x.id === ctx.params.id);
+  if (!t) return json({ error: '模板不存在' }, 404);
+  const used = ctx.kvget('devices', []).filter(d => d.template_id === t.id).length;
+  if (used) return json({ error: `该模板仍被 ${used} 台设备使用，请先给这些设备换模板` }, 409);
+  ctx.kvset('templates', tpls.filter(x => x.id !== t.id));
+  return json({ ok: true });
+}
+async function handleImportTemplate(ctx) {
+  const b = ctx.body;
+  if (!b.key || !b.equip_name) return json({ error: '模板标识与设备名称必填' });
+  const items = Array.isArray(b.items) ? b.items : [];
+  const parsed = [];
+  for (const it of items) {
+    const content = ((it && it.content) || '').toString().trim();
+    if (!content) continue;
+    parsed.push({ content, frequency: ((it && it.frequency) || '').toString().trim() });
+  }
+  if (parsed.length === 0) return json({ error: '未解析到任何检查项，请检查上传内容' });
+  const tpls = ctx.kvget('templates', []);
+  const exist = tpls.find(x => x.key === b.key);
+  if (exist && !b.overwrite) return json({ error: `模板标识「${b.key}」已存在，如需覆盖其检查项请勾选"覆盖"` }, 409);
+  const buildItems = () => parsed.map((p, i) => ({ sn: i + 1, content: p.content, frequency: p.frequency }));
+  if (exist) {
+    exist.equip_name = b.equip_name; exist.model = b.model || ''; exist.source_file = b.source_file || ''; exist.items = buildItems();
+    ctx.kvset('templates', tpls);
+    return json({ ok: true, updated: true, id: exist.id, key: exist.key, itemsCount: parsed.length });
+  }
+  const t = { id: uuid(), key: b.key, equip_name: b.equip_name, model: b.model || '', source_file: b.source_file || '', items: buildItems() };
+  tpls.push(t); ctx.kvset('templates', tpls);
+  return json({ ok: true, updated: false, id: t.id, key: t.key, itemsCount: parsed.length });
+}
+
+// ===================== 温湿度点检记录（按房间 + 年月） =====================
+const ENV_PERIODS = ['AM', 'PM', 'Night'];
+const ENV_PERIOD_CN = { AM: '上午', PM: '下午', Night: '晚上' };
+function allEnvRecords(ctx) { return ctx.kvget('envRecords', []); }
+async function handleGetEnvRecord(ctx) {
+  const room = ctx.query.get('room') || '';
+  const ym = ctx.query.get('ym') || '';
+  if (!room || !/^\d{4}-\d{2}$/.test(ym)) return json({ error: '缺少房间或月份' }, 400);
+  const rec = allEnvRecords(ctx).find(r => r.room === room && r.ym === ym);
+  if (!rec) return json({ room, ym, cells: {}, updated_at: null });
+  return json(rec);
+}
+async function handleSignEnvCell(ctx) {
+  const b = ctx.body;
+  if (!b.signer_id) return json({ error: '请选择签名人' });
+  const { signer, error } = await verifySigner(ctx.store, b);
+  if (error) return json({ error }, error === '签名密码错误' ? 401 : 400);
+  return json({ ok: true, signer_id: signer.id, name: signer.name, signature_image: pickSigImage(signer), signature_image_v: signer.signature_image_v || null });
+}
+async function handleSaveEnvRecord(ctx) {
+  const b = ctx.body;
+  const room = String(b.room || '').trim();
+  const ym = String(b.ym || '').trim();
+  if (!room) return json({ error: '房间必填' });
+  if (!/^\d{4}-\d{2}$/.test(ym)) return json({ error: '月份格式应为 YYYY-MM' });
+  const cells = (b.cells && typeof b.cells === 'object') ? b.cells : {};
+  const clean = {};
+  for (const k of Object.keys(cells)) {
+    const m = /^(\d{1,2})_(AM|PM|Night)$/.exec(k);
+    if (!m) continue;
+    const day = parseInt(m[1], 10);
+    if (day < 1 || day > 31) continue;
+    const c = cells[k] || {};
+    const sigRaw = (typeof c.signature_image === 'string') ? c.signature_image : '';
+    if (sigRaw.length > SIG_IMG_MAX) {
+      return json({ error: day + ' 日的签名图过大（约 ' + Math.round(sigRaw.length / 1024) +
+        'KB，上限 ' + Math.round(SIG_IMG_MAX / 1024) + 'KB）。请重新上传更小的签名图' }, 413);
+    }
+    clean[k] = {
+      temp: String(c.temp != null ? c.temp : '').slice(0, 8),
+      humidity: String(c.humidity != null ? c.humidity : '').slice(0, 8),
+      recorder: String(c.recorder || '').slice(0, 64),
+      signature_image: sigRaw,
+      strike: c.strike ? 1 : 0
+    };
+  }
+  const list = allEnvRecords(ctx);
+  let rec = list.find(r => r.room === room && r.ym === ym);
+  if (rec) { rec.cells = clean; rec.updated_at = new Date().toISOString(); }
+  else { rec = { id: 'env_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), room, ym, cells: clean, updated_at: new Date().toISOString() }; list.push(rec); }
+  ctx.kvset('envRecords', list);
+  return json({ ok: true, id: rec.id, updated_at: rec.updated_at });
+}
+
+function parseEnvLimits(txt) {
+  const s = String(txt || '');
+  const t = s.match(/温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C)?\s*[-~—～]\s*(-?\d+(?:\.\d+)?)/);
+  const h = s.match(/湿度(?:要求)?\s*[：:]\s*(≤|<=|<|不超过)\s*(\d+(?:\.\d+)?)/);
+  if (!t && !h) return null;
+  return { tMin: t ? parseFloat(t[1]) : null, tMax: t ? parseFloat(t[2]) : null, hMax: h ? parseFloat(h[2]) : null };
+}
+function safeBand(lo, hi, absMargin, ratio) {
+  const span = hi - lo;
+  const m = Math.max(absMargin, span * ratio);
+  let a = lo + m, b = hi - m;
+  if (a > b) { const mid = (lo + hi) / 2; const half = Math.min(0.3, span / 4); a = mid - half; b = mid + half; }
+  if (b < a) { a = lo; b = hi; }
+  return [a, b];
+}
+function envBands(lim) {
+  lim = lim || {};
+  if (lim.tMin == null || lim.tMax == null) return { error: '未配置温度范围（应形如「温度：10℃-35℃」）' };
+  if (!(lim.tMax > lim.tMin)) return { error: '温度范围写法有误（下限不小于上限）' };
+  if (lim.hMax == null) return { error: '未配置湿度上限（应形如「湿度：≤80%RH」）' };
+  if (!(lim.hMax > 0)) return { error: '湿度上限写法有误' };
+  const temp = safeBand(lim.tMin, lim.tMax, 0.5, 0.10);
+  const hl = Math.max(30, lim.hMax * 0.5);
+  const hh = lim.hMax - Math.max(3, lim.hMax * 0.06);
+  const hum = hh > hl ? [hl, hh] : [Math.max(1, lim.hMax * 0.4), Math.max(2, lim.hMax - Math.max(1, lim.hMax * 0.05))];
+  return { temp, hum };
+}
+function envBandsFromRange(rng) {
+  if (!rng) return null;
+  const tMin = Number(rng.tMin), tMax = Number(rng.tMax), hMin = Number(rng.hMin), hMax = Number(rng.hMax);
+  if (![tMin, tMax, hMin, hMax].every(Number.isFinite)) return null;
+  if (!(tMax > tMin) || !(hMax > hMin) || hMin <= 0 || hMax > 100) return null;
+  return { temp: [tMin, tMax], hum: [hMin, hMax], custom: true };
+}
+function envCustomRange(ctx) {
+  const r = (ctx.kvget('envfill', {}) || {}).range;
+  return envBandsFromRange(r) ? r : null;
+}
+function envDayValues(band, jitter) {
+  const a = band[0], b = band[1];
+  const base = a + Math.random() * (b - a);
+  const out = [];
+  for (let i = 0; i < ENV_PERIODS.length; i++) {
+    const v = base + (Math.random() * 2 - 1) * jitter;
+    out.push((v < a ? a : (v > b ? b : v)).toFixed(1));
+  }
+  return out;
+}
+function envCellHasData(c) {
+  if (!c) return false;
+  return !!(String(c.temp || '').trim() || String(c.humidity || '').trim() || c.recorder || c.signature_image || c.strike);
+}
+const fmtBand = b => b[0].toFixed(1) + '~' + b[1].toFixed(1);
+
+async function handleExportEnvCsv(ctx) {
+  const room = ctx.query.get('room') || '';
+  const ym = ctx.query.get('ym') || '';
+  if (!room || !/^\d{4}-\d{2}$/.test(ym)) return json({ error: '缺少房间或月份' }, 400);
+  const rec = allEnvRecords(ctx).find(r => r.room === room && r.ym === ym) || { cells: {} };
+  const escCsv = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const dim = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
+  const header = ['日期', '时段', '温度(℃)', '湿度(%RH)', '记录员', '备注'];
+  const rows = [];
+  for (let d = 1; d <= dim; d++) {
+    for (const p of ENV_PERIODS) {
+      const c = rec.cells[d + '_' + p] || {};
+      rows.push([ym + '-' + String(d).padStart(2, '0'), ENV_PERIOD_CN[p], c.temp || '', c.humidity || '', c.recorder || '', c.strike ? '／ 该日无需记录' : '']);
+    }
+  }
+  const lines = [header.map(escCsv).join(',')].concat(rows.map(r => r.map(escCsv).join(',')));
+  const csv = '\uFEFF' + lines.join('\r\n');
+  return new Response(csv, { status: 200, headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': new TextEncoder().encode(csv).length, 'Content-Disposition': 'attachment; filename="env_' + encodeURIComponent(room) + '_' + ym + '.csv"' } });
+}
+async function handleEnvFill(ctx) {
+  const b = ctx.body || {};
+  const ym = String(b.ym || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(ym)) return json({ error: '月份格式应为 YYYY-MM' });
+  const cur = currentMonthStr();
+  if (ym > cur) return json({ error: '不能填充未来月份（' + ym + '）' });
+  const [yy, mm] = ym.split('-').map(Number);
+  const dim = new Date(yy, mm, 0).getDate();
+  const maxDay = (ym === cur) ? Number(todayStr().slice(8, 10)) : dim;
+  let endDay = (b.end_day == null || b.end_day === '') ? maxDay : parseInt(b.end_day, 10);
+  if (!Number.isFinite(endDay)) endDay = maxDay;
+  endDay = Math.min(Math.max(endDay, 1), maxDay);
+  const { signer, error } = await verifySigner(ctx.store, b);
+  if (error) return json({ error }, error === '签名密码错误' ? 401 : 400);
+  const sigImg = pickSigImage(signer);
+  const rooms = ctx.kvget('rooms', []);
+  let targets = rooms;
+  if (b.scope === 'room') {
+    const name = String(b.room || '').trim();
+    if (!name) return json({ error: '请选择房间' });
+    const hit = rooms.filter(r => r.name === name);
+    if (!hit.length) return json({ error: '房间不存在：' + name }, 404);
+    targets = hit;
+  }
+  if (!targets.length) return json({ error: '没有可填充的房间' });
+  const list = allEnvRecords(ctx);
+  const detail = [], skipped = [];
+  let cells = 0, days = 0, touched = 0;
+  const custom = envCustomRange(ctx);
+  for (const r of targets) {
+    const bands = envBandsFromRange(custom) || envBands(parseEnvLimits(r.thermo_requirement));
+    if (bands.error) { skipped.push({ room: r.name, reason: bands.error }); continue; }
+    let rec = list.find(x => x.room === r.name && x.ym === ym);
+    if (rec && !rec.cells) rec.cells = {};
+    let nCells = 0, nDays = 0;
+    for (let day = 1; day <= endDay; day++) {
+      const temps = envDayValues(bands.temp, 0.8);
+      const hums = envDayValues(bands.hum, 3.5);
+      let dayFilled = false;
+      for (let i = 0; i < ENV_PERIODS.length; i++) {
+        const k = day + '_' + ENV_PERIODS[i];
+        if (envCellHasData(rec && rec.cells[k])) continue;
+        if (!rec) { rec = { id: 'env_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), room: r.name, ym, cells: {}, updated_at: null }; list.push(rec); }
+        rec.cells[k] = { temp: temps[i], humidity: hums[i], recorder: signer.id, signature_image: sigImg || '', strike: 0 };
+        nCells++; dayFilled = true;
+      }
+      if (dayFilled) nDays++;
+    }
+    if (nCells) { rec.updated_at = new Date().toISOString(); touched++; }
+    detail.push({ room: r.name, cells: nCells, days: nDays, temp_band: fmtBand(bands.temp), hum_band: fmtBand(bands.hum) });
+    cells += nCells; days += nDays;
+  }
+  if (cells) ctx.kvset('envRecords', list);
+  return json({ ok: true, ym, end_day: endDay, cells, days, rooms: touched, range_source: custom ? 'custom' : 'room', signer: { id: signer.id, name: signer.name }, signer_has_sig: !!sigImg, detail, skipped });
+}
+async function handleEnvRangeGet(ctx) {
+  const r = envCustomRange(ctx);
+  return json({ ok: true, range: r, active: !!r });
+}
+async function handleEnvRangePut(ctx) {
+  const b = ctx.body || {};
+  const cur = ctx.kvget('envfill', {}) || {};
+  if (b.range == null || (typeof b.range === 'object' && !Object.keys(b.range).length)) {
+    ctx.kvset('envfill', Object.assign({}, cur, { range: null }));
+    return json({ ok: true, range: null, active: false });
+  }
+  const r = b.range || {};
+  const tMin = Number(r.tMin), tMax = Number(r.tMax), hMin = Number(r.hMin), hMax = Number(r.hMax);
+  if (![tMin, tMax, hMin, hMax].every(Number.isFinite)) return json({ error: '四个数值（温度下限/上限、湿度下限/上限）都必须填写' });
+  if (!(tMin > -50 && tMax < 100)) return json({ error: '温度范围超出合理区间（-50℃ ~ 100℃）' });
+  if (!(tMax > tMin)) return json({ error: '温度上限必须大于下限' });
+  if (!(hMin > 0 && hMax <= 100)) return json({ error: '湿度范围应为 0 ~ 100 %RH' });
+  if (!(hMax > hMin)) return json({ error: '湿度上限必须大于下限' });
+  const clean = { tMin, tMax, hMin, hMax };
+  ctx.kvset('envfill', Object.assign({}, cur, { range: clean }));
+  return json({ ok: true, range: clean, active: true });
+}
+async function handleEnvRecordsDelete(ctx) {
+  const b = ctx.body || {};
+  const items = Array.isArray(b.items) ? b.items : null;
+  if (!items || !items.length) return json({ error: '请提供要删除的记录（items: [{room, ym}]）' });
+  if (items.length > 200) return json({ error: '一次最多删除 200 条，请分批操作' });
+  const want = new Map();
+  for (const it of items) {
+    const room = String(it && it.room || '').trim(), ym = String(it && it.ym || '').trim();
+    if (!room || !/^\d{4}-\d{2}$/.test(ym)) return json({ error: '条目格式有误（需 {room, ym:"YYYY-MM"}）：' + JSON.stringify(it) });
+    want.set(room + '@' + ym, { room, ym });
+  }
+  const list = allEnvRecords(ctx);
+  const keep = [], deleted = [], missing = [];
+  for (const rec of list) {
+    const key = rec.room + '@' + rec.ym;
+    if (want.has(key)) { deleted.push({ room: rec.room, ym: rec.ym, cells: Object.keys(rec.cells || {}).length }); want.delete(key); }
+    else keep.push(rec);
+  }
+  for (const { room, ym } of want.values()) missing.push({ room, ym });
+  if (deleted.length) ctx.kvset('envRecords', keep);
+  return json({ ok: true, deleted, missing });
+}
+
+// ===================== LIMS 数据源（温湿度实时抓取） =====================
+// 演示环境为占位配置：base 指向 <LIMS_BASE_URL>，无法连接真实 LIMS；仅在配置正确时方可启用同步。
+const LIMS_DEFAULTS = {
+  enabled: false,
+  base: '<LIMS_BASE_URL>',
+  user: '<LIMS_USER>',
+  pass: '',
+  interfaceId: '<LIMS_INTERFACE_ID>',
+  interfaceIdTh: '<LIMS_INTERFACE_TH_ID>',
+  tempWindowBudget: 90,
+  recorder: 'LIMS自动导入',
+  strategy: 'random',
+  overwrite: false,
+  roomAlias: {},
+  limsRooms: [],
+  auto: { enabled: false, times: ['08:35', '13:35', '19:05'], recorder: '' },
+};
+function limsConfig(ctx) {
+  const saved = ctx.kvget('lims', null) || {};
+  const cfg = Object.assign({}, LIMS_DEFAULTS, saved);
+  cfg.auto = Object.assign({}, LIMS_DEFAULTS.auto, saved.auto || {});
+  cfg.roomAlias = Object.assign({}, LIMS_DEFAULTS.roomAlias, saved.roomAlias || {});
+  if (!Array.isArray(cfg.limsRooms) || !cfg.limsRooms.length) cfg.limsRooms = LIMS_DEFAULTS.limsRooms.slice();
+  return cfg;
+}
+async function limsHttp(url, { method = 'GET', headers = {}, body = null, timeout = 30000 } = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const res = await fetch(url, { method, headers: Object.assign({}, headers), body: body == null ? null : JSON.stringify(body), signal: ctrl.signal });
+    const text = await res.text();
+    let json = null; try { json = JSON.parse(text); } catch {}
+    return { status: res.status, text, json };
+  } finally { clearTimeout(t); }
+}
+let limsTokenCache = { token: '', base: '', user: '', at: 0 };
+async function limsLogin(cfg) {
+  const c = limsTokenCache;
+  if (c.token && c.base === cfg.base && c.user === cfg.user && (Date.now() - c.at) < 3600000) return c.token;
+  if (!/^https?:\/\//.test(cfg.base)) throw new Error('LIMS base 未配置（演示环境为占位地址，无法连接真实 LIMS）');
+  const r = await limsHttp(cfg.base.replace(/\/$/, '') + '/hanson-lcdp/sys/login', { method: 'POST', body: { username: cfg.user, password: cfg.pass, captcha: '', checkKey: '' } });
+  const d = r.json && (r.json.data || r.json.result);
+  if (!d || !d.token) throw new Error('LIMS 登录失败：' + String(r.text || ('HTTP ' + r.status)).slice(0, 160));
+  limsTokenCache = { token: d.token, base: cfg.base, user: cfg.user, at: Date.now() };
+  return d.token;
+}
+function limsParseTime(s) {
+  const m = String(s || '').match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+const limsPeriodOf = h => (h < 12 ? 'AM' : (h < 18 ? 'PM' : 'Night'));
+const LIMS_PERIOD_WINDOW = { AM: ['00:00:00', '11:59:59'], PM: ['12:00:00', '17:59:59'], Night: ['18:00:00', '23:59:59'] };
+async function limsFetchHumidity(cfg, token, limsRoom, ym) {
+  const [yy, mm] = ym.split('-').map(Number);
+  const dim = new Date(yy, mm, 0).getDate();
+  const pad = n => String(n).padStart(2, '0');
+  const body = { interfaceId: cfg.interfaceId, roomName: limsRoom, startDate: ym + '-01', endDate: ym + '-' + pad(dim), startTime: '', endTime: '' };
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await limsHttp(cfg.base.replace(/\/$/, '') + '/hanson-lcdp/oapi/dataAcquisition/environment/humidityChart', { method: 'POST', headers: { 'X-Access-Token': token }, body });
+      const arr = r.json && r.json.data && Array.isArray(r.json.data.result) ? r.json.data.result : [];
+      return arr.map(x => ({ humidity: x.humidity, time: x.time, tm: limsParseTime(x.time) })).filter(x => x.humidity != null && x.tm);
+    } catch (e) { lastErr = e; if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1))); }
+  }
+  throw lastErr || new Error('LIMS 湿度接口失败');
+}
+async function limsFetchEnvWindow(cfg, token, limsRoom, date, startHM, endHM) {
+  const body = { interfaceId: cfg.interfaceIdTh || LIMS_DEFAULTS.interfaceIdTh, roomName: limsRoom, startDate: date, endDate: date, startTime: startHM, endTime: endHM };
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await limsHttp(cfg.base.replace(/\/$/, '') + '/hanson-lcdp/oapi/dataAcquisition/environment/temperatureHumidityList', { method: 'POST', headers: { 'X-Access-Token': token }, body });
+      const arr = r.json && r.json.data && Array.isArray(r.json.data.result) ? r.json.data.result : [];
+      return arr.map(x => ({ humidity: x.humidity, temp: x.temperature, time: x.time, tm: limsParseTime(x.time) })).filter(x => (x.humidity != null || x.temp != null) && x.tm);
+    } catch (e) { lastErr = e; if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1))); }
+  }
+  throw lastErr || new Error('LIMS 温湿度列表接口失败');
+}
+function limsPickPoint(pts, strategy, refTm) {
+  if (!pts || !pts.length) return null;
+  const sorted = pts.slice().sort((a, b) => a.tm - b.tm);
+  switch (strategy) {
+    case 'first': return sorted[0];
+    case 'last': return sorted[sorted.length - 1];
+    case 'min': return sorted.reduce((m, x) => (x.humidity < m.humidity ? x : m), sorted[0]);
+    case 'max': return sorted.reduce((m, x) => (x.humidity > m.humidity ? x : m), sorted[0]);
+    case 'avg': { const v = sorted.reduce((s, x) => s + Number(x.humidity), 0) / sorted.length; return sorted.reduce((m, x) => (Math.abs(x.humidity - v) < Math.abs(m.humidity - v) ? x : m), sorted[0]); }
+    case 'nearest': { const ref = refTm instanceof Date ? refTm.getTime() : Date.now(); return sorted.reduce((m, x) => (Math.abs(x.tm - ref) < Math.abs(m.tm - ref) ? x : m), sorted[0]); }
+    default: return sorted[Math.floor(Math.random() * sorted.length)];
+  }
+}
+function limsSourceRoom(cfg, roomName) {
+  for (const [lr, tr] of Object.entries(cfg.roomAlias || {})) { if (tr === roomName) return lr; }
+  return (cfg.limsRooms || []).includes(roomName) ? roomName : null;
+}
+function limsMappedRooms(ctx) {
+  const cfg = limsConfig(ctx);
+  return ctx.kvget('rooms', []).map(r => r.name).filter(name => limsSourceRoom(cfg, name));
+}
+async function limsSyncRoom(ctx, opts) {
+  const cfg = limsConfig(ctx);
+  const room = String(opts.room || '').trim();
+  const ym = String(opts.ym || '').trim();
+  if (!room) return { error: '房间必填' };
+  if (!/^\d{4}-\d{2}$/.test(ym)) return { error: '月份格式应为 YYYY-MM' };
+  const cur = currentMonthStr();
+  if (ym > cur) return { error: '不能抓取未来月份（' + ym + '）' };
+  if (!ctx.kvget('rooms', []).some(r => r.name === room)) return { error: '房间不存在：' + room, status: 404 };
+  const source = limsSourceRoom(cfg, room);
+  if (!source) return { error: '该房间没有配置 LIMS 数据源（可在后台「温湿度填充 → LIMS 数据源」里维护映射）' };
+  const today = todayStr();
+  const curPeriod = limsPeriodOf(new Date().getHours());
+  const onlyToday = opts.mode === 'day';
+  if (onlyToday && ym !== cur) return { error: '「仅今天」只对当前月份有效，历史月份请用整月模式' };
+  const token = await limsLogin(cfg);
+  const points = await limsFetchHumidity(cfg, token, source, ym);
+  const buckets = {};
+  for (const p of points) {
+    const ds = p.tm.getFullYear() + '-' + String(p.tm.getMonth() + 1).padStart(2, '0') + '-' + String(p.tm.getDate()).padStart(2, '0');
+    if (onlyToday && ds !== today) continue;
+    const k = String(p.tm.getDate()) + '_' + limsPeriodOf(p.tm.getHours());
+    (buckets[k] = buckets[k] || []).push(p);
+  }
+  const list = allEnvRecords(ctx);
+  let rec = list.find(x => x.room === room && x.ym === ym);
+  if (!rec) { rec = { id: 'env_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), room, ym, cells: {}, updated_at: null }; list.push(rec); }
+  if (!rec.cells) rec.cells = {};
+  let filled = 0, skipped = 0;
+  const withTemp = opts.withTemp === undefined ? !onlyToday : opts.withTemp;
+  for (const k in buckets) {
+    const pt = limsPickPoint(buckets[k], cfg.strategy, new Date());
+    if (!pt) continue;
+    if (!envCellHasData(rec.cells[k])) {
+      rec.cells[k] = { temp: pt.temp != null ? Number(pt.temp).toFixed(1) : '', humidity: pt.humidity != null ? Number(pt.humidity).toFixed(1) : '', recorder: opts.recorder || cfg.recorder || '', signature_image: '', strike: 0 };
+      filled++;
+    } else skipped++;
+  }
+  if (withTemp && onlyToday) {
+    const win = LIMS_PERIOD_WINDOW[curPeriod] || LIMS_PERIOD_WINDOW.AM;
+    try {
+      const wpts = await limsFetchEnvWindow(cfg, token, source, today, win[0], win[1]);
+      const byDay = {};
+      for (const p of wpts) { const dd = p.tm.getDate(); (byDay[dd] = byDay[dd] || []).push(p); }
+      for (const dd in byDay) {
+        const k = dd + '_' + curPeriod;
+        if (!rec.cells[k]) continue;
+        const pt = limsPickPoint(byDay[dd], cfg.strategy, new Date());
+        if (pt && pt.temp != null) { rec.cells[k].temp = Number(pt.temp).toFixed(1); filled++; }
+      }
+    } catch (e) { /* 温度补抓失败不阻塞湿度结果 */ }
+  }
+  rec.updated_at = new Date().toISOString();
+  ctx.kvset('envRecords', list);
+  return { ok: true, room, source_room: source, filled_count: filled, skipped_existing: skipped, no_data: points.length === 0, temp_from_lims: withTemp };
+}
+async function handleLimsConfigGet(ctx) {
+  const cfg = limsConfig(ctx);
+  const passSet = !!cfg.pass;
+  const out = Object.assign({}, cfg, { pass: '', pass_set: passSet });
+  out.auto = Object.assign({}, cfg.auto);
+  return json(out);
+}
+async function handleLimsConfigPut(ctx) {
+  const b = ctx.body || {};
+  const saved = ctx.kvget('lims', null) || {};
+  const next = Object.assign({}, LIMS_DEFAULTS, saved);
+  for (const k of ['enabled', 'base', 'user', 'pass', 'interfaceId', 'interfaceIdTh', 'recorder', 'strategy', 'overwrite']) {
+    if (b[k] != null) next[k] = (k === 'enabled' || k === 'overwrite') ? !!b[k] : String(b[k]);
+  }
+  if (b.tempWindowBudget != null) {
+    const n = Number(b.tempWindowBudget);
+    next.tempWindowBudget = Number.isFinite(n) && n > 0 ? Math.min(200, Math.round(n)) : LIMS_DEFAULTS.tempWindowBudget;
+  }
+  if (!String(b.pass || '').trim()) next.pass = saved.pass || LIMS_DEFAULTS.pass;
+  if (b.roomAlias != null && typeof b.roomAlias === 'object' && !Array.isArray(b.roomAlias)) {
+    const clean = {};
+    for (const [k, v] of Object.entries(b.roomAlias)) { const kk = String(k).trim(), vv = String(v).trim(); if (kk && vv) clean[kk] = vv; }
+    next.roomAlias = clean;
+  }
+  if (b.limsRooms != null) {
+    const arr = Array.isArray(b.limsRooms) ? b.limsRooms : String(b.limsRooms).split(/[\n,，]/);
+    next.limsRooms = arr.map(s => String(s).trim()).filter(Boolean);
+  }
+  if (b.auto != null && typeof b.auto === 'object') {
+    next.auto = Object.assign({}, next.auto, b.auto);
+    next.auto.enabled = !!b.auto.enabled;
+    if (b.auto.times != null) {
+      const arr = Array.isArray(b.auto.times) ? b.auto.times : String(b.auto.times).split(/[\n,，]/);
+      next.auto.times = arr.map(s => String(s).trim()).filter(s => /^\d{1,2}:\d{2}$/.test(s)).map(s => { const [h, m] = s.split(':'); return String(+h).padStart(2, '0') + ':' + m; });
+    }
+  }
+  ctx.kvset('lims', next);
+  limsTokenCache = { token: '', base: '', user: '', at: 0 };
+  return json({ ok: true });
+}
+async function handleLimsTest(ctx) {
+  const cfg = limsConfig(ctx);
+  const out = { base: cfg.base, user: cfg.user };
+  try {
+    const token = await limsLogin(cfg);
+    out.login_ok = true;
+    const probeRoom = (cfg.limsRooms || [])[0] || '';
+    const ym = currentMonthStr();
+    const pts = await limsFetchHumidity(cfg, token, probeRoom, ym);
+    out.probe_room = probeRoom; out.probe_month = ym; out.probe_points = pts.length;
+    out.probe_first = pts.length ? pts[0].time : ''; out.probe_last = pts.length ? pts[pts.length - 1].time : '';
+    try {
+      const period = limsPeriodOf(new Date().getHours());
+      const win = LIMS_PERIOD_WINDOW[period] || LIMS_PERIOD_WINDOW.AM;
+      const wpts = await limsFetchEnvWindow(cfg, token, probeRoom, todayStr(), win[0], win[1]);
+      const withT = wpts.filter(x => x.temp != null && x.temp !== '');
+      out.temperature_available = withT.length > 0;
+      if (withT.length) { out.temperature_value = String(withT[withT.length - 1].temp); out.temperature_points = withT.length; out.temperature_last_time = withT[withT.length - 1].time; }
+    } catch (te) { out.temperature_available = false; out.temperature_error = String(te && te.message || te); }
+    out.mapped_rooms = limsMappedRooms(ctx);
+    out.ok = true;
+  } catch (e) { out.ok = false; out.error = String(e && e.message || e); }
+  return json(out);
+}
+async function handleLimsSync(ctx) {
+  const b = ctx.body || {};
+  let signer = null;
+  if (b.signer_id) {
+    const v = await verifySigner(ctx.store, b);
+    if (v.error) return json({ error: v.error }, v.error === '签名密码错误' ? 401 : 400);
+    signer = v.signer;
+  }
+  const withTemp = b.with_temp == null ? undefined : !!b.with_temp;
+  const r = await limsSyncRoom(ctx, { room: b.room, ym: b.ym, mode: b.mode === 'day' ? 'day' : 'month', overwrite: b.overwrite, withTemp, signer, recorder: b.recorder });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  return json(r);
+}
+async function handleLimsSyncAll(ctx) {
+  const b = ctx.body || {};
+  const ym = String(b.ym || currentMonthStr()).trim();
+  if (!/^\d{4}-\d{2}$/.test(ym)) return json({ error: '月份格式应为 YYYY-MM' });
+  if (ym > currentMonthStr()) return json({ error: '不能抓取未来月份（' + ym + '）' });
+  let signer = null;
+  if (b.signer_id) {
+    const v = await verifySigner(ctx.store, b);
+    if (v.error) return json({ error: v.error }, v.error === '签名密码错误' ? 401 : 400);
+    signer = v.signer;
+  }
+  const rooms = limsMappedRooms(ctx);
+  if (!rooms.length) return json({ error: '没有任何房间配置了 LIMS 数据源' });
+  const results = []; let filledTotal = 0;
+  for (const room of rooms) {
+    try {
+      const r = await limsSyncRoom(ctx, { room, ym, mode: 'month', overwrite: b.overwrite, signer });
+      if (r.error) results.push({ room, error: r.error });
+      else { results.push({ room, source: r.source_room, filled: r.filled_count, skipped: r.skipped_existing, no_data: r.no_data, temp_from_lims: r.temp_from_lims }); filledTotal += r.filled_count; }
+    } catch (e) { results.push({ room, error: String(e && e.message || e) }); }
+    await new Promise(res => setTimeout(res, 300));
+  }
+  return json({ ok: true, ym, rooms: rooms.length, filled_total: filledTotal, results });
 }
 
 // ===================== 数据备份 / 导出（管理员） =====================
@@ -751,6 +1450,41 @@ async function handleExportCsv(ctx) {
   });
 }
 
+// ===================== v1.29.0 新增只读接口（演示站） =====================
+async function handleListPrograms(ctx) {
+  return json(ctx.kvget('programs', []));
+}
+async function handleListCheckRecords(ctx) {
+  const pid = ctx.query.get('program_id');
+  let arr = ctx.kvget('checkRecords', []);
+  if (pid) arr = arr.filter(r => r.program_id === pid);
+  return json(arr);
+}
+async function handleEnvAlerts(ctx) {
+  const st = ctx.query.get('status');
+  let arr = ctx.kvget('envAlerts', []);
+  if (st) arr = arr.filter(a => a.status === st);
+  return json(arr);
+}
+async function handleNotifs(ctx) {
+  return json(ctx.kvget('notifs', []));
+}
+async function handleSettings(ctx) {
+  return json({ signNoPw: !!ctx.kvget('signNoPw', false), range: (ctx.kvget('envfill', {}) || {}).range || null });
+}
+async function handleAdminEnvAlertCfg(ctx) {
+  return json({ cfg: ctx.kvget('envAlertConfig', {}) });
+}
+async function handleLimsRoomStatus(ctx) {
+  const room = ctx.query.get('room') || '';
+  return json({ room: room, period: 'AM', today: todayStr(), is_admin: false, status_ok: true });
+}
+// 局域网 / 日志 / 升级等管理接口：只读演示站返回安全空数据（避免前端报错）
+async function handleLanEmpty(ctx) { return json([]); }
+async function handleLanScan(ctx) { return json({ clients: [] }); }
+async function handleLanUpgradeConfig(ctx) { return json({ enabled: false, open: false }); }
+async function handleAdminLogs(ctx) { return json({ logs: [] }); }
+
 // ===================== 路由表 =====================
 // adminOnly: true 表示该接口需要管理员登录（未登录返回 401）
 const routes = [
@@ -766,7 +1500,7 @@ const routes = [
   { method: 'GET', pattern: /^\/api\/inspect\/device\/([^/]+)$/, paramNames: ['id'], handler: handleDeviceDetail },
   { method: 'POST', path: '/api/inspect/day-sig', handler: handleDaySign },
   { method: 'POST', path: '/api/inspect/month', handler: handleInspectMonth },
-  { method: 'GET', path: '/api/signers/:id/sig', handler: handleGetSignerSignature },
+  { method: 'GET', pattern: /^\/api\/signers\/([^/]+)\/sig$/, paramNames: ['id'], handler: handleGetSignerSignature },
 
   // ---- 鉴权 ----
   { method: 'POST', path: '/api/admin/changepw', handler: handleChangePw, adminOnly: true },
@@ -813,9 +1547,52 @@ const routes = [
   { method: 'PUT', pattern: /^\/api\/rooms\/([^/]+)$/, paramNames: ['id'], handler: handleUpdateRoom, adminOnly: true },
   { method: 'DELETE', pattern: /^\/api\/rooms\/([^/]+)$/, paramNames: ['id'], handler: handleDeleteRoom, adminOnly: true },
 
+  // ---- 科室管理（管理员） ----
+  { method: 'GET', path: '/api/depts', handler: handleListDepts },
+  { method: 'POST', path: '/api/depts', handler: handleCreateDept, adminOnly: true },
+  { method: 'DELETE', pattern: /^\/api\/depts\/([^/]+)$/, paramNames: ['name'], handler: handleDeleteDept, adminOnly: true },
+
+  // ---- 模板高级编辑（管理员） ----
+  { method: 'PUT', pattern: /^\/api\/templates\/([^/]+)$/, paramNames: ['id'], handler: handleUpdateTemplate, adminOnly: true },
+  { method: 'PUT', pattern: /^\/api\/templates\/([^/]+)\/items$/, paramNames: ['id'], handler: handleSaveTemplateItems, adminOnly: true },
+  { method: 'POST', pattern: /^\/api\/templates\/([^/]+)\/duplicate$/, paramNames: ['id'], handler: handleDuplicateTemplate, adminOnly: true },
+  { method: 'DELETE', pattern: /^\/api\/templates\/([^/]+)$/, paramNames: ['id'], handler: handleDeleteTemplate, adminOnly: true },
+  { method: 'POST', path: '/api/admin/import-template', handler: handleImportTemplate, adminOnly: true },
+
+  // ---- 温湿度点检记录（按房间 + 年月） ----
+  { method: 'GET', path: '/api/env-records', handler: handleGetEnvRecord },
+  { method: 'POST', path: '/api/env-records', handler: handleSaveEnvRecord, adminOnly: true },
+  { method: 'POST', path: '/api/env-records/sign-cell', handler: handleSignEnvCell },
+  { method: 'POST', path: '/api/admin/env-fill', handler: handleEnvFill, adminOnly: true },
+  { method: 'GET', path: '/api/admin/env-range', handler: handleEnvRangeGet, adminOnly: true },
+  { method: 'PUT', path: '/api/admin/env-range', handler: handleEnvRangePut, adminOnly: true },
+  { method: 'POST', path: '/api/admin/env-records/delete', handler: handleEnvRecordsDelete, adminOnly: true },
+  { method: 'GET', path: '/api/admin/env-records/export-csv', handler: handleExportEnvCsv, adminOnly: true },
+
+  // ---- LIMS 数据源（管理员） ----
+  { method: 'GET', path: '/api/lims/config', handler: handleLimsConfigGet, adminOnly: true },
+  { method: 'PUT', path: '/api/lims/config', handler: handleLimsConfigPut, adminOnly: true },
+  { method: 'POST', path: '/api/lims/test', handler: handleLimsTest, adminOnly: true },
+  { method: 'POST', path: '/api/lims/sync', handler: handleLimsSync },
+  { method: 'POST', path: '/api/lims/sync-all', handler: handleLimsSyncAll, adminOnly: true },
+
   // ---- 数据备份 / 导出（管理员） ----
   { method: 'GET', path: '/api/admin/backup', handler: handleBackup, adminOnly: true },
   { method: 'GET', path: '/api/admin/export-inspections-csv', handler: handleExportCsv, adminOnly: true },
+
+  // ---- v1.29.0 只读演示新增 ----
+  { method: 'GET', path: '/api/programs', handler: handleListPrograms },
+  { method: 'GET', path: '/api/check-records', handler: handleListCheckRecords },
+  { method: 'GET', path: '/api/env/alerts', handler: handleEnvAlerts },
+  { method: 'GET', path: '/api/notifs', handler: handleNotifs },
+  { method: 'GET', path: '/api/settings', handler: handleSettings },
+  { method: 'GET', path: '/api/admin/env-alert-cfg', handler: handleAdminEnvAlertCfg },
+  { method: 'GET', path: '/api/lims/room-status', handler: handleLimsRoomStatus },
+  { method: 'GET', path: '/api/lan/clients', handler: handleLanEmpty },
+  { method: 'GET', path: '/api/lan/packages', handler: handleLanEmpty },
+  { method: 'GET', path: '/api/lan/scan', handler: handleLanScan },
+  { method: 'GET', path: '/api/lan-upgrade/config', handler: handleLanUpgradeConfig },
+  { method: 'GET', path: '/api/admin/logs', handler: handleAdminLogs },
 ];
 
 function matchRoute(method, p) {
@@ -835,39 +1612,39 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（与本地 server.js 保持一致）
-const APP_VERSION = 'v1.0.0';
-const APP_VERSION_DATE = '2026-09-09';
+const APP_VERSION = 'v1.29.0';
+const APP_VERSION_DATE = '2026-09-15';
 
 // ===================== API 分发 =====================
 async function handleApi(req, env) {
   let store = await loadStore(env);
   let dirty = false;
   // 首次运行随机生成并持久化密钥（仅在 STORE 缺失时；正常部署已固化 pepper/secret）
-  if (!store.pepper) { store.pepper = randHex(32); dirty = true; }
-  if (!store.secret) { store.secret = randHex(32); dirty = true; }
+  // 只读演示站：不生成/持久化密钥，不创建账号，绝不回写 KV
+  if (!store.pepper) store.pepper = randHex(32);
+  if (!store.secret) store.secret = randHex(32);
   if (!store.users) store.users = [];
-  if (await ensureUsers(store)) dirty = true;
 
   const kvget = (key, def) => (store[key] === undefined ? def : store[key]);
-  const kvset = (key, val) => { store[key] = val; dirty = true; };
+  const kvset = (key, val) => { store[key] = val; };
 
   const url = new URL(req.url);
   const p = url.pathname;
   const method = req.method;
-  const ctx = { req, env, store, kvget, kvset, params: {}, query: url.searchParams, body: {} };
+  // ===== 只读演示站：拦截一切非 GET 写入操作 =====
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    return json({ readonly: true, error: '演示站为只读展示模式，禁止任何写入 / 新增 / 编辑 / 删除操作' }, 403);
+  }
+  const ctx = { req, env, store, kvget, kvset, params: {}, query: url.searchParams, body: {}, readonly: true };
   try {
     const route = matchRoute(method, p);
     if (!route) return json({ error: '接口不存在: ' + method + ' ' + p }, 404);
-    if (route.adminOnly && !(await isAdmin(req, store))) return json({ error: '未登录或登录已失效' }, 401);
+    // 只读演示站：所有 GET 接口对访客公开（无需登录），便于纯浏览展示
     ctx.body = (method === 'POST' || method === 'PUT') ? await readBody(req) : {};
     ctx.params = route.params;
     return await route.handler(ctx);
   } catch (e) {
     return json({ error: String((e && e.message) || e) }, 500);
-  } finally {
-    if (dirty) {
-      try { await env.INSPECTION_DATA.put(KV_KEY, JSON.stringify(store)); } catch {}
-    }
   }
 }
 

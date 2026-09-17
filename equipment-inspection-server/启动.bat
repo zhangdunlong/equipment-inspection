@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableExtensions
 
-REM ÇÐ»»µ½±¾½Å±¾ËùÔÚÄ¿Â¼£¬È·±£ºóÐøÂ·¾¶ÕýÈ·
+REM ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½È·
 cd /d "%~dp0"
 
 set "PORT=8787"
 set "DATA_DIR=%~dp0data"
 
-REM ÓÅÏÈÊ¹ÓÃ×Ô´ø±ãÐ¯ Node ÔËÐÐÊ±£¨runtime\node.exe£©
+REM ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½Ô´ï¿½ï¿½ï¿½Ð¯ Node ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½runtime\node.exeï¿½ï¿½
 set "NODE_EXE=%~dp0runtime\node.exe"
 if exist "%NODE_EXE%" (
   set "RUN_EXE=%NODE_EXE%"
@@ -15,10 +15,10 @@ if exist "%NODE_EXE%" (
   where node >nul 2>nul
   if errorlevel 1 (
     echo ==============================================
-    echo   Î´ÕÒµ½ Node.js ÔËÐÐÊ±£¡
-    echo   Çë¶þÑ¡Ò»£º
-    echo     1^) °Ñ node.exe ·Åµ½±¾Ä¿Â¼µÄ runtime\ ÎÄ¼þ¼ÐÏÂ
-    echo     2^) µ½ https://nodejs.org/ °²×° Node.js ºóÖØ¿ª±¾½Å±¾
+    echo   Î´ï¿½Òµï¿½ Node.js ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½
+    echo   ï¿½ï¿½ï¿½Ñ¡Ò»ï¿½ï¿½
+    echo     1^) ï¿½ï¿½ node.exe ï¿½Åµï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ runtime\ ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½
+    echo     2^) ï¿½ï¿½ https://nodejs.org/ ï¿½ï¿½×° Node.js ï¿½ï¿½ï¿½Ø¿ï¿½ï¿½ï¿½ï¿½Å±ï¿½
     echo ==============================================
     pause
     exit /b 1
@@ -27,13 +27,13 @@ if exist "%NODE_EXE%" (
   )
 )
 
-REM È·±£Êý¾ÝÄ¿Â¼´æÔÚ
+REM È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
 
-REM Í¨¹ý VBS Æô¶¯ node ·þÎñ£¨´°¿ÚÍêÈ«Òþ²Ø£¬ºóÌ¨¾²Ä¬ÔËÐÐ£©
+REM Í¨ï¿½ï¿½ VBS ï¿½ï¿½ï¿½ï¿½ node ï¿½ï¿½ï¿½ñ£¨´ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½Ø£ï¿½ï¿½ï¿½Ì¨ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½Ð£ï¿½
 wscript "%~dp0_run_hidden.vbs" "%RUN_EXE%" "%~dp0server.js"
 
-REM ÂÖÑ¯µÈ´ý¶Ë¿Ú¿ÉÓÃ£¨×î¶à 15 Ãë£©
+REM ï¿½ï¿½Ñ¯ï¿½È´ï¿½ï¿½Ë¿Ú¿ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ 15 ï¿½ë£©
 set /a tries=0
 :WAIT_LOOP
   ping -n 1 -w 500 127.0.0.1 >nul
@@ -43,9 +43,9 @@ set /a tries=0
   if %tries% lss 15 goto WAIT_LOOP
 
 :PORT_READY
-REM ´ò¿ªä¯ÀÀÆ÷
+REM ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 start "" "http://localhost:%PORT%/"
 
-REM Æô¶¯Æ÷´°¿Ú×Ô¶¯¹Ø±Õ£¬·þÎñÔÚºóÌ¨ÎÞ´°¿ÚÔËÐÐ
-REM ÈçÐèÍ£Ö¹·þÎñ£¬ÇëË«»÷"Í£Ö¹.bat"
+REM ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½Ø±Õ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Úºï¿½Ì¨ï¿½Þ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+REM ï¿½ï¿½ï¿½ï¿½Í£Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë«ï¿½ï¿½"Í£Ö¹.bat"
 exit

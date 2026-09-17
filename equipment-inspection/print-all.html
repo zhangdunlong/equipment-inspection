@@ -47,6 +47,9 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
 .sigcell{ position:relative; vertical-align:middle; height:108px; padding:2px 1px; text-align:center; }
 .sigthumb{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center; max-width:28px; max-height:100px; }
 .sph{ font-size:11px; color:#ccc; }
+/* 整天被划杠（周检非检查日 / 节假日）时签名格打「/」 */
+.sigcell.struck{ background:#fafafa; }
+.sigslash{ font-size:15px; font-weight:700; color:#b8860b; }
 .empty-note{ text-align:center; color:#888; padding:30pt; font-size:14px; }
 /* 屏幕态隐藏异常打印区（仅打印时输出）；打印态样式见 @media print */
 .abn-print{ display:none; }
@@ -108,6 +111,8 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
   .mtable .sigrow .sph{ display:none!important; }
   .mcell{ font-size:7pt!important; background:transparent!important; }
   .mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; background:transparent!important; } .mcell.holiday{ color:#000!important; background:transparent!important; }
+  .sigcell.struck{ background:transparent!important; }
+  .sigslash{ color:#000!important; font-size:8pt!important; }
   .mcell-monthly{ text-align:center!important; background:transparent!important; }
   .mtable tbody td.sn{ background:transparent!important; }
   .mtable .sigrow td.sn{ background:transparent!important; }
@@ -163,6 +168,14 @@ const ST={ ok:{mark:'√',cls:'ok'}, ng:{mark:'×',cls:'ng'}, holiday:{mark:'/',
 const dimOf=(yy,mm)=>new Date(+yy,+mm,0).getDate();
 
 function thisMonth(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+// 用本地时间算"今天"（与 inspect.html 一致；toISOString 在 GMT+8 上午会差 8 小时算成昨天）
+function localToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// 整天都被划杠（全部日检项都是「/」）→ 签名格同步杠掉，「√」不出现、签名行显示「/」
+function dayStruck(matrix, dd, dailyItems){
+  if(!dailyItems.length) return false;
+  const row=matrix[dd]; if(!row) return false;
+  return dailyItems.every(it=>(row[it.sn]||'none')==='holiday');
+}
 
 // 生成异常明细只读表格（打印用）
 function abnTable(abn){
@@ -180,16 +193,22 @@ function renderDevice(dev, month, dmon){
   const items=(dmon.items&&dmon.items.length)?dmon.items:[];
   const days=dmon.days||{};
   // 表头（表单编号 / 中文标题 / 英文标题）取自后台「点检模板」配置，未配置时回退公司通用表头
-  const formHead=[dmon.form_code||'DEMO-QR-001', dmon.form_rev||'Rev.A1'].join(' ');
+  const formHead=[dmon.form_code||'PK-JC-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
   const tblTitle=dmon.title||'设备维护保养记录';
   const tblTitleEn=dmon.title_en||'Maintenance Record of Equipment';
   const dailyItems=items.filter(it=>it.frequency!=='每月');
   const monthlyItems=items.filter(it=>it.frequency==='每月');
+  // 周检设备（全部检查项都是「每周」）：非检查日（非周一）且到打印时仍无记录 → 打「/」，与点检页/线下表格口径一致
+  const isWeekly = dailyItems.length>0 && dailyItems.every(it=>String(it.frequency||'').indexOf('周')>=0);
+  const today=localToday();
   const matrix={};
   for(let day=1;day<=dim;day++){
     const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`;
     const cell=days[dd]; const row={};
     dailyItems.forEach(it=>{ row[it.sn]= cell? (cell.bySn&&cell.bySn[it.sn]?cell.bySn[it.sn]:'ok') : 'none'; });
+    if(isWeekly && !cell && dd<=today && new Date(+yy,+mm-1,day).getDay()!==1){
+      dailyItems.forEach(it=>{ row[it.sn]='holiday'; });
+    }
     matrix[dd]=row;
   }
   const monthlyStatus={};
@@ -231,7 +250,11 @@ function renderDevice(dev, month, dmon){
   for(let day=1;day<=dim;day++){ const dd=`${yy}-${mm}-${String(day).padStart(2,'0')}`; const cell=days[dd]; const simg=cell&&cell.signature_image?cell.signature_image:null;
     const asset=(cell&&cell.signer_id&&SIG_ASSETS[cell.signer_id])||{};
     const sh=asset.h||simg, sv=asset.v||simg;
-    sigCells+=`<td class="sigcell c-day">${sh?`<img src="${sh}"${SIGFIT.attrs(sh,sv)} class="sigthumb" alt="签名">`:'<span class="sph">—</span>'}</td>`; }
+    // 该日整天划杠 → 签名格也打「/」（不要打「—」：斜杠才是"无需签名"的表格语言）
+    const struck=dayStruck(matrix, dd, dailyItems);
+    const body = struck ? '<span class="sigslash">/</span>'
+      : (sh?`<img src="${sh}"${SIGFIT.attrs(sh,sv)} class="sigthumb" alt="签名">`:'<span class="sph">—</span>');
+    sigCells+=`<td class="sigcell c-day${struck?' struck':''}">${body}</td>`; }
   return `<div class="dev-block"><div class="print-code">${esc(formHead)}</div><div class="dev-header">
       <div class="dh-code">${esc(formHead)}</div>
       <div class="dh-title">${esc(tblTitle)}<span class="en">${esc(tblTitleEn)}</span></div>
@@ -260,6 +283,9 @@ async function loadAll(){
     // 选了具体房间→只打印该房间；「全部房间」→仍限于本科室可见房间，不越科室
     if(CUR_ROOM) devs=devs.filter(d=>d.location===CUR_ROOM);
     else if(ROOM_SCOPE) devs=devs.filter(d=>ROOM_SCOPE.has(String(d.location||'').trim()));
+    // 没有检查项的设备不出表：显微镜维护已整体改成独立检查项目（走 check.html），
+    // 点检模板已从设备上摘掉，再给它印一张「该设备无点检项」的空表纯属噪声。
+    devs=devs.filter(d=>(d.items||[]).length);
     SIG_ASSETS=data.sig_assets||{};
     if(!devs.length){ $('#p_body').innerHTML='<p class="empty-note">该月暂无设备数据</p>'; $('#p_stat').textContent=''; return; }
     $('#p_body').innerHTML=devs.map(d=>renderDevice(d, data.month||month, d)).join('');
@@ -299,5 +325,43 @@ function syncRoomLinks(){
   else { $('#p_month').value=thisMonth(); }
 })();
 </script>
+
+<script>
+/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+(function () {
+  if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
+  function banner() {
+    if (document.getElementById('ro-banner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'ro-banner';
+    bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
+    (document.body || document.documentElement).appendChild(bar);
+  }
+  function hideWrites() {
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    document.querySelectorAll('button,a,.btn').forEach(function (el) {
+      if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
+      var t = (el.textContent || '').replace(/\s+/g, '');
+      if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';
+    });
+  }
+  if (document.readyState !== 'loading') { banner(); hideWrites(); }
+  document.addEventListener('DOMContentLoaded', function () { banner(); hideWrites(); });
+  setTimeout(hideWrites, 400); setTimeout(hideWrites, 1200); setTimeout(hideWrites, 2500);
+  var _fetch = window.fetch ? window.fetch.bind(window) : null;
+  if (_fetch) {
+    window.fetch = function (u, o) {
+      return _fetch(u, o).then(function (r) {
+        if (r && r.status === 403) {
+          try { r.clone().json().then(function (j) { if (j && j.readonly) alert('演示站为只读展示模式，禁止写入操作'); }); } catch (e) {}
+        }
+        return r;
+      });
+    };
+  }
+})();
+</script>
+
 </body>
 </html>

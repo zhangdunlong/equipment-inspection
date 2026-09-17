@@ -4,231 +4,540 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>选择实验房间 · 设备点检系统</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/v2/theme.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
 <style>
-/* ===== 房间选择页：工业监控风（深蓝灰玻璃 + 青蓝强调） ===== */
-.pick-wrap{ max-width:1180px; margin:0 auto; padding:38px 22px 48px; }
-/* 本页内容可能高于一屏：取消 style.css 的 background-attachment:fixed，避免滚动区底部露白 */
-html{ background:#0a1120; }
-body{ background-attachment:scroll; }
+  /* ===== 顶部标题区 ===== */
+  .hero { text-align:center; padding:var(--s-4) var(--s-4) var(--s-5); }
+  .hero .eyebrow { display:inline-block; margin-bottom:var(--s-3);
+    font-size:var(--fs-xs); font-weight:700; letter-spacing:1.6px;
+    color:var(--cyan); background:var(--cyan-soft);
+    border:1px solid rgba(34,184,207,.38); border-radius:var(--r-full); padding:4px 13px; }
+  .hero h1 { font-size:var(--fs-3xl); letter-spacing:1px; margin-bottom:var(--s-2); }
+  .hero p  { color:var(--tx-3); font-size:var(--fs-md); }
 
-/* 页头 */
-.pick-head{ text-align:center; margin-bottom:26px; }
-.pick-brand{ font-size:15px; font-weight:800; letter-spacing:3px; color:var(--muted); }
-.pick-brand b{ background:linear-gradient(90deg,var(--pink),var(--cyan)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.pick-title{ font-size:27px; font-weight:800; letter-spacing:1px; margin:8px 0 6px; text-shadow:0 0 26px rgba(79,140,255,.45); }
-.pick-sub{ font-size:13px; color:var(--muted); }
+  /* ===== 统计条 ===== */
+  .statbar { display:flex; justify-content:center; gap:var(--s-2); flex-wrap:wrap; margin-bottom:var(--s-5); }
+  .statbar .s { display:flex; align-items:center; gap:var(--s-2); padding:7px 15px;
+    background:var(--bg-2); border:1px solid var(--line-1); border-radius:var(--r-md); }
+  .statbar .s > svg.ic { color:var(--tx-4); }
+  .statbar .s .v { display:flex; align-items:baseline; gap:7px; }
+  .statbar .s i { font-style:normal; font-size:var(--fs-sm); color:var(--tx-3); }
+  .statbar .s b { font-size:var(--fs-xl); color:var(--cyan); font-variant-numeric:tabular-nums; }
 
-/* 概览条 */
-.pick-stat{ display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin:18px 0 30px; }
-.pick-stat .st{ display:flex; align-items:baseline; gap:7px; padding:8px 16px; border-radius:12px;
-  background:var(--glass); border:1px solid var(--glass-bd); }
-.pick-stat .st i{ font-style:normal; font-size:11px; color:var(--muted); letter-spacing:.5px; }
-.pick-stat .st b{ font-size:19px; font-variant-numeric:tabular-nums; color:var(--cyan); }
+  /* ===== 工具栏：搜索 / 计数 / 继续上次 ===== */
+  .toolbar { display:flex; align-items:center; gap:var(--s-3); flex-wrap:wrap; margin-bottom:var(--s-6); }
+  .search { position:relative; flex:1 1 280px; max-width:430px; }
+  .search .k-ico { position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    display:flex; color:var(--tx-4); pointer-events:none; }
+  .search input { height:40px; padding-left:37px; padding-right:40px; }
+  .search .clr { position:absolute; right:9px; top:50%; transform:translateY(-50%);
+    width:26px; height:26px; display:none; place-items:center; padding:0; cursor:pointer;
+    background:transparent; border:0; border-radius:var(--r-full); color:var(--tx-4);
+    transition:background var(--t-fast), color var(--t-fast); }
+  .search .clr:hover { color:var(--tx-1); background:var(--bg-4); }
+  .search.has-val .clr { display:grid; }
+  .tb-note { font-size:var(--fs-sm); color:var(--tx-3); font-variant-numeric:tabular-nums; }
+  .tb-note b { color:var(--tx-1); }
+  .tb-hint { display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-xs); color:var(--tx-4); }
+  .resume { display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:0 13px;
+    background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:var(--r-md);
+    color:var(--tx-1); font-size:var(--fs-sm); font-weight:600; white-space:nowrap;
+    transition:background var(--t-fast), border-color var(--t-fast); }
+  .resume svg.ic { color:var(--accent-hi); }
+  .resume:hover { background:var(--bg-3); border-color:var(--accent); }
+  .resume .n { color:var(--tx-3); font-weight:400; font-variant-numeric:tabular-nums; }
 
-/* 分区标题 */
-.sec-h{ display:flex; align-items:center; gap:9px; font-size:15px; font-weight:800; letter-spacing:1px; margin:0 0 14px; }
-.sec-h::before{ content:''; width:5px; height:16px; border-radius:3px; background:linear-gradient(var(--pink),var(--cyan)); }
-.sec-h .tip{ font-size:11px; font-weight:400; color:var(--muted); letter-spacing:0; }
+  /* ===== 分组 ===== */
+  .grp { margin-bottom:var(--s-6); }
+  .grp-head { display:flex; align-items:center; gap:var(--s-3);
+    padding:0 var(--s-1) var(--s-3); border-bottom:1px solid var(--line-1); margin-bottom:var(--s-4); }
+  /* 组图标片：与卡片内图标同一套线性图标，只换底色 —— 两个分组共用一种处理，风格统一 */
+  .grp-ico { width:40px; height:40px; flex:none; border-radius:var(--r-md); display:grid; place-items:center;
+    background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent-hi); }
+  .grp-tt { flex:1; min-width:0; }
+  .grp-tt .n { font-size:var(--fs-lg); }
+  .grp-tt .m { font-size:var(--fs-sm); color:var(--tx-3); margin-top:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .grp-cnt { flex:none; font-size:var(--fs-sm); font-weight:700; color:var(--tx-2);
+    font-variant-numeric:tabular-nums; background:var(--bg-3);
+    border:1px solid var(--line-1); border-radius:var(--r-full); padding:3px 11px; }
 
-/* 分组面板 */
-.grp{ padding:20px 22px 22px; margin-bottom:20px; }
-.grp-head{ display:flex; align-items:center; gap:13px; margin-bottom:18px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,.09); }
-.grp-ico{ width:44px; height:44px; flex:none; border-radius:13px; display:flex; align-items:center; justify-content:center;
-  font-size:21px; background:linear-gradient(135deg,rgba(79,140,255,.9),rgba(34,193,220,.85)); box-shadow:0 4px 16px rgba(79,140,255,.4); }
-.grp-tt{ flex:1; min-width:0; }
-.grp-name{ font-size:19px; font-weight:800; letter-spacing:1px; }
-.grp-meta{ font-size:12px; color:var(--muted); margin-top:3px; }
-.grp-tag{ flex:none; font-size:11px; font-weight:700; padding:5px 11px; border-radius:20px;
-  color:var(--purple); background:rgba(110,168,255,.16); border:1px solid rgba(110,168,255,.42); }
+  /* ===== 房间卡片 ===== */
+  .room-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:var(--s-3); }
+  .rcell { display:flex; flex-direction:column; gap:var(--s-2); }
+  .rcard { display:block; width:100%; text-align:left; padding:var(--s-4);
+    background:var(--bg-2); border:1px solid var(--line-1); border-left:3px solid var(--accent);
+    border-radius:var(--r-lg); color:var(--tx-1);
+    transition:background var(--t-fast), border-color var(--t-fast),
+               transform var(--t-fast), box-shadow var(--t-fast); }
+  .rcard:hover, .rcard:focus-visible { background:var(--bg-3); border-color:var(--line-2);
+    border-left-color:var(--accent-hi); transform:translateY(-2px); box-shadow:var(--sh-2); }
+  .rcard:focus-visible { border-radius:var(--r-lg); }   /* 覆盖全局 :focus-visible 的 6px 圆角 */
+  .rcard.is-cur { border-left-color:var(--cyan); }
+  .rcard.empty { border-left-color:var(--idle); opacity:.86; }
+  .rcard.empty:hover, .rcard.empty:focus-visible { border-left-color:var(--idle); }
 
-/* 房间卡片网格 */
-.room-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:14px; }
-.rcard{ position:relative; overflow:hidden; text-align:left; padding:16px 17px 15px; border-radius:15px;
-  background:rgba(255,255,255,.06); border:1px solid var(--glass-bd); color:var(--txt);
-  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:.18s; }
-.rcard::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--pink),var(--cyan)); opacity:.75; }
-.rcard:hover,.rcard:focus-visible{ transform:translateY(-3px); border-color:var(--pink); box-shadow:0 12px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(79,140,255,.45); outline:none; }
-.rcard.empty{ opacity:.62; }
-.rc-top{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.rc-name{ flex:1; min-width:0; font-size:17px; font-weight:800; letter-spacing:.5px; line-height:1.3; }
-/* 台数右对齐在标题行，卡片结构统一 → 所有卡片等高 */
-.rc-n{ flex:none; font-size:12px; font-weight:800; color:#cfe0ff; font-variant-numeric:tabular-nums;
-  background:rgba(79,140,255,.18); border:1px solid rgba(79,140,255,.42); border-radius:20px; padding:3px 10px; }
-.rcard.empty .rc-n{ color:var(--muted); background:rgba(255,255,255,.06); border-color:var(--glass-bd); }
-.rc-go{ flex:none; color:var(--cyan); font-size:15px; font-weight:700; transition:transform .18s; }
-.rcard:hover .rc-go{ transform:translateX(4px); }
-/* 说明固定两行高度，超长省略 */
-.rc-desc{ font-size:12px; color:var(--muted); line-height:1.65; height:40px;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-/* 温湿度仪器：固定一行，未配置时也占位，保证卡片高度一致 */
-.rc-th{ margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08);
-  font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.rc-th.none{ opacity:.5; }
+  .rc-top { display:flex; align-items:center; gap:var(--s-2); margin-bottom:var(--s-2); }
+  .rc-ic { flex:none; display:flex; color:var(--tx-3); transition:color var(--t-fast); }
+  .rcard:hover .rc-ic, .rcard:focus-visible .rc-ic { color:var(--accent-hi); }
+  .rcard.empty .rc-ic { color:var(--tx-4); }
+  .rc-name { flex:1; min-width:0; font-size:var(--fs-lg); font-weight:700;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rc-name mark { background:transparent; color:var(--warn); font-weight:800; }   /* 与历史查询下拉的命中高亮同一口径 */
+  .rc-n { flex:none; font-size:var(--fs-sm); font-weight:700; color:#bcd4ff; font-variant-numeric:tabular-nums;
+    background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:var(--r-full); padding:2px 10px; }
+  .rcard.empty .rc-n { color:var(--tx-4); background:transparent; border-color:var(--line-1); }
+  .enter { flex:none; display:flex; color:var(--tx-4);
+    transition:transform var(--t-fast), color var(--t-fast); }
+  .rcard:hover .enter, .rcard:focus-visible .enter,
+  .agg:hover .enter, .agg:focus-visible .enter { transform:translateX(3px); color:var(--accent-hi); }
+  .rc-desc { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    font-size:var(--fs-sm); color:var(--tx-3); line-height:1.6; height:40px; }
+  .rc-desc.none { color:var(--tx-4); }
+  .rc-desc mark { background:transparent; color:var(--warn); }
+  .rc-th { display:flex; align-items:center; gap:6px; margin-top:var(--s-2); padding-top:var(--s-2);
+    border-top:1px solid var(--line-1); font-size:var(--fs-sm); color:var(--tx-3); }
+  .rc-th svg.ic { flex:none; color:var(--tx-4); }
+  .rc-th .tx { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-variant-numeric:tabular-nums; color:var(--tx-2); }
+  .rc-th.none .tx { color:var(--tx-4); font-variant-numeric:normal; }
 
-/* 组内「合并查看」整宽卡 */
-.agg{ width:100%; margin-top:14px; display:flex; align-items:center; gap:14px; text-align:left;
-  padding:15px 18px; border-radius:15px; transition:.18s;
-  background:linear-gradient(90deg,rgba(79,140,255,.16),rgba(34,193,220,.09));
-  border:1px dashed rgba(110,168,255,.55); color:var(--txt); }
-.agg:hover,.agg:focus-visible{ border-style:solid; border-color:var(--pink); box-shadow:0 10px 28px rgba(0,0,0,.32), 0 0 22px rgba(79,140,255,.22); outline:none; }
-.agg-ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center;
-  font-size:18px; background:rgba(255,255,255,.09); border:1px solid var(--glass-bd); }
-.agg-tt{ flex:1; min-width:0; }
-.agg-tt b{ display:block; font-size:15px; font-weight:800; letter-spacing:.5px; }
-.agg-tt i{ display:block; font-style:normal; font-size:11.5px; color:var(--muted); margin-top:3px; }
-.agg-n{ flex:none; font-size:13px; font-weight:800; color:var(--cyan); font-variant-numeric:tabular-nums; }
-.agg-ar{ flex:none; color:var(--cyan); font-weight:700; }
+  /* ===== 专项检查表入口 ===== */
+  .progs { display:flex; flex-direction:column; gap:5px; }
+  .progs a { display:flex; align-items:center; gap:7px; font-size:var(--fs-sm); padding:7px 11px;
+    border-radius:var(--r-md); color:var(--tx-2);
+    background:var(--accent-soft); border:1px solid var(--accent-line);
+    transition:background var(--t-fast), border-color var(--t-fast), color var(--t-fast); }
+  .progs a svg.ic { flex:none; color:var(--accent-hi); }
+  .progs a > svg.ic:last-child { opacity:.6; }
+  .progs a .tx { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .progs a:hover { background:var(--bg-3); border-color:var(--accent); color:#fff; text-decoration:none; }
 
-/* 页脚 */
-.pick-foot{ text-align:center; margin-top:34px; font-size:12px; color:var(--muted); }
-.pick-foot a{ color:var(--muted); }
-.pick-foot a:hover{ color:var(--txt); }
+  /* ===== 合并查看（组内全量） ===== */
+  .agg { display:flex; align-items:center; gap:var(--s-3); width:100%; text-align:left;
+    margin-top:var(--s-3); padding:var(--s-4); border-radius:var(--r-lg);
+    background:linear-gradient(90deg,var(--accent-soft),transparent);
+    border:1px dashed var(--accent-line); color:var(--tx-1);
+    transition:background var(--t-fast), border-color var(--t-fast), transform var(--t-fast); }
+  .agg:hover, .agg:focus-visible { border-style:solid; border-color:var(--accent);
+    background:linear-gradient(90deg,rgba(61,139,253,.24),transparent);
+    transform:translateY(-2px); border-radius:var(--r-lg); }
+  .agg-ico { width:36px; height:36px; flex:none; border-radius:var(--r-md); display:grid; place-items:center;
+    background:var(--bg-3); border:1px solid var(--line-1); color:var(--accent-hi); }
+  .agg-tt { flex:1; min-width:0; }
+  .agg-tt b { display:block; font-size:var(--fs-md); }
+  .agg-tt i { display:block; font-style:normal; font-size:var(--fs-sm); color:var(--tx-3); margin-top:2px; }
+  .agg-n { flex:none; font-size:var(--fs-lg); font-weight:800; color:var(--cyan); font-variant-numeric:tabular-nums; }
 
-@media(max-width:640px){
-  .pick-wrap{ padding:26px 14px 40px; }
-  .pick-title{ font-size:22px; }
-  .grp{ padding:16px 15px 18px; }
-  .room-grid{ grid-template-columns:1fr; }
-}
+  /* ===== 空态 / 页脚 ===== */
+  .empty .ico { line-height:0; color:var(--tx-3); }
+  .foot { text-align:center; margin-top:var(--s-10); font-size:var(--fs-sm); color:var(--tx-4); }
+  .foot a { color:var(--tx-3); }
+
+  /* ===== 首次入场：整组轻推淡入（只在首屏跑一次，筛选时不重放） ===== */
+  @keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+  body.anim .grp, body.anim .rcell { animation:rise 300ms cubic-bezier(.2,.7,.3,1) both; animation-delay:var(--d,0ms); }
+
+  /* ===== 响应式 ===== */
+  @media (max-width:760px) {
+    .hero { padding:var(--s-2) var(--s-2) var(--s-4); }
+    .hero h1 { font-size:var(--fs-2xl); }
+    .statbar { gap:6px; }
+    .statbar .s { padding:6px 10px; gap:6px; }
+    .statbar .s i { font-size:var(--fs-xs); }
+    .statbar .s b { font-size:var(--fs-lg); }
+    .tb-hint { display:none; }
+    .room-grid { grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    body.anim .grp, body.anim .rcell { animation:none !important; }
+  }
 </style>
 </head>
 <body>
-<div class="pick-wrap">
-  <div class="pick-head">
-    <div class="pick-brand">⚡ <b>设备点检中心</b></div>
-    <div class="pick-title">请选择实验房间</div>
-    <div class="pick-sub">选择后进入该房间的设备点检大屏 · 房间与设备一一对应</div>
+
+<nav class="app-nav" data-nav>
+  <div class="brand"><span class="brand-text">设备点检系统</span></div>
+  <div class="sp"></div>
+  <span class="ver" data-appver></span>
+  <button class="nav-toggle" aria-label="展开菜单" aria-expanded="false">☰</button>
+  <div class="links"></div>
+</nav>
+
+<main class="page">
+  <div class="hero">
+    <span class="eyebrow">设备点检 · 房间入口</span>
+    <h1>选择实验房间</h1>
+    <p>选择后进入该房间的设备点检大屏 · 房间与设备一一对应</p>
   </div>
 
-  <div class="pick-stat" id="pick_stat"></div>
+  <div class="statbar" id="stats"></div>
 
-  <!-- 科室提示条：普通用户设了科室时，这里显示「当前科室：X，仅显示本科室房间」 -->
-  <div id="dept_bar" style="display:none"></div>
+  <div id="dept_bar"></div>
+  <div id="env_alert"></div>
 
-  <!-- 分组房间：后台「房间管理」里填了「分组」的房间，合并到一个面板展示（如 车间A / 室2） -->
-  <div id="group_panels"></div>
-
-  <!-- 独立房间：没有分组的房间，各自单独一张卡 -->
-  <section id="plain_block" style="display:none">
-    <div class="sec-h">独立房间<span class="tip">各自独立，设备互不混显</span></div>
-    <div class="room-grid" id="plain_cards"></div>
-  </section>
-
-  <div class="pick-foot">
-    <a href="/logout">退出登录</a>
-    <span style="opacity:.45"> · </span><span data-appver></span>
+  <div class="toolbar">
+    <div class="search" id="search">
+      <span class="k-ico" id="k_ico"></span>
+      <input type="text" id="q" class="input" autocomplete="off" spellcheck="false"
+        placeholder="搜索房间名 / 分组 / 说明，空格分隔多个关键字" aria-label="搜索房间">
+      <button type="button" class="clr" id="clr" data-act="clr" title="清空搜索" aria-label="清空搜索"></button>
+    </div>
+    <span class="tb-note" id="note" role="status" aria-live="polite"></span>
+    <span class="tb-hint" id="hint"></span>
+    <span class="sp"></span>
+    <span id="resume"></span>
   </div>
-</div>
 
+  <div id="body" aria-busy="true">
+    <div class="skel" style="height:120px;margin-bottom:16px"></div>
+    <div class="skel" style="height:120px"></div>
+  </div>
+
+  <div class="foot">
+    <a href="/logout">退出登录</a> · <span data-appver></span>
+  </div>
+</main>
+
+<span class="sr-only" id="sr" role="status" aria-live="polite"></span>
+
+<script src="/assets/v2/core.js"></script>
 <script src="/assets/dept.js"></script>
+<script src="/assets/env-alert.js"></script>
 <script>
-const $=s=>document.querySelector(s);
-const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-// 分组图标：已知分组给语义图标，其他分组用拼图兜底
-const GROUP_ICON={'车间':'⏱️'};
+const { $, $$, esc, api, toast, mountNav } = CORE;
+const I = (n, s) => CORE.icon(n, s || 18);
 
-// 房间卡片：显示完整房间名（不做「车间 · 室1」这类缩写，保证名称完整可读）
-function cardHtml(r){
-  const n=r.count||0;
-  const th=String(r.thermo_apparatus||'').trim();
-  return `
-    <button class="rcard${n?'':' empty'}" data-room="${esc(r.name)}" title="进入「${esc(r.name)}」设备大屏">
-      <div class="rc-top">
-        <span class="rc-name">${esc(r.name)}</span>
-        <span class="rc-n">${n} 台</span>
-        <span class="rc-go">→</span>
-      </div>
-      <div class="rc-desc">${esc(r.desc)||'该房间暂未填写说明'}</div>
-      <div class="rc-th${th?'':' none'}">🌡 ${th?esc(th):'未配置温湿度监测仪器'}</div>
-    </button>`;
+/* 分组图标：持久蠕变 → 应变–时间曲线；其他分组 → 区域网格；独立房间 → 单间平面。
+   两种分组共用同一种「线性图标 + 浅色片」处理，只换图形，风格统一且不再用 emoji。 */
+const GROUP_ICON = { '持久蠕变': 'creep' };
+const groupIcon = g => GROUP_ICON[g] || 'grid';
+const roomIcon = r => (String(r.group || '').trim() ? groupIcon(String(r.group).trim()) : 'rooms');
+
+const LAST_KEY = 'rooms.last';      // 上次进入的房间（本机记忆，仅在本地）
+let ALL = [];                       // 科室过滤后可见的房间
+let PROGS_BY_ROOM = {};             // 房间名 → 该房间参与的专项检查项目
+let KWS = [];                       // 当前关键字（小写、已切分）
+const VALID = new Set();            // 合法 data-room 值（含分组合并 token）——点击时二次校验
+
+/* ---------- 小工具 ---------- */
+function thermoParts(r) {
+  const raw = String(r.thermo_apparatus || '').trim();
+  if (!raw || raw === '-' || raw === '—' || raw === '－') return null;   // 后台常填「-」表示没有
+  return raw.split('/').map(s => s.trim()).filter(Boolean);
+}
+// 命中高亮：关键字先 esc 再转正则，正文也先 esc —— 单趟 replace，规则不会串进 <mark> 标签里
+function highlight(text, kws) {
+  const raw = String(text == null ? '' : text);
+  const html = esc(raw);
+  if (!kws || !kws.length) return html;
+  const alts = kws.map(k => esc(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean);
+  if (!alts.length) return html;
+  return html.replace(new RegExp('(' + alts.join('|') + ')', 'gi'), '<mark>$1</mark>');
+}
+function hay(r) {
+  return [r.name, r.group || '', r.desc || '', r.thermo_apparatus || ''].join(' ').toLowerCase();
+}
+function lastRoom() { try { return localStorage.getItem(LAST_KEY) || ''; } catch (e) { return ''; } }
+function rememberRoom(room) {
+  if (CORE.isGroupTok(room)) return;               // 分组合并视图不是真实房间，不记
+  try { localStorage.setItem(LAST_KEY, room); } catch (e) { }
 }
 
-// 组内「合并查看」卡：只合并本组房间，不会带进其他房间的设备
-function aggHtml(g,rooms,total){
-  return `
-    <button class="agg" data-room="__GROUP__${esc(g)}" title="合并查看「${esc(g)}」分组下的全部设备">
-      <span class="agg-ico">🧩</span>
-      <span class="agg-tt">
-        <b>全部${esc(g)}设备</b>
-        <i>合并查看：${esc(rooms.map(x=>x.name).join(' + '))} · 仅含本组房间，不含其他房间</i>
-      </span>
-      <span class="agg-n">${total} 台</span>
-      <span class="agg-ar">→</span>
-    </button>`;
+/* ---------- 渲染 ---------- */
+function cardHtml(r, i) {
+  const n = r.count || 0;
+  const desc = String(r.desc || '').trim();
+  const th = thermoParts(r);
+  const progs = PROGS_BY_ROOM[r.name] || [];
+  const cur = CORE.session.room === r.name;
+  const progHtml = progs.length
+    ? '<div class="progs">' + progs.map(p =>
+        '<a href="/check.html?program=' + encodeURIComponent(p.id) + '&room=' + encodeURIComponent(r.name) + '"' +
+        ' title="' + esc(p.title || p.name) + '">' + I('clipboard', 14) +
+        '<span class="tx">' + esc(p.name) + '</span>' + I('chev', 13) + '</a>').join('') + '</div>'
+    : '';
+  return '<div class="rcell" style="--d:' + Math.min(i, 15) * 26 + 'ms">' +
+    '<button type="button" class="rcard' + (n ? '' : ' empty') + (cur ? ' is-cur' : '') + '"' +
+      ' data-room="' + esc(r.name) + '"' + (cur ? ' aria-current="true"' : '') +
+      ' aria-label="进入房间 ' + esc(r.name) + '，' + n + ' 台设备">' +
+      '<span class="rc-top">' +
+        '<span class="rc-ic">' + I(roomIcon(r), 18) + '</span>' +
+        '<span class="rc-name">' + highlight(r.name, KWS) + '</span>' +
+        '<span class="rc-n">' + n + ' 台</span>' +
+        '<span class="enter">' + I('chev', 16) + '</span>' +
+      '</span>' +
+      '<span class="rc-desc' + (desc ? '' : ' none') + '">' +
+        (desc ? highlight(desc, KWS) : '该房间暂未填写说明') + '</span>' +
+      '<span class="rc-th' + (th ? '' : ' none') + '">' + I('thermo', 13) +
+        '<span class="tx">' + (th ? th.map(v => esc(v)).join('<span class="dim"> / </span>')
+                                  : '未配置温湿度监测仪器') + '</span>' +
+      '</span>' +
+    '</button>' + progHtml + '</div>';
 }
 
-(async()=>{
-  let list=[], allRooms=[];
-  try{
-    // 先取当前登录信息（含科室），再按科室过滤房间
-    await DEPT.load();
-    const rooms=await fetch('/api/rooms').then(r=>r.json());
-    allRooms=Array.isArray(rooms)?rooms:[];
-  }catch(e){ allRooms=[]; }
-  list=DEPT.filterRooms(allRooms);
-  // 科室提示条（普通用户设了科室时显示；管理员显示「可见全部房间」）
-  DEPT.banner($('#dept_bar'), { count: list.length });
+function aggHtml(g, rooms, total) {
+  return '<button type="button" class="agg" data-room="' + esc(CORE.GRP_TP + g) + '"' +
+    ' aria-label="合并查看全部' + esc(g) + '设备，共 ' + total + ' 台">' +
+    '<span class="agg-ico">' + I('layers', 20) + '</span>' +
+    '<span class="agg-tt"><b>全部' + esc(g) + '设备</b>' +
+      '<i>合并查看：' + esc(rooms.map(x => x.name).join(' + ')) + ' · 仅含本组房间</i></span>' +
+    '<span class="agg-n">' + total + ' 台</span><span class="enter">' + I('chev', 16) + '</span>' +
+  '</button>';
+}
 
-  if(!list.length){
-    $('#pick_stat').innerHTML='<span class="st"><i>提示</i><b style="font-size:13px">'+
-      ((!DEPT.canSeeAll() && allRooms.length) ? ('本科室（'+esc(DEPT.dept)+'）暂无可进入的房间') : '未读到房间配置')+
-      '</b></span>';
+function buildHtml(list) {
+  const groups = new Map(), plain = [];
+  list.forEach(r => {
+    const g = String(r.group || '').trim();
+    if (g) { if (!groups.has(g)) groups.set(g, []); groups.get(g).push(r); }
+    else plain.push(r);
+  });
+  let html = '', i = 0, gi = 0;
+  groups.forEach((rs, g) => {
+    const gt = rs.reduce((s, r) => s + (r.count || 0), 0);
+    const gid = 'grp-' + (gi++);
+    html += '<section class="grp" aria-labelledby="' + gid + '">' +
+      '<div class="grp-head">' +
+        '<div class="grp-ico">' + I(groupIcon(g), 22) + '</div>' +
+        '<div class="grp-tt"><h2 class="n" id="' + gid + '">' + esc(g) + '</h2>' +
+          '<div class="m">' + esc(rs.map(x => x.name).join(' · ')) + ' · 共 ' + gt + ' 台设备</div></div>' +
+        '<span class="grp-cnt">' + gt + ' 台</span>' +
+      '</div>' +
+      '<div class="room-grid">' + rs.map(r => cardHtml(r, i++)).join('') + '</div>' +
+      aggHtml(g, rs, gt) + '</section>';
+  });
+  if (plain.length) {
+    const pt = plain.reduce((s, r) => s + (r.count || 0), 0);
+    html += '<section class="grp" aria-labelledby="grp-plain">' +
+      '<div class="grp-head">' +
+        '<div class="grp-ico">' + I('rooms', 22) + '</div>' +
+        '<div class="grp-tt"><h2 class="n" id="grp-plain">独立房间</h2>' +
+          '<div class="m">各自独立，设备互不混显</div></div>' +
+        '<span class="grp-cnt">' + pt + ' 台</span>' +
+      '</div>' +
+      '<div class="room-grid">' + plain.map(r => cardHtml(r, i++)).join('') + '</div></section>';
+  }
+  return html;
+}
+
+function emptyHtml() {
+  const q = $('#q').value.trim();
+  return '<div class="empty"><span class="ico">' + I(q ? 'search' : 'building', 34) + '</span>' +
+    '<div class="t">' + (q ? '没有匹配的房间' : '没有可进入的房间') + '</div>' +
+    '<div class="d">' + (q
+      ? '没有房间匹配「' + esc(q) + '」· 可换个关键字，或 <button type="button" class="linkbtn" data-act="clr">清空搜索</button>'
+      : '请联系管理员在「房间管理」中添加房间并分配科室') + '</div></div>';
+}
+
+function updateNote(list) {
+  const dev = list.reduce((s, r) => s + (r.count || 0), 0);
+  const q = $('#q').value.trim();
+  $('#note').innerHTML = q
+    ? '匹配 <b>' + list.length + '</b> / ' + ALL.length + ' 个房间 · <b>' + dev + '</b> 台设备'
+    : '共 <b>' + ALL.length + '</b> 个房间 · <b>' + dev + '</b> 台设备';
+  $('#sr').textContent = q ? ('搜索「' + q + '」匹配 ' + list.length + ' 个房间')
+                           : ('共 ' + list.length + ' 个房间');
+}
+
+function render(list) {
+  $('#body').innerHTML = list.length ? buildHtml(list) : emptyHtml();
+  $('#body').setAttribute('aria-busy', 'false');
+  updateNote(list);
+}
+
+const applyFilter = () => {
+  const q = $('#q').value.trim();
+  KWS = q.toLowerCase().split(/\s+/).filter(Boolean);
+  $('#search').classList.toggle('has-val', q.length > 0);
+  render(KWS.length ? ALL.filter(r => { const h = hay(r); return KWS.every(k => h.indexOf(k) >= 0); }) : ALL);
+};
+const applyFilterDeb = CORE.debounce(applyFilter, 120);
+
+function clearSearch() { $('#q').value = ''; applyFilter(); $('#q').focus(); }
+
+/* 「继续上次」：本机记住上次进入的房间，一键回到常用房间 */
+function renderResume() {
+  const host = $('#resume');
+  const r = ALL.find(x => x.name === lastRoom());
+  if (!r) { host.innerHTML = ''; return; }
+  host.innerHTML = '<button type="button" class="resume" data-room="' + esc(r.name) + '"' +
+    ' title="进入上次查看的房间">' + I('undo', 15) +
+    '<span>继续上次：<b>' + esc(r.name) + '</b></span>' +
+    '<span class="n">' + (r.count || 0) + ' 台</span></button>';
+}
+
+/* ---------- 键盘方向键在卡片网格里移动（按几何邻近选，跨分组也能走） ---------- */
+function neighbor(from, dir) {
+  const cards = $$('.rcard');
+  if (cards.length < 2) return null;
+  const a = from.getBoundingClientRect();
+  const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  const pick = strict => {
+    let best = null, bs = Infinity;
+    cards.forEach(c => {
+      if (c === from) return;
+      const b = c.getBoundingClientRect();
+      const dx = (b.left + b.width / 2) - ax, dy = (b.top + b.height / 2) - ay;
+      let ok = false, score = 0;
+      if (dir === 'R') { ok = dx > 8 && (strict ? Math.abs(dy) < a.height * .9 : true); score = dx + Math.abs(dy) * 2; }
+      if (dir === 'L') { ok = dx < -8 && (strict ? Math.abs(dy) < a.height * .9 : true); score = -dx + Math.abs(dy) * 2; }
+      if (dir === 'D') { ok = dy > 8 && (strict ? Math.abs(dx) < a.width * .9 : true); score = dy + Math.abs(dx) * 3; }
+      if (dir === 'U') { ok = dy < -8 && (strict ? Math.abs(dx) < a.width * .9 : true); score = -dy + Math.abs(dx) * 3; }
+      if (ok && score < bs) { bs = score; best = c; }
+    });
+    return best;
+  };
+  return pick(true) || pick(false);   // 同行/同列优先；没有（如换分组）再退化为就近
+}
+
+/* ---------- 事件（统一委托，避免重复渲染后重复绑定） ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  const act = t.closest('[data-act]');
+  if (act) {
+    const a = act.getAttribute('data-act');
+    if (a === 'clr') { clearSearch(); return; }
+    if (a === 'retry') { location.reload(); return; }
+  }
+  const el = t.closest('[data-room]');
+  if (!el) return;
+  const room = el.getAttribute('data-room');
+  if (!VALID.has(room)) return;              // 二次校验：非本次下发的房间一律忽略
+  rememberRoom(room);
+  CORE.session.room = room;
+  location.href = '/index.html?room=' + encodeURIComponent(room);
+});
+
+document.addEventListener('keydown', e => {
+  const ae = document.activeElement;
+  const typing = ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable);
+  if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault(); $('#q').focus(); $('#q').select(); return;
+  }
+  const card = ae && ae.classList && ae.classList.contains('rcard') ? ae : null;
+  if (!card) return;
+  const dirs = { ArrowRight: 'R', ArrowLeft: 'L', ArrowDown: 'D', ArrowUp: 'U' };
+  if (e.key === 'Home' || e.key === 'End') {
+    const cards = $$('.rcard');
+    if (cards.length) { e.preventDefault(); cards[e.key === 'Home' ? 0 : cards.length - 1].focus(); }
+    return;
+  }
+  const dir = dirs[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  const next = neighbor(card, dir);
+  if (next) next.focus();
+});
+
+$('#q').addEventListener('input', applyFilterDeb);
+$('#q').addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    if ($('#q').value) clearSearch(); else $('#q').blur();
+    return;
+  }
+  if (e.key === 'Enter') {
+    const cards = $$('.rcard');
+    if (cards.length === 1) { e.preventDefault(); cards[0].click(); }   // 只剩一条时直接进
+  }
+});
+
+/* ---------- 启动 ---------- */
+(async function init() {
+  $('#k_ico').innerHTML = I('search', 16);
+  $('#clr').innerHTML = I('clear', 15);
+  $('#hint').innerHTML = '按 <span class="kbd">/</span> 聚焦搜索';
+  const tg = $('.nav-toggle'); if (tg) tg.innerHTML = I('menu', 18);   // 汉堡键也用同一套图标
+
+  let me = { ok: false };
+  try { me = await CORE.me(); } catch (e) { }
+  mountNav({ me });
+
+  const rooms = await api('/api/rooms');
+  if (rooms.__error) {
+    $('#body').innerHTML = '<div class="empty" aria-busy="false"><span class="ico">' + I('alert', 34) + '</span>' +
+      '<div class="t">加载房间失败</div><div class="d">' + esc(rooms.__error) + '</div>' +
+      '<div class="mt-4"><button class="btn btn-primary" data-act="retry">重试</button></div></div>';
     return;
   }
 
-  // 按分组归并：有 group 的进组面板，没有的进独立房间区
-  const groups=new Map(), plain=[];
-  list.forEach(r=>{
-    const g=String(r.group||'').trim();
-    if(g){ if(!groups.has(g)) groups.set(g,[]); groups.get(g).push(r); }
-    else plain.push(r);
-  });
+  /* 科室可见范围：必须等 DEPT.load() 落地后再过滤。
+     旧版是先 filterRooms() 再 load()，me 还没回来时 canSeeAll() 判为 true，
+     限科室的账号会在首屏看到全部房间 —— 这里改成先 await 再过滤。 */
+  if (window.DEPT) { try { await DEPT.load(); } catch (e) { } }
+  ALL = (window.DEPT ? DEPT.filterRooms(rooms) : rooms) || [];
 
-  // 概览：房间总数 / 房间区域数（同组算一个）/ 设备总数
-  const total=list.reduce((s,r)=>s+(r.count||0),0);
-  const areas=plain.length+groups.size;
-  $('#pick_stat').innerHTML=
-    '<span class="st"><i>房间总数</i><b>'+list.length+'</b></span>'+
-    '<span class="st"><i>房间区域</i><b>'+areas+'</b></span>'+
-    '<span class="st"><i>在册设备</i><b>'+total+'</b></span>';
+  try {
+    const progs = await api('/api/programs');
+    (Array.isArray(progs) ? progs : []).forEach(p => (p.devices || []).forEach(d => {
+      const rm = String(d.location || '').trim(); if (!rm) return;
+      const arr = PROGS_BY_ROOM[rm] || (PROGS_BY_ROOM[rm] = []);
+      if (!arr.some(x => x.id === p.id)) arr.push(p);
+    }));
+  } catch (e) { }
 
-  let html='';
-  groups.forEach((rs,g)=>{
-    const gt=rs.reduce((s,r)=>s+(r.count||0),0);
-    html+=`<section class="grp">
-      <div class="grp-head">
-        <div class="grp-ico">${GROUP_ICON[g]||'🧩'}</div>
-        <div class="grp-tt">
-          <div class="grp-name">${esc(g)}</div>
-          <div class="grp-meta">${esc(rs.map(x=>x.name).join(' · '))} · 共 ${gt} 台设备 · 同组房间合并展示</div>
-        </div>
-        <span class="grp-tag">🧩 合并展示</span>
-      </div>
-      <div class="room-grid">${rs.map(cardHtml).join('')}</div>
-      ${aggHtml(g,rs,gt)}
-    </section>`;
-  });
-  $('#group_panels').innerHTML=html;
-  if(plain.length){ $('#plain_block').style.display=''; $('#plain_cards').innerHTML=plain.map(cardHtml).join(''); }
+  if (window.DEPT && DEPT.me && DEPT.me.ok) {
+    try { DEPT.banner($('#dept_bar'), { count: ALL.length }); } catch (e) { }
+  }
 
-  // 合法房间集合（含分组合并 token __GROUP__<组名>）——点击时校验，防止跳到不存在的房间
-  const valid=new Set(list.map(r=>r.name));
-  groups.forEach((rs,g)=>valid.add('__GROUP__'+g));
+  const total = ALL.reduce((s, r) => s + (r.count || 0), 0);
+  const areas = new Set(ALL.map(r => String(r.group || '').trim()).filter(Boolean)).size
+    + ALL.filter(r => !String(r.group || '').trim()).length;
+  $('#stats').innerHTML =
+    '<span class="s">' + I('rooms', 15) + '<span class="v"><i>房间总数</i><b>' + ALL.length + '</b></span></span>' +
+    '<span class="s">' + I('grid', 15) + '<span class="v"><i>房间区域</i><b>' + areas + '</b></span></span>' +
+    '<span class="s">' + I('device', 15) + '<span class="v"><i>在册设备</i><b>' + total + '</b></span></span>';
 
-  document.querySelectorAll('[data-room]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const room=btn.getAttribute('data-room');
-      if(!valid.has(room)) return;
-      try{ sessionStorage.setItem('selected_room',room); }catch(e){}
-      location.href='/?room='+encodeURIComponent(room);
-    });
-  });
+  VALID.clear();
+  ALL.forEach(r => VALID.add(r.name));
+  new Set(ALL.map(r => String(r.group || '').trim()).filter(Boolean)).forEach(g => VALID.add(CORE.GRP_TP + g));
+
+  renderResume();
+  document.body.classList.add('anim');       // 只在首屏播一次入场动效
+  render(ALL);
+  setTimeout(() => document.body.classList.remove('anim'), 900);
 })();
-
-fetch('/api/version').then(r=>r.json()).then(v=>{
-  document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);
-}).catch(()=>{});
 </script>
+
+<script>
+/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+(function () {
+  if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
+  function banner() {
+    if (document.getElementById('ro-banner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'ro-banner';
+    bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
+    (document.body || document.documentElement).appendChild(bar);
+  }
+  function hideWrites() {
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    document.querySelectorAll('button,a,.btn').forEach(function (el) {
+      if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
+      var t = (el.textContent || '').replace(/\s+/g, '');
+      if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';
+    });
+  }
+  if (document.readyState !== 'loading') { banner(); hideWrites(); }
+  document.addEventListener('DOMContentLoaded', function () { banner(); hideWrites(); });
+  setTimeout(hideWrites, 400); setTimeout(hideWrites, 1200); setTimeout(hideWrites, 2500);
+  var _fetch = window.fetch ? window.fetch.bind(window) : null;
+  if (_fetch) {
+    window.fetch = function (u, o) {
+      return _fetch(u, o).then(function (r) {
+        if (r && r.status === 403) {
+          try { r.clone().json().then(function (j) { if (j && j.readonly) alert('演示站为只读展示模式，禁止写入操作'); }); } catch (e) {}
+        }
+        return r;
+      });
+    };
+  }
+})();
+</script>
+
 </body>
 </html>
