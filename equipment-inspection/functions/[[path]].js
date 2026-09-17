@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions —— 设备点检巡检系统后端
 // 单文件 catch-all 路由，所有 /api/* 请求在此处理。
-// 移植自本地最新版 server.js（v1.7.0 / 2026-09-15：声明式路由表 + 科室管理 + 房间温湿度配置 +
+// 移植自本地最新版 server.js（v1.29.0：声明式路由表 + 科室管理 + 房间温湿度配置 +
 // 温湿度点检（按房间+年月）一键填充/批量删除/CSV 导出 + LIMS 数据源抓取 + 整月按科室随机分派签名 +
 // 模板高级编辑（改表头/整体替换检查项/复制/删除/导入）+ 数据备份 + CSV 导出 + 单台明细 +
 // 多用户角色权限 + 后台用户管理）。
@@ -1615,14 +1615,23 @@ function matchRoute(method, p) {
 const APP_VERSION = 'v1.29.0';
 const APP_VERSION_DATE = '2026-09-15';
 
+// ===================== 只读演示站策略 =====================
+// 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，
+// 因此从写入拦截里白名单放行。其余一切写方法（新增/编辑/删除/导入/备份恢复/一键操作…）仍 403。
+// 演示账号见 README：admin / admin123（管理员）、demo-user / demo123（普通用户）。
+const READONLY_WRITE_ALLOW = new Set(['/api/admin/login']);
+// 整库导出接口含 pepper / secret / 口令哈希（可据此伪造会话），即便演示站也要求先登录，避免匿名抓取。
+const READONLY_LOGIN_REQUIRED = new Set(['/api/admin/backup']);
+
 // ===================== API 分发 =====================
 async function handleApi(req, env) {
   let store = await loadStore(env);
   let dirty = false;
-  // 首次运行随机生成并持久化密钥（仅在 STORE 缺失时；正常部署已固化 pepper/secret）
-  // 只读演示站：不生成/持久化密钥，不创建账号，绝不回写 KV
-  if (!store.pepper) store.pepper = randHex(32);
-  if (!store.secret) store.secret = randHex(32);
+  // 口令 pepper / 会话 secret 的取值优先级：KV 内固化值 → Pages 环境变量 APP_PEPPER / APP_SECRET →
+  // 本次请求随机（兜底；随机值每次请求都变，会导致登录校验永远不过，正式部署务必固化其一）。
+  // 只读演示站：绝不回写 KV、绝不自动创建账号（演示账号已预置在 KV 的 users 中）。
+  if (!store.pepper) store.pepper = env.APP_PEPPER || randHex(32);
+  if (!store.secret) store.secret = env.APP_SECRET || randHex(32);
   if (!store.users) store.users = [];
 
   const kvget = (key, def) => (store[key] === undefined ? def : store[key]);
@@ -1631,15 +1640,21 @@ async function handleApi(req, env) {
   const url = new URL(req.url);
   const p = url.pathname;
   const method = req.method;
-  // ===== 只读演示站：拦截一切非 GET 写入操作 =====
-  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+  // ===== 只读演示站：拦截写入（例外：登录，只校验发 cookie 不落库）=====
+  const isWrite = (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS');
+  if (isWrite && !READONLY_WRITE_ALLOW.has(p)) {
     return json({ readonly: true, error: '演示站为只读展示模式，禁止任何写入 / 新增 / 编辑 / 删除操作' }, 403);
   }
   const ctx = { req, env, store, kvget, kvset, params: {}, query: url.searchParams, body: {}, readonly: true };
   try {
     const route = matchRoute(method, p);
     if (!route) return json({ error: '接口不存在: ' + method + ' ' + p }, 404);
-    // 只读演示站：所有 GET 接口对访客公开（无需登录），便于纯浏览展示
+    // 只读演示站：浏览类 GET 接口对访客公开（无需登录即可看数据）；
+    // 但含密钥的整库导出仍要求有效登录会话。
+    if (READONLY_LOGIN_REQUIRED.has(p)) {
+      const me = await getLoginUser(req, store);
+      if (!me) return json({ readonly: true, error: '该接口含密钥与口令哈希，请先登录后访问' }, 401);
+    }
     ctx.body = (method === 'POST' || method === 'PUT') ? await readBody(req) : {};
     ctx.params = route.params;
     return await route.handler(ctx);
