@@ -153,7 +153,7 @@
       </div>
     </div>
     <div class="field" data-page-node-id="h8OharQSqBG6kQPY0qAkiE"><label data-page-node-id="xNsTbFBZSjECYGfwG62aUf">按行导入（格式：编号,模板型号,设备名称）每行一条</label>
-      <textarea id="imp_txt" placeholder="001,GWT2105,电子式高温蠕变持久试验机&#10;002,RDL-50,高温电子蠕变试验机"></textarea>
+      <textarea id="imp_txt" placeholder="001,设备型号-C,电子式高温蠕变持久试验机&#10;002,设备型号-A,高温电子蠕变试验机"></textarea>
       <button class="btn sm mt" id="imp_go" data-page-node-id="Vztw6I3ww3aycyHD4pu57c">导入</button>
     </div>
     <div class="flex mb" data-page-node-id="eDPZaPZNHZcR9u5vduB7iX">
@@ -187,16 +187,16 @@
   <div class="panel glass" id="p_room" data-page-node-id="wQTbHyF887kgG7h3atuRfb">
     <p class="muted tiny" data-page-node-id="oIl5ayBUQe0YnlCmS8U9En">房间用于大屏分组与登录后的房间选择页。重命名房间会自动迁移该房间下所有设备的位置；删除房间要求房间内已无设备。</p>
     <div class="row" data-page-node-id="3PvLzwxoJpB0H4JNU53RTB">
-      <div class="field" data-page-node-id="TLJ9BHbvww2t7O4FuBx1Nh"><label data-page-node-id="mHci2pXueqA7ThzU1Wc5Z5">房间名称</label><input id="room_name" placeholder="如：持久蠕变室3" maxlength="40" data-page-node-id="kDgvGTaon4AuSiL8BShfK9"></div>
+      <div class="field" data-page-node-id="TLJ9BHbvww2t7O4FuBx1Nh"><label data-page-node-id="mHci2pXueqA7ThzU1Wc5Z5">房间名称</label><input id="room_name" placeholder="如：测试室03" maxlength="40" data-page-node-id="kDgvGTaon4AuSiL8BShfK9"></div>
       <div class="field" data-page-node-id="TmcZT9ebxTPfowgVAuEyhQ"><label data-page-node-id="3LuOBCdkuXzCM9HbGn41SC">描述（可选）</label><input id="room_desc" placeholder="如：设备型号说明" maxlength="60" data-page-node-id="PZFbkr7biT12UsKn09B6UA"></div>
-      <div class="field"><label>分组（可选）</label><input id="room_group" placeholder="同组房间会合并显示，如：持久蠕变" maxlength="20"></div>
+      <div class="field"><label>分组（可选）</label><input id="room_group" placeholder="同组房间会合并显示，如：蠕变" maxlength="20"></div>
       <div class="field"><label>科室（可选）</label><select id="room_dept"></select></div>
       <div class="field" style="align-self-end" data-page-node-id="i6XSvBL78sBBhzsGH7i4jD"><button class="btn cyan sm" id="room_add" data-page-node-id="ECSpqgb72VBEuj9ZXyb0Rb">＋ 新增房间</button></div>
     </div>
     <div class="muted tiny" style="margin:2px 0 8px">🌡 温湿度监测配置（可选）——填好后该房间的「温湿度监测记录」表头会自动带出；已建好的房间在列表里点 <b>✏️ 编辑</b>（表头缺项时另有一键 <b>🌡 补填表头</b>）补填即可。</div>
     <div class="row">
-      <div class="field"><label>监测仪器型号和编号</label><input id="room_app" placeholder="如 hx-rtu-t10/PK-JCZX-882" maxlength="80"></div>
-      <div class="field"><label>被监测的设备型号和编号</label><input id="room_eq" placeholder="如 RDL-50/227083-2-1~227083-2-54" maxlength="300"></div>
+      <div class="field"><label>监测仪器型号和编号</label><input id="room_app" placeholder="如 DEMO-INSTR-10/DEMO-ZX-882" maxlength="80"></div>
+      <div class="field"><label>被监测的设备型号和编号</label><input id="room_eq" placeholder="如 设备型号-A/DEMO-NO-1~DEMO-NO-54" maxlength="300"></div>
     </div>
     <div class="field"><label>综合温湿度要求</label><textarea id="room_req" rows="2" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH"></textarea>
       <div class="muted tiny" style="margin-top:3px">格式建议：<b>温度：下限℃-上限℃</b> + <b>湿度：≤上限%RH</b>（可再附标准号）。温度/湿度超限自动标红依赖这两行，写不规范则不校验。</div>
@@ -230,7 +230,7 @@
     <div class="row" data-page-node-id="BM3DI4oWzPkqtRDniA1NKl">
       <div class="field" data-page-node-id="51iQLDvNjBe0sorbidusvB"><label data-page-node-id="DBTlSfL0tfLXTa8X1D8sa6">按设备编号筛选</label><input id="r_no" placeholder="如 001" data-page-node-id="zQ0bXQVRCI602rEVujTBiK"></div>
       <div class="field" data-page-node-id="ZKu8KTh6c6G2GokfjM8Bej"><label data-page-node-id="QZkDlt0lbYeIbFHJX7CQTL">按日期筛选</label><input type="date" id="r_date" data-page-node-id="9fxT2xAbMY9vJxwO0ti6eS"></div>
-      <div class="field"><label>按名字筛选（设备名 / 签名人）</label><input id="r_signer" placeholder="如 张敦龙 或 试验机" autocomplete="off"></div>
+      <div class="field"><label>按名字筛选（设备名 / 签名人）</label><input id="r_signer" placeholder="如 演示签名人 或 试验机" autocomplete="off"></div>
       <div class="field"><label>按房间筛选</label><select id="r_room"><option value="">（全部房间）</option></select></div>
       <div class="field" style="max-width:120px" data-page-node-id="sHhLExDqMIKexKBmkQujE2"><label data-page-node-id="1I0uQNnh6dZxsh6V3lH7pj">&nbsp;</label><button class="btn sm" id="r_q" data-page-node-id="oLCUCWipPnKNe4PHzX6sjK">查询</button></div>
     </div>
@@ -496,7 +496,7 @@
 
   <!-- 温湿度一键填充（后台） -->
   <div class="panel glass" id="p_env" data-page-node-id="EnvFillPanel0000000001">
-    <p class="muted tiny" data-page-node-id="EnvFillDesc00000000001">温湿度表（PK-JC-QR-008）是「房间 + 月份」的月表，每天分上午 / 下午 / 晚上三个时段。这里可以一键把 <b>1 日至截止日</b> 之间 <b>还空着</b> 的格子批量补上温度 / 湿度，并套用所选签名人的电子签名 —— 数值按各房间「综合温湿度要求」圈的限定范围自动生成，保证落在范围内；已有数据的格子（含签名、划线）一律不动。</p>
+    <p class="muted tiny" data-page-node-id="EnvFillDesc00000000001">温湿度表（DEMO-QR-008）是「房间 + 月份」的月表，每天分上午 / 下午 / 晚上三个时段。这里可以一键把 <b>1 日至截止日</b> 之间 <b>还空着</b> 的格子批量补上温度 / 湿度，并套用所选签名人的电子签名 —— 数值按各房间「综合温湿度要求」圈的限定范围自动生成，保证落在范围内；已有数据的格子（含签名、划线）一律不动。</p>
     <div class="row" data-page-node-id="EnvFillRow000000000001">
       <div class="field" data-page-node-id="EnvFillFMonth000000001"><label data-page-node-id="EnvFillLMonth000000001">月份</label><input type="month" id="e_month" data-page-node-id="EnvFillIMonth000000001"></div>
       <div class="field" data-page-node-id="EnvFillFEnd0000000001"><label data-page-node-id="EnvFillLEnd0000000001">截止日期</label><input type="date" id="e_end" data-page-node-id="EnvFillIEnd0000000001"><p class="muted tiny" style="margin-top:2px" data-page-node-id="EnvFillHEnd0000000001">默认截止到今天，只填 1 日至该日的日期</p></div>
@@ -902,8 +902,8 @@ async function loadRooms(){
     <td>${r.count} 台</td>
     <td>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-        <a class="btn sm" href="/env?room=${encodeURIComponent(r.name)}" target="_blank" rel="noopener" title="该房间的温湿度监测记录（PK-JC-QR-008）">🌡 温湿度表</a>
-        <a class="btn sm" href="/print-all?room=${encodeURIComponent(r.name)}&auto=1" target="_blank" rel="noopener" title="该房间全部设备的月度点检表（PK-JC-QR-032）">🖨 点检表</a>
+        <a class="btn sm" href="/env?room=${encodeURIComponent(r.name)}" target="_blank" rel="noopener" title="该房间的温湿度监测记录（DEMO-QR-008）">🌡 温湿度表</a>
+        <a class="btn sm" href="/print-all?room=${encodeURIComponent(r.name)}&auto=1" target="_blank" rel="noopener" title="该房间全部设备的月度点检表（DEMO-QR-032）">🖨 点检表</a>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn sm" onclick="renameRoom('${key}')" title="改名称 / 描述 / 分组 / 温湿度表头">✏️ 编辑</button>
@@ -937,11 +937,11 @@ function renameRoom(name,focus){
     <div class="field"><label>描述（可选）</label><input id="rm_desc" maxlength="60" value="${esc(r.desc||'')}"></div>
     <hr style="border:none;border-top:1px dashed #ccc;margin:10px 0">
     <div class="field"><label>分组（可选）</label><input id="rm_group" maxlength="20" value="${esc(r.group||'')}" placeholder="留空 = 独立房间">
-      <div class="muted tiny" style="margin-top:3px">例：给「持久蠕变室1」「持久蠕变室2」都填「持久蠕变」，两间房就会归到一个组下展示（房间本身仍各自独立，设备和记录不受影响）</div></div>
+      <div class="muted tiny" style="margin-top:3px">例：给「测试室01」「测试室02」都填「蠕变」，两间房就会归到一个组下展示（房间本身仍各自独立，设备和记录不受影响）</div></div>
     <div class="field"><label>科室（可选）</label><select id="rm_dept"></select>
       <div class="muted tiny" style="margin-top:3px">该房间归属的科室；留空 = 不限定（全员可见）。用户登录后只看到本科室的房间。</div></div>
     <h4 style="margin:4px 0 8px;font-size:13px">🌡 温湿度监测配置（新建月度记录时自动带出）</h4>
-    <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 hx-rtu-t10/PK-JCZX-882"></div>
+    <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 DEMO-INSTR-10/DEMO-ZX-882"></div>
     <div class="field"><label>被监测的设备型号和编号</label><input id="rm_eq" maxlength="300" value="${esc(r.thermo_equipment||'')}"></div>
     <div class="field"><label>综合温湿度要求</label><textarea id="rm_req" rows="3" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH">${esc(r.thermo_requirement||'')}</textarea></div>
     <p class="muted tiny">重命名后该房间下所有设备的位置会同步更新，点检记录不受影响。</p>
@@ -1619,7 +1619,7 @@ async function delDev(id){if(!confirm('确认删除该设备？'))return;const r
 
 // ===== 点检模板（内容 + 表头 编辑）=====
 // 数据模型：templates[] = { id, key, equip_name, model, source_file, items:[{sn,content,frequency}],
-//   note（表下备注）, form_code（表单编号，如 PK-JC-QR-032）, form_rev（Rev.A1）,
+//   note（表下备注）, form_code（表单编号，如 DEMO-QR-032）, form_rev（Rev.A1）,
 //   title / title_en（表标题）, use_count（引用该模板的设备数，服务端算） }
 // 关键：items[].sn 是历史点检数据（inspections.bySn）的绑定键 —— 保存时服务端会重排为 1..n，
 //       并自动把该模板下所有设备的历史记录按 旧sn→新sn 迁移，保证删除/调序后数据不错位。
@@ -1641,7 +1641,7 @@ async function loadTpl(){
   $('#tpl_list').innerHTML=ALL_TPL.map(t=>`<div class="glass" style="padding:14px;margin-bottom:12px">
     <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
       <b>${esc(t.key)}</b> <span class="tag">${esc(t.equip_name)}</span>
-      <span class="tag">${esc(t.form_code||'PK-JC-QR-032')} ${esc(t.form_rev||'Rev.A1')}</span>
+      <span class="tag">${esc(t.form_code||'DEMO-QR-032')} ${esc(t.form_rev||'Rev.A1')}</span>
       <span class="muted tiny">${(t.items||[]).length} 项检查 · 被 ${t.use_count||0} 台设备使用 · 来源 ${esc(t.source_file||'—')}</span>
       <div class="sp"></div>
       <button class="btn sm" onclick="tplItems('${t.id}')">✎ 编辑检查项</button>
@@ -1658,7 +1658,7 @@ async function loadTpl(){
 function tplHead(id){
   const t=ALL_TPL.find(x=>x.id===id); if(!t){toast('模板不存在','err');return;}
   $('#modal').innerHTML=`<h3>✎ 编辑表头 · ${esc(t.key)}</h3>
-    <p class="muted tiny" style="margin:2px 0 8px">表单编号与标题直接印在点检表右上角及表头（如 PK-JC-QR-032 Rev.A1 / 设备维护保养记录）；留空则用通用默认值。备注 Note 印在表格下方。</p>
+    <p class="muted tiny" style="margin:2px 0 8px">表单编号与标题直接印在点检表右上角及表头（如 DEMO-QR-032 Rev.A1 / 设备维护保养记录）；留空则用通用默认值。备注 Note 印在表格下方。</p>
     <div class="row">
       <div class="field"><label>模板标识 key</label><input id="th_key" value="${esc(t.key)}"></div>
       <div class="field"><label>设备名称</label><input id="th_name" value="${esc(t.equip_name)}"></div>
@@ -1668,7 +1668,7 @@ function tplHead(id){
       <div class="field"><label>来源文件（仅备注用）</label><input id="th_src" value="${esc(t.source_file||'')}"></div>
     </div>
     <div class="row">
-      <div class="field"><label>表单编号</label><input id="th_code" value="${esc(t.form_code||'')}" placeholder="PK-JC-QR-032"></div>
+      <div class="field"><label>表单编号</label><input id="th_code" value="${esc(t.form_code||'')}" placeholder="DEMO-QR-032"></div>
       <div class="field"><label>版本</label><input id="th_rev" value="${esc(t.form_rev||'')}" placeholder="Rev.A1"></div>
     </div>
     <div class="row">
@@ -1836,7 +1836,7 @@ async function openDevTpl(devId){
     <div class="glass" style="padding:12px;margin-bottom:10px">
       <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
         <b>${esc(t.key)}</b><span class="tag">${esc(t.equip_name)}</span>
-        <span class="tag">${esc(t.form_code||'PK-JC-QR-032')} ${esc(t.form_rev||'Rev.A1')}</span>
+        <span class="tag">${esc(t.form_code||'DEMO-QR-032')} ${esc(t.form_rev||'Rev.A1')}</span>
         <span class="muted tiny">${(t.items||[]).length} 项检查 · ${t.use_count||0} 台设备共用此模板</span>
       </div>
     </div>
@@ -1954,7 +1954,7 @@ async function openProgTpl(pid){
         <option value="week"${p.row_unit==='week'?' selected':''}>每周一行（固定周一）</option></select></div>
     </div>
     <div class="row">
-      <div class="field"><label>表单编号</label><input id="pg_code" value="${esc(p.form_code||'')}" placeholder="PK-JC-QR-102"></div>
+      <div class="field"><label>表单编号</label><input id="pg_code" value="${esc(p.form_code||'')}" placeholder="DEMO-QR-102"></div>
       <div class="field"><label>版本</label><input id="pg_rev" value="${esc(p.form_rev||'')}" placeholder="Rev.A1"></div>
     </div>
     <div class="row">
@@ -2036,7 +2036,7 @@ async function fillSignerSelect(selId){
 }
 $('#tpl_add').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>新增点检模板</h3>
-    <div class="field"><label>模板标识 key（如 RDL-50）</label><input id="t_key"></div>
+    <div class="field"><label>模板标识 key（如 设备型号-A）</label><input id="t_key"></div>
     <div class="field"><label>设备名称</label><input id="t_name"></div>
     <div class="field"><label>型号</label><input id="t_model"></div>
     <div class="field"><label>授权签名人（新建模板需签名人 + 密码）</label><select id="t_signer"><option value="">（请选择）</option></select></div>
@@ -2058,8 +2058,8 @@ async function saveTpl(){
 $('#tpl_import').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>📥 导入点检模板（CSV / TSV 自动解析）</h3>
     <div class="row">
-      <div class="field"><label>模板标识 key（如 RDL-50）</label><input id="it_key" placeholder="导入文件名会自动填入，可修改"></div>
-      <div class="field"><label>设备名称</label><input id="it_name" placeholder="如 持久蠕变试验机"></div>
+      <div class="field"><label>模板标识 key（如 设备型号-A）</label><input id="it_key" placeholder="导入文件名会自动填入，可修改"></div>
+      <div class="field"><label>设备名称</label><input id="it_name" placeholder="如 蠕变试验机"></div>
     </div>
     <div class="row">
       <div class="field"><label>型号（可选）</label><input id="it_model"></div>
@@ -3318,7 +3318,7 @@ function renderRoomMap(){
   if(!gInspectRooms.length){ box.innerHTML='<div class="muted">（未取到点检房间，请刷新页面重试）</div>'; return; }
   // ★ 候选**只取 LIMS 侧房间名**：LIMS 源房间清单 + 各行当前已选中的值（保证历史选择不丢）。
   //   早前把「点检房间名」也并进候选，下拉里就混进了一堆 LIMS 根本没有的房间
-  //   （危化品库 / 晶间腐蚀室 / 落锤室 / 疲劳，弯曲室 / 金相分析室 / 金相试样间 …），把"选哪个"彻底搞乱。
+  //   （危化品库 / 晶间腐蚀室 / 落锤室 / 疲劳，弯曲室 / 测试室04 / 金相试样间 …），把"选哪个"彻底搞乱。
   const opts=[...new Set([...(gLimsRooms||[]),...gInspectRooms.map(currentLimSource).filter(Boolean)])]
     .sort((a,b)=>String(a).localeCompare(String(b),'zh'));
   const rows=gInspectRooms.map(rn=>{
@@ -3994,7 +3994,7 @@ loadSysSignNoPw();
 function closeM(){$('#mask').classList.remove('show');var mm=$('#modal');if(mm)mm.style.maxWidth='';}
 $('#mask').onclick=e=>{if(e.target.id==='mask')closeM();};
 me().then(r=>{if(r.ok)enter();}).then(async()=>{
-  // 深链支持：/admin?tab=room&room=持久蠕变室1
+  // 深链支持：/admin?tab=room&room=测试室01
   // 供温湿度页「去后台补填」直达该房间的温湿度表头配置，省去手动找房间
   const p=new URLSearchParams(location.search);
   const t=p.get('tab'), rm=p.get('room');
@@ -4022,8 +4022,18 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
     var bar = document.createElement('div');
     bar.id = 'ro-banner';
     bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
-    (document.body || document.documentElement).appendChild(bar);
+    // 正常文档流 + 吸顶：占位高度把下方内容顶下去，不会遮挡顶部按钮；滚动时仍贴在顶部
+    bar.style.cssText = 'position:sticky;top:0;z-index:2147483647;background:#2563eb;color:#fff;'
+      + 'font-size:13px;line-height:1.7;padding:6px 12px;text-align:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.3);box-sizing:border-box';
+    if (!document.getElementById('ro-banner-style')) {
+      var st = document.createElement('style');
+      st.id = 'ro-banner-style';
+      st.textContent = '@media print{#ro-banner{display:none!important}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    var host = document.body || document.documentElement;
+    host.insertBefore(bar, host.firstChild);
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];

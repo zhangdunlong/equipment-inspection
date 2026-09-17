@@ -209,9 +209,9 @@
 const { $, $$, esc, api, toast, mountNav } = CORE;
 const I = (n, s) => CORE.icon(n, s || 18);
 
-/* 分组图标：持久蠕变 → 应变–时间曲线；其他分组 → 区域网格；独立房间 → 单间平面。
+/* 分组图标：蠕变 → 应变–时间曲线；其他分组 → 区域网格；独立房间 → 单间平面。
    两种分组共用同一种「线性图标 + 浅色片」处理，只换图形，风格统一且不再用 emoji。 */
-const GROUP_ICON = { '持久蠕变': 'creep' };
+const GROUP_ICON = { '蠕变': 'creep' };
 const groupIcon = g => GROUP_ICON[g] || 'grid';
 const roomIcon = r => (String(r.group || '').trim() ? groupIcon(String(r.group).trim()) : 'rooms');
 
@@ -511,8 +511,18 @@ $('#q').addEventListener('keydown', e => {
     var bar = document.createElement('div');
     bar.id = 'ro-banner';
     bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
-    (document.body || document.documentElement).appendChild(bar);
+    // 正常文档流 + 吸顶：占位高度把下方内容顶下去，不会遮挡顶部按钮；滚动时仍贴在顶部
+    bar.style.cssText = 'position:sticky;top:0;z-index:2147483647;background:#2563eb;color:#fff;'
+      + 'font-size:13px;line-height:1.7;padding:6px 12px;text-align:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.3);box-sizing:border-box';
+    if (!document.getElementById('ro-banner-style')) {
+      var st = document.createElement('style');
+      st.id = 'ro-banner-style';
+      st.textContent = '@media print{#ro-banner{display:none!important}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    var host = document.body || document.documentElement;
+    host.insertBefore(bar, host.firstChild);
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];

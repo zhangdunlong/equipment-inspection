@@ -193,7 +193,7 @@ function renderDevice(dev, month, dmon){
   const items=(dmon.items&&dmon.items.length)?dmon.items:[];
   const days=dmon.days||{};
   // 表头（表单编号 / 中文标题 / 英文标题）取自后台「点检模板」配置，未配置时回退公司通用表头
-  const formHead=[dmon.form_code||'PK-JC-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
+  const formHead=[dmon.form_code||'DEMO-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
   const tblTitle=dmon.title||'设备维护保养记录';
   const tblTitleEn=dmon.title_en||'Maintenance Record of Equipment';
   const dailyItems=items.filter(it=>it.frequency!=='每月');

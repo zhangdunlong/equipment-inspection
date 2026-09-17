@@ -451,9 +451,9 @@ const H_MAX = 80;         // 最多渲染多少条，超出提示继续输入
 
 const histNorm = s => String(s == null ? '' : s).toLowerCase();
 
-// 表单编号：设备点检表统一取模板 source_file 里的 PK-JC-QR-0xx（专项表另有 form_code）
+// 表单编号：设备点检表统一取模板 source_file 里的 DEMO-QR-0xx（专项表另有 form_code）
 function histFormCode(s) {
-  const m = String(s || '').match(/PK-JC-QR-\d+/i);
+  const m = String(s || '').match(/DEMO-QR-\d+/i);
   return m ? m[0].toUpperCase() : '';
 }
 
@@ -577,7 +577,7 @@ async function fillHist() {
 
   // 选项 = 「一张检查表」，而不是一台设备：冲击机的点检表和摩擦风阻表要分开查
   const [devs, prgs, tpls] = await Promise.all([api('/api/devices'), api('/api/programs'), api('/api/templates')]);
-  // 设备的「表单编号」不在 /api/devices 里，要从模板的 source_file 里摘（PK-JC-QR-032 …）
+  // 设备的「表单编号」不在 /api/devices 里，要从模板的 source_file 里摘（DEMO-QR-032 …）
   const codeOf = {};
   (Array.isArray(tpls) ? tpls : []).forEach(t => { codeOf[t.id] = histFormCode(t.source_file); });
   HIST = [];
@@ -657,8 +657,18 @@ $('#h_go').onclick = () => {
     var bar = document.createElement('div');
     bar.id = 'ro-banner';
     bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
-    (document.body || document.documentElement).appendChild(bar);
+    // 正常文档流 + 吸顶：占位高度把下方内容顶下去，不会遮挡顶部按钮；滚动时仍贴在顶部
+    bar.style.cssText = 'position:sticky;top:0;z-index:2147483647;background:#2563eb;color:#fff;'
+      + 'font-size:13px;line-height:1.7;padding:6px 12px;text-align:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.3);box-sizing:border-box';
+    if (!document.getElementById('ro-banner-style')) {
+      var st = document.createElement('style');
+      st.id = 'ro-banner-style';
+      st.textContent = '@media print{#ro-banner{display:none!important}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    var host = document.body || document.documentElement;
+    host.insertBefore(bar, host.firstChild);
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];

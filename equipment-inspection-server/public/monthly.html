@@ -40,7 +40,7 @@
 
   #forms{display:flex; flex-direction:column; align-items:center; gap:18px; padding:0 12px 40px}
 
-  /* ===== 单张点检表（与 PK-JC-QR-032 版式一致） ===== */
+  /* ===== 单张点检表（与 DEMO-QR-032 版式一致） ===== */
   .form{
     width:100%; max-width:1180px; background:#fff;
     border:2px solid var(--line); border-radius:6px; overflow:hidden;
@@ -208,7 +208,7 @@ function buildForm(d, yy, mm){
   }
 
   // 表头取自后台「点检模板」配置，未配置时回退公司通用表头
-  const formHead=[d.form_code||'PK-JC-QR-032', d.form_rev||'Rev.A1'].join(' ');
+  const formHead=[d.form_code||'DEMO-QR-032', d.form_rev||'Rev.A1'].join(' ');
   const tblTitle=d.title||'设备维护保养记录';
   const tblTitleEn=d.title_en||'Maintenance Record of Equipment';
   const signers=(d.signers&&d.signers.length)?d.signers.join('、'):'—';

@@ -209,9 +209,9 @@
 const { $, $$, esc, api, toast, mountNav } = CORE;
 const I = (n, s) => CORE.icon(n, s || 18);
 
-/* 分组图标：持久蠕变 → 应变–时间曲线；其他分组 → 区域网格；独立房间 → 单间平面。
+/* 分组图标：蠕变 → 应变–时间曲线；其他分组 → 区域网格；独立房间 → 单间平面。
    两种分组共用同一种「线性图标 + 浅色片」处理，只换图形，风格统一且不再用 emoji。 */
-const GROUP_ICON = { '持久蠕变': 'creep' };
+const GROUP_ICON = { '蠕变': 'creep' };
 const groupIcon = g => GROUP_ICON[g] || 'grid';
 const roomIcon = r => (String(r.group || '').trim() ? groupIcon(String(r.group).trim()) : 'rooms');
 

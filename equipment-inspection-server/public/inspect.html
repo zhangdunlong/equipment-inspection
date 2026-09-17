@@ -383,7 +383,7 @@ function renderMonth(dev, month, dmon){
   const today = localToday();
   const items = (dmon.items && dmon.items.length) ? dmon.items : [];
   const days = dmon.days || {};
-  const formHead = [dmon.form_code||'PK-JC-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
+  const formHead = [dmon.form_code||'DEMO-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
   const tblTitle = dmon.title || '设备维护保养记录';
   const tblTitleEn = dmon.title_en || 'Maintenance Record of Equipment';
 

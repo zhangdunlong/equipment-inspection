@@ -44,7 +44,7 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
 .ctab tr.colh td{ background:#f2f2f2; font-weight:700; font-size:10.5px; line-height:1.2; }
 .ctab tr.colh td i{ display:block; font-style:normal; font-size:8.5px; color:#555; font-weight:400; }
 .ctab tbody tr.r td{ height:25px; }
-/* 右侧说明栏：线下 PK-JC-QR-102 是上下两块格 —— 标题格（跨表头 2 行）+ 正文格（跨列头行与
+/* 右侧说明栏：线下 DEMO-QR-102 是上下两块格 —— 标题格（跨表头 2 行）+ 正文格（跨列头行与
    全部数据行），两块各自在格内垂直居中。线上原来合成一格、内容全顶在上边，与模板差得远。 */
 .ctab td.side{ text-align:center; vertical-align:middle; font-size:9.5px; line-height:1.4; padding:7px 8px; }
 .ctab td.side .s-h{ font-weight:700; font-size:10px; }
@@ -301,7 +301,7 @@ function render(){
   const cols = p.columns || [];
   const keys = rowKeys();
   const hasSide = !!(p.side_items && p.side_items.length);
-  // 每个数据列占几个网格列。线下 PK-JC-QR-102 的「摩擦和风阻损耗」表头是跨 2 列的，
+  // 每个数据列占几个网格列。线下 DEMO-QR-102 的「摩擦和风阻损耗」表头是跨 2 列的，
   // 模板里用 columns[].span 声明；不声明 = 1（079 等表不受影响）。
   const colSpans = cols.map(c => Math.max(1, +c.span || 1));
   const spanSum = colSpans.reduce((a, b) => a + b, 0) || 1;
@@ -312,7 +312,7 @@ function render(){
   document.documentElement.style.setProperty('--rowh', rowH.toFixed(2) + 'mm');
   const tdy = todayStr();
 
-  // 列宽：日期列 8%（周检 16%），右侧说明栏 28%（对齐线下 PK-JC-QR-102 的实测比例），
+  // 列宽：日期列 8%（周检 16%），右侧说明栏 28%（对齐线下 DEMO-QR-102 的实测比例），
   // 其余按各列的 span 加权均分。colgroup 需要按「网格列」逐个铺开（而不是每列一个 col），
   // 否则跨列单元格的宽度摊不到对应的网格列上，表头会错位。
   const sideW = hasSide ? 28 : 0;
@@ -323,7 +323,7 @@ function render(){
   colSpans.forEach(sp => { for (let i = 0; i < sp; i++) cg += `<col style="width:${unitW.toFixed(3)}%">`; });
   if (hasSide) cg += `<col style="width:${sideW}%">`;
 
-  // 右侧说明栏拆两块（对齐线下 PK-JC-QR-102 Rev.A1）：
+  // 右侧说明栏拆两块（对齐线下 DEMO-QR-102 Rev.A1）：
   //   ① 标题格 —— 只跨表头那 2 行，标题在其中垂直居中；
   //   ② 正文格 —— 跨「列头行 + 全部数据行」，步骤列表在其中垂直居中。
   // 两块 rowspan 相加（2 + keys + 1）= 原来的 keys + 3，占格总数不变，表格骨架零风险。
@@ -348,7 +348,7 @@ function render(){
   html += `<table class="ctab"><colgroup>${cg}</colgroup><tbody>`;
 
   // 表格内的表头两行（102 那种）。
-  // 线下 PK-JC-QR-102 Rev.A1 是 8 列网格，表头靠「把相邻的空格合并」来排版，规则是：
+  // 线下 DEMO-QR-102 Rev.A1 是 8 列网格，表头靠「把相邻的空格合并」来排版，规则是：
   //   第1行： 年月YY-MM（跨2列） | 年月值（1列） | 地点Site（1列） | 地点值（吃掉剩余全部列，居中） | 步骤栏
   //   第2行： 设备型号（跨2列）  | 型号值（1列） | 设备编号（1列） | 编号值（吃掉剩余全部列，居中） | 步骤栏
   // 必须按同一规则合并：否则上下两行边界对不齐，第一行右边会多出一格空白。
@@ -600,8 +600,18 @@ boot();
     var bar = document.createElement('div');
     bar.id = 'ro-banner';
     bar.textContent = '演示站 · 只读展示模式：仅可浏览查看，所有新增 / 编辑 / 删除 / 写入操作均已被禁用';
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;font-size:13px;padding:6px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.3)';
-    (document.body || document.documentElement).appendChild(bar);
+    // 正常文档流 + 吸顶：占位高度把下方内容顶下去，不会遮挡顶部按钮；滚动时仍贴在顶部
+    bar.style.cssText = 'position:sticky;top:0;z-index:2147483647;background:#2563eb;color:#fff;'
+      + 'font-size:13px;line-height:1.7;padding:6px 12px;text-align:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.3);box-sizing:border-box';
+    if (!document.getElementById('ro-banner-style')) {
+      var st = document.createElement('style');
+      st.id = 'ro-banner-style';
+      st.textContent = '@media print{#ro-banner{display:none!important}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    var host = document.body || document.documentElement;
+    host.insertBefore(bar, host.firstChild);
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];

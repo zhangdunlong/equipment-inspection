@@ -128,7 +128,7 @@ const DEFAULT_PROGRAMS = [
     name: '夏比冲击摩擦和风阻损耗检查',
     title: '夏比冲击试验机摩擦和风阻损耗日常检查记录',
     title_en: 'Daily Inspection Record of Percent Friction and Windage Loss on Charpy Impact Testing Machine',
-    form_code: 'PK-JC-QR-102',
+    form_code: 'DEMO-QR-102',
     form_rev: 'Rev.A1',
     row_unit: 'day',
     columns: [
@@ -152,7 +152,7 @@ const DEFAULT_PROGRAMS = [
     ],
     criteria: [
       { std: 'ASTM E23', vals: ['≤设备总量程的0.4%', '≤前次测量值的10%',
-        "1.手动计算公式：P=K1-K2，P'=（K3-K2）÷10÷使用机器最大量程；K1: 不安装试样情况下得到试验机仪表读数，K2: 不复位指针的情况下的空摆数据，K3: 使摆锤在无冲击和振动的情况下允许摆锤循环5次（一次向前和一次向后视为一个循环），在第6次向前摆动之前，刻度盘指针设置在所用量程的5%，第六次摆动之后，记录数值。2.自动计算：通过设备厂家自带的功能系统来进行摩擦风阻自动计算（详细操作规程见 PK-JC-WI-XN-022）"] },
+        "1.手动计算公式：P=K1-K2，P'=（K3-K2）÷10÷使用机器最大量程；K1: 不安装试样情况下得到试验机仪表读数，K2: 不复位指针的情况下的空摆数据，K3: 使摆锤在无冲击和振动的情况下允许摆锤循环5次（一次向前和一次向后视为一个循环），在第6次向前摆动之前，刻度盘指针设置在所用量程的5%，第六次摆动之后，记录数值。2.自动计算：通过设备厂家自带的功能系统来进行摩擦风阻自动计算（详细操作规程见 DEMO-WI-XN-022）"] },
       { std: 'GB/T229',  vals: ['≤设备总量程的0.5%', '/', ''] }
     ],
     row_count: 31,
@@ -163,12 +163,12 @@ const DEFAULT_PROGRAMS = [
     device_ids: [],
     // 自动关联规则（按模板 key）：4 台显微镜（3 台金相 + 1 台体视）。
     // 新模板若也挂到设备上，同样会被自动纳入本项目。
-    auto_tpl_keys: ['PK-JC-QR-079', 'PK-JC-QR-079-Axio vert A1', 'PK-JC-QR-079-Axio observer',
-      'PK-JC-QR-079-Axio scope5', 'PK-JC-QR-079-OLYMPUS SZX7'],
+    auto_tpl_keys: ['DEMO-QR-079', 'DEMO-QR-079-Axio vert A1', 'DEMO-QR-079-Axio observer',
+      'DEMO-QR-079-Axio scope5', 'DEMO-QR-079-OLYMPUS SZX7'],
     name: '显微镜维护记录',
     title: '显微镜维护记录',
     title_en: 'Maintenance Record of Microscope',
-    form_code: 'PK-JC-QR-079',
+    form_code: 'DEMO-QR-079',
     form_rev: 'Rev.A0',
     row_unit: 'week',
     columns: [
@@ -305,7 +305,7 @@ function migrate079Notes() {
   const tpls = allTemplates();
   let tc = 0;
   for (const t of tpls) {
-    if (!t || typeof t.key !== 'string' || t.key.indexOf('PK-JC-QR-079') !== 0) continue;
+    if (!t || typeof t.key !== 'string' || t.key.indexOf('DEMO-QR-079') !== 0) continue;
     if (typeof t.note === 'string' && t.note && t.note.indexOf('期间核查') < 0 && t.note.indexOf('设备维护') >= 0) {
       t.note = TPL_NOTE; tc++;
     }
@@ -315,7 +315,7 @@ function migrate079Notes() {
 
 // v1.24.0 迁移：清理「旧显微镜点检模板」与历史遗留的「#102 分型号模板」。
 // 背景：#079 显微镜维护记录已整体改成独立检查项目（prg-qr079，周检月表），设备上再挂一张
-//       PK-JC-QR-079-* 点检模板就会出现「点进去还是旧模板」的双头现象；PK-JC-QR-102-* 同理
+//       DEMO-QR-079-* 点检模板就会出现「点进去还是旧模板」的双头现象；DEMO-QR-102-* 同理
 //       早被 prg-qr102 取代，且当初就没有任何设备引用（0 台）。
 // 做法：不硬删 —— 整块归档进 kv._archivedTemplates 留底，再摘掉 devices[].template_id。
 //       点检记录（inspections）一律保留：那是已经签过字的凭证，不随模板清理而消失。
@@ -324,7 +324,7 @@ function migrateDropLegacyTemplates() {
   const tpls = allTemplates();
   const legacy = t => {
     const k = String((t && t.key) || '').trim();
-    return k.indexOf('PK-JC-QR-079') === 0 || k.indexOf('PK-JC-QR-102') === 0;
+    return k.indexOf('DEMO-QR-079') === 0 || k.indexOf('DEMO-QR-102') === 0;
   };
   const victims = tpls.filter(legacy);
   if (!victims.length) return;
@@ -332,7 +332,7 @@ function migrateDropLegacyTemplates() {
   const devs = allDevices();
   const affected = devs.filter(d => d.template_id && vids.has(d.template_id));
   const hit = new Set(affected.map(d => d.id));
-  // 关键：被删模板正是某些独立检查项目「自动关联」的锚点（如 prg-qr079 靠 PK-JC-QR-079-* 找设备）。
+  // 关键：被删模板正是某些独立检查项目「自动关联」的锚点（如 prg-qr079 靠 DEMO-QR-079-* 找设备）。
   // 删掉锚点后 syncProgramDevices 下次启动就匹配不到设备了 → 这里先把当前实际关联固化进
   // device_ids 并关掉 auto_link，专项检查的参与设备才不会在重启后凭空消失。
   const vkeys = new Set(victims.map(t => t.key));
@@ -365,31 +365,9 @@ function migrateDropLegacyTemplates() {
 // 来源：早期 Excel / 备份导入链路里的编码损坏（工厂机与本机各有若干处，互不重叠），
 //       事后无法从源头重导 → 按「上下文唯一的坏片段 → 正确文字」逐条还原。
 // 原则：只做已核对过的精确还原，绝不猜字；还原不掉的写 warning 日志留着人工处理。
-const MOJIBAKE_FIXES = [
-  [/持\uFFFD+蠕变室1/g, '持久蠕变室1'],
-  [/持久\uFFFD+变室1/g, '持久蠕变室1'],
-  [/金相分\uFFFD+室/g, '金相分析室'],
-  [/异常\uFFFD+，划/g, '异常时，划'],
-  [/^\uFFFD+查所有的接线是否安全可靠$/g, '检查所有的接线是否安全可靠'],
-  [/磨损损\uFFFD+/g, '磨损损耗'],
-  [/温控表及试\uFFFD+机是否联机/g, '温控表及试验机是否联机'],
-  [/升降系\uFFFD+是否灵活/g, '升降系统是否灵活'],
-  [/^\uFFFD+验结束后，保持仪器设\uFFFD+及操作台面卫生$/g, '试验结束后，保持仪器设备及操作台面卫生'],
-  [/温控表是否正\uFFFD+显示/g, '温控表是否正常显示'],
-  [/维氏硬\uFFFD+设备日常维护/g, '维氏硬度设备日常维护'],
-  [/^每\uFFFD+$/g, '每天'],
-  [/冲\uFFFD+能量\uFFFD+时候/g, '冲击能量的时候'],
-  [/必须\uFFFD+据指针摆动/g, '必须根据指针摆动'],
-  [/带\uFFFD+显示装置的试验机/g, '带有显示装置的试验机'],
-  [/。\uFFFD+护状态为正常时/g, '。维护状态为正常时'],
-  [/设备运行\uFFFD+况/g, '设备运行情况'],
-  [/LIMS自动导\uFFFD+$/g, 'LIMS自动导入'],
-  // 签名人姓名（历史 inspections[].signed_by 里的残字）
-  [/^张敦\uFFFD+$/g, '张敦龙'],
-  [/^张\uFFFD+龙$/g, '张敦龙'],
-  [/^张\uFFFD+$/g, '张敦龙'],
-  [/^\uFFFD+敦龙$/g, '张敦龙']
-];
+// 历史数据修复表：若某些历史字符串里残留 UTF-8 替换字符（\uFFFD），
+// 可在此登记 [/正则/, '正确文本'] 规则。开源版不内置任何具体业务文本，仅保留修复机制。
+const MOJIBAKE_FIXES = [];
 function applyMojibakeFixes(s) {
   let out = s;
   MOJIBAKE_FIXES.forEach(pair => { out = out.replace(pair[0], pair[1]); });
@@ -600,7 +578,7 @@ const allAbnormal = () => kvget('abnormalRecords', []);
 const allPrograms = () => kvget('programs', []);
 const allCheckRecords = () => kvget('checkRecords', []);
 // 设备参与哪些独立检查项目。刻意**不走** template_id：一台设备同时有自己的「常规点检」
-// （挂在 PK-JC-QR-032 之类的点检模板上）和「专项检查」（如冲击机摩擦风阻、显微镜维护），
+// （挂在 DEMO-QR-032 之类的点检模板上）和「专项检查」（如冲击机摩擦风阻、显微镜维护），
 // 两者互不占用、各成一张表 —— 这正是「只是恰好放在同一个房间」的含义。
 const programsOfDevice = (devId) => allPrograms().filter(p => (p.device_ids || []).indexOf(devId) >= 0);
 
@@ -2013,8 +1991,8 @@ async function handleDashboard(ctx) {
   const loc = q.get('location') || '';
   const grp = (q.get('group') || '').trim();
   // 过滤维度（互斥，group 优先）：
-  //   group=持久蠕变 → 只保留「后台房间管理里归到该分组」的房间下的设备（如 持久蠕变室1+室2）
-  //   location=持久蠕变室1 → 只保留该房间设备
+  //   group=蠕变 → 只保留「后台房间管理里归到该分组」的房间下的设备（如 测试室01+室2）
+  //   location=测试室01 → 只保留该房间设备
   //   都不传 → 全部房间（仅在确实需要"全厂设备"时才这样调用）
   // 顺序沿用「设备台账.xlsx」导入的原始顺序（devices 数组即台账顺序）
   const grpRooms = grp ? new Set(kvget('rooms', []).filter(r => String(r.group || '').trim() === grp).map(r => r.name)) : null;
@@ -2162,7 +2140,7 @@ async function handleUpdateRoom(ctx) {
   if (newName.length > 40) return fail(ctx.res, '房间名称不能超过 40 字');
   if (newName !== oldName && rooms.some(x => x.name === newName)) return fail(ctx.res, '房间「' + newName + '」已存在');
   if (b.desc != null) r.desc = String(b.desc).trim();
-  // 分组只影响展示：同组房间（如 持久蠕变室1/2）在大屏与下拉里合并到组名之下，房间本身仍各自独立
+  // 分组只影响展示：同组房间（如 测试室01/2）在大屏与下拉里合并到组名之下，房间本身仍各自独立
   if (b.group != null) r.group = String(b.group).trim();
   // 科室：该房间归属的科室（留空 = 不限定，全员可见）
   if (b.dept != null) r.dept = String(b.dept).trim();
@@ -2700,8 +2678,8 @@ const LIMS_DEFAULTS = {
   // 别名 = LIMS源房间名 → 点检房间名。同名房间无需别名（同名直配）。
   // 注：'室温拉伸实验室' 经核查 LIMS 侧房间名就是「室温拉伸实验室」、点检房间同名，无需别名；
   //     旧默认 '室拉，高拉室' 是错误映射（会路由到不存在的房间），已移除。
-  roomAlias: { '金相分析': '金相分析室', '金相制样间': '金相试样间' },
-  limsRooms: ['冲击室', '室温拉伸实验室', '持久蠕变室2', '持久蠕变室1', '硬度室', '金相制样间', 'ICP-MS',
+  roomAlias: { '金相分析': '测试室04', '金相制样间': '金相试样间' },
+  limsRooms: ['冲击室', '室温拉伸实验室', '测试室02', '测试室01', '硬度室', '金相制样间', 'ICP-MS',
     '直读光谱（OES）', '碳硫分析（C、S）', 'ICP-OES', '金相分析（办公）', '金相分析', '化学制样', '化学分析', '氧氮氢（O、N、H）'],
   // allowShare：**显式允许**「与别的点检房间共用同一个 LIMS 数据源」的点检房间名。
   //   背景：别名若指向一个「本身也是点检房间名」的 LIMS 源（如 疲劳，弯曲室 → 冲击室），
@@ -2714,7 +2692,7 @@ const LIMS_DEFAULTS = {
   noFetch: [],
   // tempSource（v1.26.0）：**温度**的数据来源映射，点检房间名 → 'auto' | 'off' | LIMS 房间名。
   //   为什么单独一张表：湿度与温度在 LIMS 里不是一张传感器表。湿度走 humidityChart（每间都能有），
-  //   温度只有「温湿同点」的房间才有（temperatureHumidityList）。实测金相分析室 / 金相试样间
+  //   温度只有「温湿同点」的房间才有（temperatureHumidityList）。实测测试室04 / 金相试样间
   //   湿度满格但温度只有几格 —— 它们的 LIMS 源房间没挂温湿同点传感器。
   //   'auto'（默认，不必写）= 温度跟随湿度源（原来唯一的行为）；'off' = 这间不抓温度（留空手填）；
   //   写具体 LIMS 房间名 = 温度改从那一间取（例如多间统一指向有温湿同点传感器的「冲击室」）。

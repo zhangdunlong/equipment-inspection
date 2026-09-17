@@ -5,7 +5,7 @@
       "id": "dev-001",
       "no": "DEMO-001",
       "name": "电子式高温蠕变持久试验机 01",
-      "model": "RDL-50",
+      "model": "设备型号-A",
       "template_id": "tpl-001",
       "location": "测试室01"
     },
@@ -13,7 +13,7 @@
       "id": "dev-002",
       "no": "DEMO-002",
       "name": "电子式高温蠕变持久试验机 02",
-      "model": "RDL-100",
+      "model": "设备型号-B",
       "template_id": "tpl-002",
       "location": "测试室02"
     },
@@ -21,7 +21,7 @@
       "id": "dev-003",
       "no": "DEMO-003",
       "name": "夏比冲击试验机 03",
-      "model": "XCJ-50",
+      "model": "设备型号-D",
       "template_id": "tpl-003",
       "location": "测试室03"
     },
@@ -29,7 +29,7 @@
       "id": "dev-004",
       "no": "DEMO-004",
       "name": "电子万能试验机 04",
-      "model": "WDW-100",
+      "model": "设备型号-E",
       "template_id": "tpl-004",
       "location": "测试室04"
     },
@@ -37,7 +37,7 @@
       "id": "dev-005",
       "no": "DEMO-005",
       "name": "金相显微镜 05",
-      "model": "DM-2700",
+      "model": "设备型号-F",
       "template_id": "tpl-005",
       "location": "测试室05"
     },
@@ -45,7 +45,7 @@
       "id": "dev-006",
       "no": "DEMO-006",
       "name": "电子式高温蠕变持久试验机 06",
-      "model": "RDL-50",
+      "model": "设备型号-A",
       "template_id": "tpl-001",
       "location": "测试室06"
     },
@@ -53,7 +53,7 @@
       "id": "dev-007",
       "no": "DEMO-007",
       "name": "电子式高温蠕变持久试验机 07",
-      "model": "RDL-100",
+      "model": "设备型号-B",
       "template_id": "tpl-002",
       "location": "测试室07"
     },
@@ -61,7 +61,7 @@
       "id": "dev-008",
       "no": "DEMO-008",
       "name": "夏比冲击试验机 08",
-      "model": "XCJ-50",
+      "model": "设备型号-D",
       "template_id": "tpl-003",
       "location": "测试室08"
     }
@@ -71,7 +71,7 @@
       "id": "tpl-001",
       "key": "DEMO-A1",
       "equip_name": "电子式高温蠕变持久试验机",
-      "model": "RDL-50",
+      "model": "设备型号-A",
       "source_file": "点检模板示例-DEMO-A1.xlsx",
       "items": [
         {
@@ -116,7 +116,7 @@
       "id": "tpl-002",
       "key": "DEMO-A2",
       "equip_name": "电子式高温蠕变持久试验机",
-      "model": "RDL-100",
+      "model": "设备型号-B",
       "source_file": "点检模板示例-DEMO-A2.xlsx",
       "items": [
         {
@@ -151,7 +151,7 @@
       "id": "tpl-003",
       "key": "DEMO-B1",
       "equip_name": "夏比冲击试验机",
-      "model": "XCJ-50",
+      "model": "设备型号-D",
       "source_file": "点检模板示例-DEMO-B1.xlsx",
       "items": [
         {
@@ -181,7 +181,7 @@
       "id": "tpl-004",
       "key": "DEMO-B2",
       "equip_name": "电子万能试验机",
-      "model": "WDW-100",
+      "model": "设备型号-E",
       "source_file": "点检模板示例-DEMO-B2.xlsx",
       "items": [
         {
@@ -211,7 +211,7 @@
       "id": "tpl-005",
       "key": "DEMO-C1",
       "equip_name": "金相显微镜",
-      "model": "DM-2700",
+      "model": "设备型号-F",
       "source_file": "点检模板示例-DEMO-C1.xlsx",
       "items": [
         {
@@ -251,7 +251,7 @@
     },
     {
       "id": "sig-002",
-      "name": "乙",
+      "name": "演示签名人乙",
       "active": true,
       "password_hash": "<SIG_HASH_PLACEHOLDER>",
       "signature_image": "",
@@ -261,7 +261,7 @@
     },
     {
       "id": "sig-003",
-      "name": "丙",
+      "name": "演示签名人丙",
       "active": true,
       "password_hash": "<SIG_HASH_PLACEHOLDER>",
       "signature_image": "",
@@ -407,7 +407,7 @@
     {
       "name": "测试室01",
       "desc": "演示用恒温恒湿实验室（01 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-01",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-01",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-001 系列",
       "group": "第1组",
@@ -416,7 +416,7 @@
     {
       "name": "测试室02",
       "desc": "演示用恒温恒湿实验室（02 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-02",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-02",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-002 系列",
       "group": "第1组",
@@ -425,7 +425,7 @@
     {
       "name": "测试室03",
       "desc": "演示用恒温恒湿实验室（03 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-03",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-03",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-003 系列",
       "group": "第2组",
@@ -434,7 +434,7 @@
     {
       "name": "测试室04",
       "desc": "演示用恒温恒湿实验室（04 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-04",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-04",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-004 系列",
       "group": "第2组",
@@ -443,7 +443,7 @@
     {
       "name": "测试室05",
       "desc": "演示用恒温恒湿实验室（05 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-05",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-05",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-005 系列",
       "group": "第3组",
@@ -452,7 +452,7 @@
     {
       "name": "测试室06",
       "desc": "演示用恒温恒湿实验室（06 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-06",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-06",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-006 系列",
       "group": "第3组",
@@ -461,7 +461,7 @@
     {
       "name": "测试室07",
       "desc": "演示用恒温恒湿实验室（07 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-07",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-07",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-007 系列",
       "group": "第4组",
@@ -470,7 +470,7 @@
     {
       "name": "测试室08",
       "desc": "演示用恒温恒湿实验室（08 号）",
-      "thermo_apparatus": "温湿度自动记录仪 TR-72-08",
+      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-08",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
       "thermo_equipment": "试验机 DEMO-008 系列",
       "group": "第4组",
