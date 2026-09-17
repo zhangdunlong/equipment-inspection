@@ -4906,17 +4906,9 @@ function serveStatic(req, res) {
   // 浏览器会无条件请求 /favicon.ico；不给就会在控制台留一条 404（回归测试会误判成 JS 报错）
   // 用与页面 <link rel="icon"> 同款的内联闪电图标应答，顺带让所有页面都有标签页图标
   if (p === '/favicon.ico') {
-    // 优先回 public/assets/favicon-64.png（若文件已删除则走回退），与各页 <link rel="icon"> 同款；
-    // 读不到文件时回退到下面这枚中性内联 SVG 闪电图标，保证这条路由永不 500。
-    fs.readFile(path.join(PUBLIC, 'assets', 'favicon-64.png'), (e2, png) => {
-      if (e2) {
-        res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
-        res.end("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='#0f1b2d'/><path d='M18 4 L9 18 h6 l-2 10 9-14 h-6 z' fill='#38bdf8'/></svg>");
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
-      res.end(png);
-    });
+    // 统一回这枚中性内联 SVG 闪电图标（与各页 <link rel="icon"> 同款），不依赖任何图片文件，永不 500
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+    res.end("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='#0f1b2d'/><path d='M18 4 L9 18 h6 l-2 10 9-14 h-6 z' fill='#38bdf8'/></svg>");
     return;
   }
   const filePath = path.normalize(path.join(PUBLIC, p));
