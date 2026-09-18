@@ -3,7 +3,7 @@
 <head data-page-node-id="YIXNKHzyxNum7fFNmHRNlC">
 <meta charset="UTF-8" data-page-node-id="vKwCY6m5MxXANJcmCvPR6W">
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="NMOXUgHEv3RHMv5DdYPdQI">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" sizes="64x64" href="data:image/svg+xml,generic">
 <title>登录 · 设备点检系统</title>
 <link rel="stylesheet" href="/assets/style.css" data-page-node-id="LE74YcrV2PO9unPQLo0l13">
 <style>
@@ -25,6 +25,8 @@ body{ background:radial-gradient(900px 500px at 15% -10%, rgba(79,140,255,.22), 
 .btn-login:hover{ filter:brightness(1.06); }
 .btn-login:disabled{ opacity:.6; cursor:not-allowed; }
 .login-foot{ text-align:center; color:#aaa; font-size:11px; margin-top:16px; }
+.login-foot a.gh{ display:inline-block; margin-top:6px; color:#6b7a99; text-decoration:none; }
+.login-foot a.gh:hover{ color:#4f8cff; text-decoration:underline; }
 </style>
 </head>
 <body data-page-node-id="1aqshUvpocOXKxHIExSTzU">
@@ -38,7 +40,7 @@ body{ background:radial-gradient(900px 500px at 15% -10%, rgba(79,140,255,.22), 
   <div class="field" data-page-node-id="p4zFNnOEak2iNIl11qqYKs"><label data-page-node-id="SnWwho1u5SahFyInnNg2BD">密码 Password</label><input id="p" type="password" autocomplete="current-password" placeholder="请输入密码" data-page-node-id="Qu0Y39Oqat5SkNQyJQeGCt"></div>
   <div class="err" id="err" data-page-node-id="1MgD8YzXVFuj6mNHoAt7jN"></div>
   <button class="btn-login" id="go" data-page-node-id="BEkpaDusYe1zERwCCSkZtt">登 录</button>
-  <div class="login-foot" data-page-node-id="AkxUA6Y38Nf1ijJNrs1QbU">内网系统 · 登录后访问全部功能</div>
+  <div class="login-foot" data-page-node-id="AkxUA6Y38Nf1ijJNrs1QbU">内网系统 · 登录后访问全部功能<br><a class="gh" href="https://github.com/zhangdunlong" target="_blank" rel="noopener">🐙 开源仓库 GitHub</a></div>
 </div>
 <script>
 const $=s=>document.querySelector(s);
@@ -70,7 +72,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
 </script>
 
 <script>
-/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+/* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
 (function () {
   if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
   function banner() {
@@ -102,7 +104,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
     document.querySelectorAll('button,a,.btn').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');

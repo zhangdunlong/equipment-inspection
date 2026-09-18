@@ -406,9 +406,9 @@
   "rooms": [
     {
       "name": "测试室01",
-      "desc": "演示用恒温恒湿实验室（01 号）",
+      "desc": "演示用恒温恒湿实验室（01 号，多标准温度 + 湿度区间）",
       "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-01",
-      "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
+      "thermo_requirement": "温度：15℃~25℃ (GB/T 228.1)\n温度：18℃~28℃ (ASTM E23-25)\n湿度：40~70%RH",
       "thermo_equipment": "试验机 DEMO-001 系列",
       "group": "第1组",
       "dept": "演示科室一"
@@ -433,18 +433,18 @@
     },
     {
       "name": "测试室04",
-      "desc": "演示用恒温恒湿实验室（04 号）",
+      "desc": "演示用多种仪器实验室（04 号，8 台设备用于演示清单完整显示）",
       "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-04",
       "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
-      "thermo_equipment": "试验机 DEMO-004 系列",
+      "thermo_equipment": "电子式万能试验机 DEMO-INSTR-10\n显微硬度计 EX-100\n数显游标卡尺 EXT-220\n金相显微镜 设备型号-H\n冲击试验机 设备型号-I\n密度天平 DEMO-INSTR-11\n恒温干燥箱 DEMO-INSTR-12\n分析天平 DEMO-INSTR-13",
       "group": "第2组",
       "dept": "演示科室四"
     },
     {
       "name": "测试室05",
       "desc": "演示用恒温恒湿实验室（05 号）",
-      "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-05",
-      "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
+      "thermo_apparatus": "无",
+      "thermo_requirement": "—",
       "thermo_equipment": "试验机 DEMO-005 系列",
       "group": "第3组",
       "dept": "演示科室一"
@@ -453,7 +453,7 @@
       "name": "测试室06",
       "desc": "演示用恒温恒湿实验室（06 号）",
       "thermo_apparatus": "温湿度自动记录仪 DEMO-TH-06",
-      "thermo_requirement": "温度：10℃~35℃\n湿度：≤80%RH\n依据 GB/T 16825 通用要求",
+      "thermo_requirement": "温度：10℃~35℃\n湿度：≤60%RH",
       "thermo_equipment": "试验机 DEMO-006 系列",
       "group": "第3组",
       "dept": "演示科室二"
@@ -584,6 +584,20 @@
         "5_Night": {
           "temp": "24.0",
           "humidity": "47.0",
+          "recorder": "系统自动记录",
+          "signature_image": "",
+          "strike": 0
+        },
+        "8_PM": {
+          "temp": "24.6",
+          "humidity": "74.5",
+          "recorder": "系统自动记录",
+          "signature_image": "",
+          "strike": 0
+        },
+        "9_AM": {
+          "temp": "25.8",
+          "humidity": "52.0",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
@@ -813,6 +827,27 @@
           "strike": 0
         }
       }
+    },
+    {
+      "id": "env-006",
+      "room": "测试室06",
+      "ym": "2026-09",
+      "cells": {
+        "15_AM": {
+          "temp": "36.4",
+          "humidity": "58.0",
+          "recorder": "系统自动记录",
+          "signature_image": "",
+          "strike": 0
+        },
+        "16_PM": {
+          "temp": "34.2",
+          "humidity": "68.5",
+          "recorder": "系统自动记录",
+          "signature_image": "",
+          "strike": 0
+        }
+      }
     }
   ],
   "programs": [
@@ -873,13 +908,129 @@
           "content": "检查摆锤保险"
         }
       ],
-      "criteria": "摩擦和风阻损耗 ≤ 0.5%",
+      "criteria": [
+        {
+          "std": "范例标准 A",
+          "vals": [
+            "≤设备总量程的 0.4%",
+            "≤前次测量值的 10%",
+            "1.手动计算：P=K1-K2；2.自动计算：由设备自带功能系统完成（演示文案，非真实规程）"
+          ]
+        },
+        {
+          "std": "范例标准 B",
+          "vals": [
+            "≤设备总量程的 0.5%",
+            "/",
+            ""
+          ]
+        }
+      ],
       "row_count": 31,
       "note": "演示项目（虚构）",
       "auto_tpl_keys": []
+    },
+    {
+      "id": "prg-demo079",
+      "device_ids": [
+        "dev-005"
+      ],
+      "auto_tpl_keys": [
+        "DEMO-QR-079"
+      ],
+      "auto_link": false,
+      "name": "显微镜维护记录",
+      "title": "显微镜维护记录",
+      "title_en": "Maintenance Record of Microscope",
+      "form_code": "DEMO-QR-079",
+      "form_rev": "Rev.A0",
+      "row_unit": "week",
+      "columns": [
+        {
+          "key": "content",
+          "label": "内容",
+          "label_en": "Contents",
+          "type": "select",
+          "def": "1,2,3",
+          "opts": [
+            "1,2,3",
+            "1,2,3,4",
+            "1,2,3,5",
+            "1,2,3,4,5",
+            "4,5"
+          ]
+        },
+        {
+          "key": "checking",
+          "label": "检查情况",
+          "label_en": "Checking",
+          "type": "choice",
+          "def": "正常",
+          "opts": [
+            "正常",
+            "异常"
+          ]
+        },
+        {
+          "key": "operator",
+          "label": "操作者",
+          "label_en": "Operator",
+          "type": "sign"
+        }
+      ],
+      "row_count": 4,
+      "note": "备注 Remarks：\n一、操作者应在工作日每周第一天上班后 1 小时内、检测工作开始前进行维护。\n二、内容：1.设备运行情况；2.设备状态；3.设备维护；4.期间核查；5.校准。\n（演示数据，文案为虚构示例）",
+      "side_title": "检查步骤",
+      "side_items": [
+        "确认设备处于待机状态",
+        "目视检查镜头与载物台",
+        "记录本次维护内容"
+      ]
     }
   ],
-  "checkRecords": [],
+  "checkRecords": [
+    {
+      "id": "cr-079-2026-09",
+      "program_id": "prg-demo079",
+      "device_id": "dev-005",
+      "ym": "2026-09",
+      "rows": {
+        "7": {
+          "content": "1,2,3",
+          "checking": "正常",
+          "operator": ""
+        },
+        "14": {
+          "content": "1,2,3,4,5",
+          "checking": "正常",
+          "operator": "",
+          "__date": "16"
+        }
+      },
+      "updated_at": "2026-09-16T09:30:00.000Z"
+    },
+    {
+      "id": "cr-102-2026-09",
+      "program_id": "prg-demo102",
+      "device_id": "dev-003",
+      "ym": "2026-09",
+      "rows": {
+        "1": {
+          "friction": "0.42",
+          "delta": "0.01",
+          "conclusion": "√",
+          "remark": "演示数据"
+        },
+        "2": {
+          "friction": "0.43",
+          "delta": "0.01",
+          "conclusion": "√",
+          "remark": ""
+        }
+      },
+      "updated_at": "2026-09-02T09:10:00.000Z"
+    }
+  ],
   "depts": [
     "演示科室一",
     "演示科室二",
@@ -915,5 +1066,101 @@
   },
   "signNoPw": false,
   "lanClients": [],
-  "_archivedTemplates": []
+  "_archivedTemplates": [],
+  "envAlertCfg": {
+    "enabled": true,
+    "cooldownHours": 12,
+    "useRoomReq": true,
+    "multiStd": "union",
+    "channels": {
+      "inApp": true,
+      "banner": true
+    },
+    "defaults": {
+      "tMin": 15,
+      "tMax": 30,
+      "hMin": null,
+      "hMax": 70
+    },
+    "rooms": {},
+    "recipients": {
+      "byDept": {
+        "演示科室一": [
+          "u-admin"
+        ]
+      },
+      "all": [
+        "u-admin"
+      ]
+    }
+  },
+  "envAlerts": [
+    {
+      "id": "ea-002",
+      "room": "测试室06",
+      "ym": "2026-09",
+      "date": "2026-09-16",
+      "period": "PM",
+      "type": "湿度",
+      "unit": "%RH",
+      "boundType": "上限",
+      "value": 68.5,
+      "limit": 60,
+      "exceed": 8.5,
+      "level": "危险",
+      "text": "湿度超上限",
+      "status": "open",
+      "created_at": "2026-09-16T15:20:00.000Z"
+    },
+    {
+      "id": "ea-001",
+      "room": "测试室06",
+      "ym": "2026-09",
+      "date": "2026-09-15",
+      "period": "AM",
+      "type": "温度",
+      "unit": "℃",
+      "boundType": "上限",
+      "value": 36.4,
+      "limit": 35,
+      "exceed": 1.4,
+      "level": "警告",
+      "text": "温度超上限",
+      "status": "ack",
+      "ack_by": "u-admin",
+      "created_at": "2026-09-15T09:05:00.000Z"
+    }
+  ],
+  "notifs": [
+    {
+      "id": "nt-002",
+      "to": "u-admin",
+      "kind": "env_alert",
+      "read": false,
+      "title": "温湿度预警：测试室06",
+      "body": "2026-09-16 下午 湿度 68.5%RH 超过上限 60%RH（危险）",
+      "created_at": "2026-09-16T15:20:00.000Z",
+      "ref": {
+        "room": "测试室06",
+        "ym": "2026-09",
+        "day": "16",
+        "period": "PM"
+      }
+    },
+    {
+      "id": "nt-001",
+      "to": "u-admin",
+      "kind": "env_alert",
+      "read": true,
+      "title": "温湿度预警：测试室06",
+      "body": "2026-09-15 上午 温度 36.4℃ 超过上限 35℃（警告）",
+      "created_at": "2026-09-15T09:05:00.000Z",
+      "ref": {
+        "room": "测试室06",
+        "ym": "2026-09",
+        "day": "15",
+        "period": "AM"
+      }
+    }
+  ]
 }

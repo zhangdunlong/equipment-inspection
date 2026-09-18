@@ -64,7 +64,7 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
 /* ===== 打印：每台设备一页 A4 横（紧凑单页） ===== */
 .print-code{ display:none; }
 @media print {
-  @page { size: A4 landscape; margin: 5mm 6mm; }
+  @page { size: A4 landscape; margin: 4mm 4mm; }
   /* 文档编号放在每个 dev-block 顶部最右（流式元素） */
   .print-code{ display:block; text-align:right; font-size:8pt; color:#333; font-weight:600; letter-spacing:.5px; margin-bottom:1pt; padding-right:1mm; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -87,29 +87,29 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
 
   /* 表格区撑满剩余空间，行高自动均分 */
   .grid-wrap{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; margin-top:2pt!important; page-break-inside:avoid; break-inside:avoid; }
-  .mtable{ min-width:0!important; font-size:6.5pt!important; width:100%!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
+  .mtable{ min-width:0!important; font-size:7pt!important; width:100%!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
   .mtable th,.mtable td{ border:1px solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
-  .mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:6pt; }
-  .mtable tbody td{ vertical-align:middle!important; height:18pt; box-sizing:border-box; }
-  .mtable .c-sn{ width:14pt!important; font-size:6pt; }
-  .mtable .c-content{ width:210pt!important; font-size:6pt!important; line-height:1.1!important; white-space:nowrap; overflow:hidden; }
-  .mtable .c-freq{ width:20pt!important; font-size:5.5pt!important; }
-  .mtable .c-day{ width:15pt!important; font-size:6pt; }
+  .mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:6.5pt; }
+  .mtable tbody td{ vertical-align:middle!important; box-sizing:border-box; }
+  .mtable .c-sn{ width:16pt!important; font-size:7pt; }
+  .mtable .c-content{ width:190pt!important; font-size:7.5pt!important; line-height:1.2!important; white-space:normal!important; word-break:break-word!important; overflow:visible!important; }
+  .mtable .c-freq{ width:22pt!important; font-size:7pt!important; }
+  .mtable .c-day{ width:auto!important; font-size:7pt; }
   .mtable .c-day .dow{ display:none!important; }
   .mtable .sigrow{ margin-top:0!important; }
-  .mtable .sigrow td{ height:22pt!important; padding:0!important; overflow:hidden; position:relative; }
+  .mtable .sigrow td{ height:50pt!important; padding:0!important; overflow:hidden; position:relative; }
   /* 签名图：彻底脱离绝对定位 → 转为内联块 + 父格 text-align:center 双轴居中 + object-fit:contain 按比例收进格子（Chrome printToPDF 中 absolute + transform 会让 max-* 失效导致签名按原图比例溢出） */
   .mtable .sigrow .sigcell{ padding:0!important; text-align:center!important; vertical-align:middle!important; line-height:0!important; }
   .mtable .sigrow .sigthumb{
     display:inline-block!important;
     position:static!important; top:auto!important; left:auto!important; transform:none!important;
     margin:0 auto!important; padding:0!important; vertical-align:middle!important;
-    width:10pt!important; height:13pt!important; max-width:10pt!important; max-height:13pt!important;
+    width:26pt!important; height:44pt!important; max-width:26pt!important; max-height:44pt!important;
     object-fit:contain!important; object-position:center center!important;
     border:0!important; outline:0!important; background:transparent!important;
   }
   .mtable .sigrow .sph{ display:none!important; }
-  .mcell{ font-size:7pt!important; background:transparent!important; }
+  .mcell{ font-size:8pt!important; background:transparent!important; }
   .mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; background:transparent!important; } .mcell.holiday{ color:#000!important; background:transparent!important; }
   .sigcell.struck{ background:transparent!important; }
   .sigslash{ color:#000!important; font-size:8pt!important; }
@@ -119,12 +119,12 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
   /* 异常区块（每台设备页内，表格之后） */
   .abn-print{ display:block!important; margin-top:4pt!important; border:1.5px solid #000!important; border-radius:0!important; padding:3pt 5pt!important; page-break-inside:avoid; break-inside:avoid; font-family:"SimSun","宋体",serif!important; color:#000!important; background:transparent!important; }
   .abn-print .abn-h{ font-size:9.5pt!important; font-weight:800!important; margin-bottom:2pt!important; color:#000!important; }
-  .abn-table{ font-size:6.5pt!important; width:100%!important; border-collapse:collapse!important; }
+  .abn-table{ font-size:7pt!important; width:100%!important; border-collapse:collapse!important; }
   .abn-table th,.abn-table td{ border:1px solid #000!important; color:#000!important; padding:.6pt 2pt!important; vertical-align:top!important; text-align:left!important; }
   .abn-table th{ background:#eee!important; }
-  .abn-table .ac{ font-size:6pt!important; }
+  .abn-table .ac{ font-size:6.5pt!important; }
   .abn-empty{ color:#000!important; font-size:7pt!important; }
-  .note-line{ display:block!important; margin-top:3pt!important; font-size:6.5pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
+  .note-line{ display:block!important; margin-top:3pt!important; font-size:7pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
   .mtable .c-content-monthly{ text-align:center !important; }
 }
 </style>
@@ -230,7 +230,7 @@ function renderDevice(dev, month, dmon){
   // 打印用行高：A4 横版单页约束 —— 每台设备每月必须正好一页
   // 可用高度 ≈ 567pt；固定开销（表头+表首+签名行+边框）≈ 90pt；剩余均分给内容行（最小 12pt，最大 30pt）
   const totalRowCount = Math.max(1, dailyItems.length + monthlyItems.length);
-  const dailyRowPt = Math.max(12, Math.min(30, Math.floor(342 / totalRowCount)));
+  const dailyRowPt = Math.max(12, Math.min(32, Math.floor(350 / totalRowCount)));
   const monthlyRowPt = Math.max(16, dailyRowPt + 4);
   let rows='';
   if(!items.length){ rows=`<tr><td class="sn"></td><td class="c-content" colspan="2">该设备无点检项</td>${'<td></td>'.repeat(dim)}</tr>`; }
@@ -327,7 +327,7 @@ function syncRoomLinks(){
 </script>
 
 <script>
-/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+/* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
 (function () {
   if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
   function banner() {
@@ -359,7 +359,7 @@ function syncRoomLinks(){
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
     document.querySelectorAll('button,a,.btn').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');

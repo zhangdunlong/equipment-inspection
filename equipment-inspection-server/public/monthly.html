@@ -76,7 +76,7 @@
   .empty{color:#999; font-style:italic}
 
   /* ===== 打印样式 ===== */
-  @page{ size:A4 landscape; margin:5mm 6mm; }
+  @page{ size:A4 landscape; margin:4mm 4mm; }
   @media print{
     body{background:#fff}
     .toolbar{display:none !important}
@@ -91,13 +91,13 @@
     .f-title .en{font-size:7pt !important}
     .f-head{padding:2pt 10pt !important; font-size:8.5pt !important; line-height:1.25 !important}
     .f-head .yr, .f-head .mo{font-weight:700}
-    table.grid{ border-collapse:collapse; table-layout:fixed; font-size:6.5pt !important; page-break-inside:avoid; break-inside:avoid; }
-    table.grid thead th{ background:#eee !important; padding:.8pt 1pt !important; font-size:6pt !important; }
-    table.grid tbody td{ padding:.3pt 1pt !important; vertical-align:middle !important; height:18pt; box-sizing:border-box; overflow:hidden; }
-    table.grid .c-sn{ width:14pt !important; font-size:6pt; }
-    table.grid .c-content{ width:195pt !important; font-size:6pt !important; line-height:1.1 !important; }
+    table.grid{ border-collapse:collapse; table-layout:fixed; font-size:7.5pt !important; page-break-inside:avoid; break-inside:avoid; }
+    table.grid thead th{ background:#eee !important; padding:.8pt 1pt !important; font-size:6.5pt !important; }
+    table.grid tbody td{ padding:.3pt 1pt !important; vertical-align:middle !important; height:18pt; box-sizing:border-box; }
+    table.grid .c-sn{ width:14pt !important; font-size:6.5pt; }
+    table.grid .c-content{ width:195pt !important; font-size:7.5pt !important; line-height:1.25 !important; white-space:normal !important; word-break:break-word !important; }
     table.grid .c-freq{ width:20pt !important; font-size:5.5pt !important; }
-    table.grid .cell{ font-weight:700 !important; font-size:7pt !important; }
+    table.grid .cell{ font-weight:700 !important; font-size:7.5pt !important; }
     .f-foot{border-top:1px solid #000; font-size:8pt; padding:3px 12px; gap:2px; line-height:1.3}
     .f-foot .legend{font-size:8pt; border-top:1px dashed #000; padding-top:2px}
     td.ok, td.ng{color:#000 !important}
@@ -176,7 +176,7 @@ function buildForm(d, yy, mm){
   // 打印用行高：A4 横版单页约束 —— 每台设备每月必须正好一页
   // 可用高度 ≈ 567pt；固定开销（标题+表头+页脚+边框）≈ 150pt；剩余 ≈ 342pt 均分给内容行
   const totalRowCount = Math.max(1, dailyItems.length + monthlyItems.length);
-  const dailyRowPt = Math.max(12, Math.min(30, Math.floor(342 / totalRowCount)));
+  const dailyRowPt = Math.max(12, Math.min(32, Math.floor(350 / totalRowCount)));
   const monthlyRowPt = Math.max(16, dailyRowPt + 4);
   if(!items.length){ body='<tr><td colspan="'+(dim+3)+'" class="empty">无点检项</td></tr>'; }
   for(const it of dailyItems){

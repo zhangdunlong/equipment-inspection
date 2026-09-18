@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions —— 设备点检巡检系统后端
 // 单文件 catch-all 路由，所有 /api/* 请求在此处理。
-// 移植自本地最新版 server.js（v1.29.0：声明式路由表 + 科室管理 + 房间温湿度配置 +
+// 移植自本地最新版 server.js（v1.32.1 / 2026-09-18：声明式路由表 + 科室管理 + 房间温湿度配置 +
 // 温湿度点检（按房间+年月）一键填充/批量删除/CSV 导出 + LIMS 数据源抓取 + 整月按科室随机分派签名 +
 // 模板高级编辑（改表头/整体替换检查项/复制/删除/导入）+ 数据备份 + CSV 导出 + 单台明细 +
 // 多用户角色权限 + 后台用户管理）。
@@ -227,7 +227,11 @@ function csvCell(v) {
 // ---------- 鉴权 ----------
 async function handleMe(ctx) {
   const u = await getLoginUser(ctx.req, ctx.store);
-  return json({ ok: !!u, username: u ? u.username : '', name: u ? u.name : '', role: u ? u.role : '' });
+  return json({
+    ok: !!u, username: u ? u.username : '', name: u ? u.name : '', role: u ? u.role : '', dept: u ? (u.dept || '') : '',
+    signer_id: u ? (u.signer_id || '') : '',   // 登录人绑定的默认签名人：温湿度记录员默认选中自己
+    perms: u ? (u.perms || null) : null,       // 未配置过权限的用户为 null —— 前端按默认表推有效值
+  });
 }
 async function handleLogin(ctx) {
   const b = ctx.body;
@@ -259,7 +263,7 @@ async function handleChangePw(ctx) {
 // ---------- 用户管理（仅管理员） ----------
 async function handleListUsers(ctx) {
   const users = ctx.kvget('users', []);
-  return json(users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active })));
+  return json(users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active, dept: u.dept || '', signer_id: u.signer_id || '', perms: u.perms || null })));
 }
 async function handleCreateUser(ctx) {
   const b = ctx.body;
@@ -974,12 +978,38 @@ async function handleSaveEnvRecord(ctx) {
   return json({ ok: true, id: rec.id, updated_at: rec.updated_at });
 }
 
-function parseEnvLimits(txt) {
+// 限值解析必须与 public/env.html 的 parseLimits 保持一致（改一边就要同步另一边），
+// 否则会出现「后台填进去的值，在温湿度页反而被标红」这种自相矛盾的结果。
+// 房间「温湿度要求」的自由文本 → 数值范围（写法与工厂 v1.32.1 一致）：
+//   温度：10℃-35℃ ／ 温度：15℃~25℃ (ASTM E23-25) ／ 温度要求：—（表示没有温度要求）
+//   湿度：≤80%RH ／ 湿度：40~70%（区间写法，上下限都认）
+// 多条温度标准按 mode 合成：union（默认，宽）取「下限最小/上限最大」；intersect（严）取「下限最大/上限最小」。
+const ENV_TEMP_LINE_RE = /温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C|C)?\s*[-~—–～至]\s*(-?\d+(?:\.\d+)?)/g;
+// 湿度支持两种写法：① 上限「湿度：≤70%RH」只取上限；② 区间「湿度：40~70%RH」同时取上下限
+const ENV_HUM_RANGE_RE = /湿度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:%|％|%RH|RH)?\s*(?:[-~—–～至])\s*(-?\d+(?:\.\d+)?)/;
+const ENV_HUM_UP_RE = /湿度(?:要求)?\s*[：:]\s*(?:≤|<=|<|不超过)\s*(\d+(?:\.\d+)?)/;
+function parseEnvLimits(txt, mode) {
   const s = String(txt || '');
-  const t = s.match(/温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C)?\s*[-~—～]\s*(-?\d+(?:\.\d+)?)/);
-  const h = s.match(/湿度(?:要求)?\s*[：:]\s*(≤|<=|<|不超过)\s*(\d+(?:\.\d+)?)/);
-  if (!t && !h) return null;
-  return { tMin: t ? parseFloat(t[1]) : null, tMax: t ? parseFloat(t[2]) : null, hMax: h ? parseFloat(h[2]) : null };
+  const ranges = [];
+  for (const m of s.matchAll(ENV_TEMP_LINE_RE)) {
+    const a = parseFloat(m[1]), b = parseFloat(m[2]);
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) ranges.push([a, b]);
+  }
+  let hMin = null, hMax = null;
+  const hr = s.match(ENV_HUM_RANGE_RE);
+  if (hr) { hMin = parseFloat(hr[1]); hMax = parseFloat(hr[2]); }
+  else { const hu = s.match(ENV_HUM_UP_RE); if (hu) hMax = parseFloat(hu[1]); }
+  if (!ranges.length && hMax == null) return null;
+  let tMin = null, tMax = null;
+  if (ranges.length) {
+    const los = ranges.map(r => r[0]), his = ranges.map(r => r[1]);
+    if (mode === 'intersect') {
+      const lo = Math.max.apply(null, los), hi = Math.min.apply(null, his);
+      if (hi > lo) { tMin = lo; tMax = hi; }
+    }
+    if (tMin == null) { tMin = Math.min.apply(null, los); tMax = Math.max.apply(null, his); }
+  }
+  return { tMin, tMax, hMin, hMax, stdCount: ranges.length };
 }
 function safeBand(lo, hi, absMargin, ratio) {
   const span = hi - lo;
@@ -989,17 +1019,85 @@ function safeBand(lo, hi, absMargin, ratio) {
   if (b < a) { a = lo; b = hi; }
   return [a, b];
 }
+// 由房间要求推出「温度取值区间」「湿度取值区间」；任一项缺失就返回 error（整间跳过，不填）
 function envBands(lim) {
   lim = lim || {};
   if (lim.tMin == null || lim.tMax == null) return { error: '未配置温度范围（应形如「温度：10℃-35℃」）' };
   if (!(lim.tMax > lim.tMin)) return { error: '温度范围写法有误（下限不小于上限）' };
-  if (lim.hMax == null) return { error: '未配置湿度上限（应形如「湿度：≤80%RH」）' };
+  if (lim.hMax == null) return { error: '未配置湿度上限（应形如「湿度：≤80%RH」或「湿度：40~70%RH」）' };
   if (!(lim.hMax > 0)) return { error: '湿度上限写法有误' };
   const temp = safeBand(lim.tMin, lim.tMax, 0.5, 0.10);
-  const hl = Math.max(30, lim.hMax * 0.5);
-  const hh = lim.hMax - Math.max(3, lim.hMax * 0.06);
-  const hum = hh > hl ? [hl, hh] : [Math.max(1, lim.hMax * 0.4), Math.max(2, lim.hMax - Math.max(1, lim.hMax * 0.05))];
+  let hum;
+  if (lim.hMin != null) {
+    // 显式区间（如 40~70%）：两端留安全余量，与温度同理
+    if (!(lim.hMax > lim.hMin)) return { error: '湿度区间写法有误（下限不小于上限）' };
+    if (lim.hMin <= 0 || lim.hMax > 100) return { error: '湿度区间应在 0~100%RH 之间' };
+    hum = safeBand(lim.hMin, lim.hMax, 2, 0.10);
+  } else {
+    // 只有上限（如 ≤70%）：下限取上限的一半（且不低于 30%RH），上限再退让 3~6 个点
+    const hl = Math.max(30, lim.hMax * 0.5);
+    const hh = lim.hMax - Math.max(3, lim.hMax * 0.06);
+    hum = hh > hl ? [hl, hh]
+              : [Math.max(1, lim.hMax * 0.4), Math.max(2, lim.hMax - Math.max(1, lim.hMax * 0.05))];
+  }
   return { temp, hum };
+}
+// ===================== 温湿度预警（配置 / 阈值 / 判定） =====================
+// 预警配置：defaults{tMin,tMax,hMin,hMax}（全局默认阈值，null=不判定）/ rooms{房间名:{...}}（按房间覆盖）/
+//   recipients{byDept:{科室名:[用户id…]}, all:[用户id…]}
+const ENV_ALERT_DEFAULTS = {
+  enabled: true,
+  cooldownHours: 12,
+  // 阈值默认「跟着房间的温湿度要求走」，后台不必再逐个房间手配
+  useRoomReq: true,
+  // 一个房间列了多条温度标准时怎么合：union=并集（宽）/ intersect=交集（严）
+  multiStd: 'union',
+  channels: { inApp: true, banner: true },
+  defaults: { tMin: 15, tMax: 30, hMin: null, hMax: 70 },
+  rooms: {},
+  recipients: { byDept: {}, all: [] }
+};
+const ENV_ALERT_KINDS = { temp_high: '温度超上限', temp_low: '温度低于下限', hum_high: '湿度超上限', hum_low: '湿度低于下限' };
+const ENV_PERIOD_CN2 = { AM: '上午', PM: '下午', Night: '晚上' };
+function envAlertCfgRaw(ctx) { return ctx.kvget('envAlertCfg', null) || {}; }
+// 「房间有没有写要求」——空文本，或只写了 — / - / ～ 这类占位符，都算没写
+function envReqText(ctx, roomName) {
+  const roomObj = ctx.kvget('rooms', []).find(r => r.name === roomName) || {};
+  const txt = String(roomObj.thermo_requirement || '').trim();
+  const empty = !txt || /^[-—–~～/、,，\s]+$/.test(txt);
+  return { roomObj, txt, empty };
+}
+// 房间生效阈值：
+//   ① 后台「按房间覆盖」里手填的数字（最高优先，只覆盖填了的那一项）
+//   ② 房间自己的「温湿度要求」自动解析（默认走这条）
+//   ③ 全局默认阈值（仅当该房间压根没写要求时兜底）
+// 房间要求里没写的指标 = 不判定（null），不拿全局默认去凑，否则会给没有依据的指标报预警。
+function envAlertLimits(ctx, room) {
+  const cfg = envAlertCfgRaw(ctx);
+  const d = cfg.defaults || ENV_ALERT_DEFAULTS.defaults;
+  const num = v => (v == null || v === '' || isNaN(Number(v))) ? null : Number(v);
+  const o = (cfg.rooms && cfg.rooms[room]) || {};
+  const { txt, empty } = envReqText(ctx, room);
+  const req = (cfg.useRoomReq !== false && !empty) ? parseEnvLimits(txt, cfg.multiStd) : null;
+  const base = req
+    ? { tMin: req.tMin, tMax: req.tMax, hMin: req.hMin, hMax: req.hMax, src: 'room' }
+    : { tMin: num(d.tMin), tMax: num(d.tMax), hMin: num(d.hMin), hMax: num(d.hMax), src: empty ? 'default' : 'off' };
+  const has = f => o[f] != null && o[f] !== '' && !isNaN(Number(o[f]));
+  const pick = f => has(f) ? Number(o[f]) : base[f];
+  return {
+    tMin: pick('tMin'), tMax: pick('tMax'), hMin: pick('hMin'), hMax: pick('hMax'),
+    src: ['tMin', 'tMax', 'hMin', 'hMax'].some(has) ? 'override' : base.src,
+    reqText: txt
+  };
+}
+function mkEnvAlert(room, ym, day, period, type, value, unit, boundType, limit, exceed) {
+  const r1 = n => Math.round(n * 10) / 10;
+  return {
+    room, ym, period, type, unit, boundType,
+    date: ym + '-' + String(day).padStart(2, '0'),
+    value: r1(value), limit: r1(limit), exceed: r1(exceed),
+    level: '注意'
+  };
 }
 function envBandsFromRange(rng) {
   if (!rng) return null;
@@ -1450,39 +1548,139 @@ async function handleExportCsv(ctx) {
   });
 }
 
-// ===================== v1.29.0 新增只读接口（演示站） =====================
+// ===================== v1.32.1 对齐的只读接口（演示站） =====================
+// GET /api/programs —— 与工厂一致：附带参与设备数与房间清单（admin.html 依赖这三个字段）
 async function handleListPrograms(ctx) {
-  return json(ctx.kvget('programs', []));
+  const dmap = {};
+  ctx.kvget('devices', []).forEach(d => { dmap[d.id] = d; });
+  const out = ctx.kvget('programs', []).map(p => {
+    const devs = (p.device_ids || []).map(id => dmap[id]).filter(Boolean);
+    return Object.assign({}, p, {
+      device_count: devs.length,
+      rooms: [...new Set(devs.map(d => String(d.location || '').trim()).filter(Boolean))],
+      devices: devs.map(d => ({ id: d.id, no: d.no, name: d.name, model: d.model, location: d.location || '' }))
+    });
+  });
+  return json(out);
 }
+// GET /api/check-records —— 支持 program_id / device_id / ym 三个过滤（v1.32.1）
 async function handleListCheckRecords(ctx) {
-  const pid = ctx.query.get('program_id');
-  let arr = ctx.kvget('checkRecords', []);
-  if (pid) arr = arr.filter(r => r.program_id === pid);
-  return json(arr);
+  const pid = (ctx.query.get('program_id') || '').trim();
+  const did = (ctx.query.get('device_id') || '').trim();
+  const ym = (ctx.query.get('ym') || '').trim();
+  let list = ctx.kvget('checkRecords', []);
+  if (pid) list = list.filter(r => r.program_id === pid);
+  if (did) list = list.filter(r => r.device_id === did);
+  if (ym) list = list.filter(r => r.ym === ym);
+  return json(list);
 }
+// GET /api/env/alerts —— 温湿度超限提醒（env-alert.js 横幅数据源）
+// 工厂口径：按登录人科室过滤 + 只取近两月 + 逐格比对房间「温湿度要求」。
+// 演示站差异：匿名访问时按「全部房间」计算，让未登录浏览也能看到预警横幅；已登录则严格按科室。
 async function handleEnvAlerts(ctx) {
-  const st = ctx.query.get('status');
-  let arr = ctx.kvget('envAlerts', []);
-  if (st) arr = arr.filter(a => a.status === st);
-  return json(arr);
+  const u = await getLoginUser(ctx.req, ctx.store);
+  const dept = u ? String(u.dept || '').trim() : '';
+  const rooms = dept ? ctx.kvget('rooms', []).filter(r => (r.dept || '').trim() === dept) : ctx.kvget('rooms', []);
+  if (dept && !rooms.length) return json({ ok: true, hasDept: true, dept, alerts: [] });
+  const roomMap = {}; rooms.forEach(r => roomMap[r.name] = r);
+  const roomNames = new Set(rooms.map(r => r.name));
+  const now = new Date();
+  const curYm = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevYm = prev.getFullYear() + '-' + String(prev.getMonth() + 1).padStart(2, '0');
+  const multiStd = envAlertCfgRaw(ctx).multiStd || 'union';
+  const alerts = [];
+  for (const rec of allEnvRecords(ctx)) {
+    if (!roomNames.has(rec.room)) continue;
+    if (rec.ym !== curYm && rec.ym !== prevYm) continue;
+    const room = roomMap[rec.room] || {};
+    const lim = parseEnvLimits(room.thermo_requirement, multiStd);
+    if (!lim) continue;
+    const cells = rec.cells || {};
+    for (const k of Object.keys(cells)) {
+      const c = cells[k];
+      if (!c || c.strike) continue;
+      const m = /^(\d{1,2})_(AM|PM|Night)$/.exec(k);
+      const day = m ? m[1] : '?';
+      const period = m ? m[2] : '';
+      if (lim.tMin != null && lim.tMax != null) {
+        const tv = parseFloat(c.temp);
+        if (!isNaN(tv)) {
+          let ex = 0, boundType = null, boundVal = 0;
+          if (tv > lim.tMax) { ex = tv - lim.tMax; boundType = '上限'; boundVal = lim.tMax; }
+          else if (tv < lim.tMin) { ex = lim.tMin - tv; boundType = '下限'; boundVal = lim.tMin; }
+          if (ex > 0) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '温度', tv, '℃', boundType, boundVal, ex));
+        }
+      }
+      if (lim.hMax != null) {
+        const hv = parseFloat(c.humidity);
+        if (!isNaN(hv)) {
+          if (hv > lim.hMax) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '上限', lim.hMax, hv - lim.hMax));
+          else if (lim.hMin != null && hv < lim.hMin) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '下限', lim.hMin, lim.hMin - hv));
+        }
+      }
+    }
+  }
+  const rank = { '危险': 3, '警告': 2, '注意': 1 };
+  for (const a of alerts) a.level = a.exceed <= 1 ? '注意' : a.exceed <= 2 ? '警告' : '危险';
+  alerts.sort((x, y) => (rank[y.level] - rank[x.level]) || (y.exceed - x.exceed));
+  const counts = { 注意: 0, 警告: 0, 危险: 0 };
+  alerts.forEach(a => counts[a.level]++);
+  return json({ ok: true, hasDept: !!dept, dept, maxLevel: alerts.length ? alerts[0].level : null, counts, alerts });
 }
+// GET /api/env-alerts —— v1.30 起的预警记录列表（admin.html 温湿度预警页）
+async function handleEnvAlertsList(ctx) {
+  let rows = ctx.kvget('envAlerts', []);
+  const status = ctx.query.get('status') || '';
+  const room = ctx.query.get('room') || '';
+  if (status) rows = rows.filter(a => a.status === status);
+  if (room) rows = rows.filter(a => a.room === room);
+  return json({ ok: true, rows: rows.slice(-500).reverse() });
+}
+// GET /api/notifs —— 站内通知（notify.js 期望 {ok, unread, rows}）
 async function handleNotifs(ctx) {
-  return json(ctx.kvget('notifs', []));
+  const u = await getLoginUser(ctx.req, ctx.store);
+  if (!u) return json({ ok: true, unread: 0, rows: [] });
+  const rows = ctx.kvget('notifs', []).filter(x => x.to === u.id).slice(-200).reverse();
+  return json({ ok: true, unread: rows.filter(x => !x.read).length, rows });
 }
 async function handleSettings(ctx) {
-  return json({ signNoPw: !!ctx.kvget('signNoPw', false), range: (ctx.kvget('envfill', {}) || {}).range || null });
+  return json({ signNoPw: !!ctx.kvget('signNoPw', false) });
 }
+// GET /api/admin/env-alert-cfg —— 预警配置 + 各房间「生效阈值」及其来源
 async function handleAdminEnvAlertCfg(ctx) {
-  return json({ cfg: ctx.kvget('envAlertConfig', {}) });
+  const cfg = Object.assign({}, ENV_ALERT_DEFAULTS, envAlertCfgRaw(ctx));
+  const effective = ctx.kvget('rooms', []).map(r => {
+    const { txt, empty } = envReqText(ctx, r.name);
+    const parsed = (cfg.useRoomReq !== false && !empty) ? parseEnvLimits(txt, cfg.multiStd) : null;
+    const L = envAlertLimits(ctx, r.name);
+    return {
+      name: r.name, dept: r.dept || '', requirement: txt, empty,
+      parsed: parsed ? { tMin: parsed.tMin, tMax: parsed.tMax, hMin: parsed.hMin, hMax: parsed.hMax, stdCount: parsed.stdCount } : null,
+      effective: { tMin: L.tMin, tMax: L.tMax, hMin: L.hMin, hMax: L.hMax }, src: L.src
+    };
+  });
+  return json({ ok: true, cfg, effective });
 }
 async function handleLimsRoomStatus(ctx) {
   const room = ctx.query.get('room') || '';
   return json({ room: room, period: 'AM', today: todayStr(), is_admin: false, status_ok: true });
 }
+// GET /api/lims/job/:id —— LIMS 抓取任务进度（工厂是进程内任务表，演示站无任务 → 忠实返回 404）
+async function handleLimsJob(ctx) {
+  return json({ error: '任务不存在或已过期' }, 404);
+}
 // 局域网 / 日志 / 升级等管理接口：只读演示站返回安全空数据（避免前端报错）
 async function handleLanEmpty(ctx) { return json([]); }
 async function handleLanScan(ctx) { return json({ clients: [] }); }
 async function handleLanUpgradeConfig(ctx) { return json({ enabled: false, open: false }); }
+// GET /api/lan-upgrade/ping —— 目标机自述（演示站固定「不可升级」）
+async function handleLanPing(ctx) {
+  return json({
+    ok: true, name: 'DEMO-PC', host: 'demo', version: APP_VERSION, date: APP_VERSION_DATE,
+    enabled: false, open: false, engine: false, win: true, writable: false, install_dir: '.', port: 0
+  });
+}
 async function handleAdminLogs(ctx) { return json({ logs: [] }); }
 
 // ===================== 路由表 =====================
@@ -1593,6 +1791,11 @@ const routes = [
   { method: 'GET', path: '/api/lan/scan', handler: handleLanScan },
   { method: 'GET', path: '/api/lan-upgrade/config', handler: handleLanUpgradeConfig },
   { method: 'GET', path: '/api/admin/logs', handler: handleAdminLogs },
+
+  // ---- v1.32.1 只读演示新增 ----
+  { method: 'GET', path: '/api/env-alerts', handler: handleEnvAlertsList },
+  { method: 'GET', path: '/api/lan-upgrade/ping', handler: handleLanPing },
+  { method: 'GET', pattern: /^\/api\/lims\/job\/([^/]+)$/, paramNames: ['id'], handler: handleLimsJob },
 ];
 
 function matchRoute(method, p) {
@@ -1612,8 +1815,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（与本地 server.js 保持一致）
-const APP_VERSION = 'v1.29.0';
-const APP_VERSION_DATE = '2026-09-15';
+const APP_VERSION = 'v1.32.1';
+const APP_VERSION_DATE = '2026-09-18';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

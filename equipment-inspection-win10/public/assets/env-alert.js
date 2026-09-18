@@ -1,9 +1,10 @@
-/* 科室温湿度超限登录提醒（v1.13.0）
+/* 科室温湿度超限登录提醒（v1.13.0 / v1.30.4 每条超限记录可点击直达对应房间温湿度页）
  * 用法：在页面放一个 <div id="env_alert"></div>（可选），并引入本脚本：
  *   <script src="/assets/dept.js"></script>
  *   <script src="/assets/env-alert.js"></script>
  * 行为：本科室人员登录后，自动拉 /api/env/alerts，把超范围的温湿度记录以分级横幅展示。
  * 等级：超出 ≤1 度=注意(黄) / ≤2=警告(橙) / >2=危险(红)。无科室或无超限则不显示。
+ * v1.30.4：每条 <li> 整行可点 → /env.html?room=房间名；头部「去温湿度记录」也带上首条房间。
  */
 (function () {
   function esc(s) {
@@ -35,7 +36,10 @@
       '.env-alert .lv-notice{background:#ffe9a8;color:#7a5b00}',
       '.env-alert .lv-warn{background:#ffb061;color:#5a2d00}',
       '.env-alert .lv-danger{background:#ff6b6b;color:#fff}',
-      '.env-alert a{color:inherit;text-decoration:underline;font-weight:700}'
+      '.env-alert a{color:inherit;text-decoration:underline;font-weight:700}',
+      '.env-alert .ea-list li[data-earoom]{cursor:pointer;border-radius:6px}',
+      '.env-alert .ea-list li[data-earoom]:hover{background:rgba(0,0,0,.05)}',
+      '.env-alert .ea-list li[data-earoom]:focus-visible{outline:2px solid #0a66c2;outline-offset:1px}'
     ].join('');
     (document.head || document.getElementsByTagName('head')[0]).appendChild(st);
   }
@@ -56,7 +60,9 @@
     wrap.className = 'env-alert env-alert-' + (data.maxLevel || '注意');
     var items = a.slice(0, 12).map(function (it) {
       var p = PERIOD[it.period] || it.period || '';
-      return '<li><span class="ea-lv ' + LV_CLASS[it.level] + '">' + LV_ICON[it.level] + it.level + '</span>'
+      // v1.30.4：整行可点 —— data-earoom 带原始房间名（不用 data-room，避免与
+      // rooms.html 等页面「[data-room]→index.html」的全局点击委托冲突被覆盖）
+      return '<li data-earoom="' + esc(it.room) + '" tabindex="0" role="button" aria-label="打开 ' + esc(it.room) + ' 的温湿度记录"><span class="ea-lv ' + LV_CLASS[it.level] + '">' + LV_ICON[it.level] + it.level + '</span>'
         + '<b>' + esc(it.room) + '</b> · ' + esc(it.date) + ' ' + p + ' · ' + esc(it.type) + ' '
         + it.value + it.unit + '（' + esc(it.boundType) + it.limit + it.unit + '，超出 ' + it.exceed + it.unit + '）</li>';
     }).join('');
@@ -64,8 +70,14 @@
     wrap.innerHTML = '<button class="ea-x" onclick="this.parentNode.style.display=\'none\'">×</button>'
       + '<div class="ea-head">' + LV_ICON[data.maxLevel] + ' <b>本科室（' + esc(data.dept) + '）温湿度超限提醒</b> · 共 ' + a.length + ' 项'
       + '（<span class="' + LV_CLASS['危险'] + '">危险 ' + (c['危险'] || 0) + '</span> / <span class="' + LV_CLASS['警告'] + '">警告 ' + (c['警告'] || 0) + '</span> / <span class="' + LV_CLASS['注意'] + '">注意 ' + (c['注意'] || 0) + '</span>）'
-      + ' · <a href="/env.html" target="_blank" rel="noopener">去温湿度记录 →</a></div>'
+      + ' · <a href="/env.html?room=' + encodeURIComponent(a.length ? (a[0].room || '') : '') + '" target="_blank" rel="noopener">去温湿度记录 →</a></div>'
       + '<ul class="ea-list">' + items + '</ul>';
+    // v1.30.4：点整条 → 直达该房间温湿度页（键盘 Enter/空格 同样可触发）
+    Array.prototype.forEach.call(wrap.querySelectorAll('li[data-earoom]'), function (li) {
+      var go = function () { location.href = '/env.html?room=' + encodeURIComponent(li.getAttribute('data-earoom')); };
+      li.addEventListener('click', go);
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
     box.innerHTML = '';
     box.appendChild(wrap);
     box.style.display = '';

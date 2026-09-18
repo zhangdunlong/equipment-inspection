@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.29.0';
-const APP_VERSION_DATE = '2026-09-17';
+const APP_VERSION = 'v1.32.1';
+const APP_VERSION_DATE = '2026-09-18';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -124,7 +124,7 @@ const DEFAULT_PROGRAMS = [
     // ★ 自动关联规则 = 按「点检模板 key」认设备，而不是把设备 id 硬编码进来。
     //   设备 id 每台机器都不一样（工厂机 / 本机 / 重装后全新生成），硬编码 id 会造成
     //   「本机看得见、工厂机升级后看不到」——2026-09-16 实测踩过，见交接文档 §2.60。
-    auto_tpl_keys: ['ZBC2302N-3', 'TPS452D3-3', 'NI750'],
+    auto_tpl_keys: ['设备型号-J', 'TPS452D3-3', 'NI750'],
     name: '夏比冲击摩擦和风阻损耗检查',
     title: '夏比冲击试验机摩擦和风阻损耗日常检查记录',
     title_en: 'Daily Inspection Record of Percent Friction and Windage Loss on Charpy Impact Testing Machine',
@@ -152,7 +152,7 @@ const DEFAULT_PROGRAMS = [
     ],
     criteria: [
       { std: 'ASTM E23', vals: ['≤设备总量程的0.4%', '≤前次测量值的10%',
-        "1.手动计算公式：P=K1-K2，P'=（K3-K2）÷10÷使用机器最大量程；K1: 不安装试样情况下得到试验机仪表读数，K2: 不复位指针的情况下的空摆数据，K3: 使摆锤在无冲击和振动的情况下允许摆锤循环5次（一次向前和一次向后视为一个循环），在第6次向前摆动之前，刻度盘指针设置在所用量程的5%，第六次摆动之后，记录数值。2.自动计算：通过设备厂家自带的功能系统来进行摩擦风阻自动计算（详细操作规程见 DEMO-WI-XN-022）"] },
+        "1.手动计算公式：P=K1-K2，P'=（K3-K2）÷10÷使用机器最大量程；K1: 不安装试样情况下得到试验机仪表读数，K2: 不复位指针的情况下的空摆数据，K3: 使摆锤在无冲击和振动的情况下允许摆锤循环5次（一次向前和一次向后视为一个循环），在第6次向前摆动之前，刻度盘指针设置在所用量程的5%，第六次摆动之后，记录数值。2.自动计算：通过设备厂家自带的功能系统来进行摩擦风阻自动计算（详细操作规程见 DEMO-WI-022）"] },
       { std: 'GB/T229',  vals: ['≤设备总量程的0.5%', '/', ''] }
     ],
     row_count: 31,
@@ -244,11 +244,16 @@ function migrateProgramColumns() {
   if (p && Array.isArray(p.columns)) {
     const c = p.columns.find(x => x && x.key === 'content');
     if (c) {
-      const ok = c.type === 'select' && c.def === '1,2,3' &&
-        Array.isArray(c.opts) && c.opts.length === Q79_OPTS.length &&
-        Q79_OPTS.every((v, i) => c.opts[i] === v);
+      // v1.32.1 修正：迁移语义从「完全相等才放过」改为「补缺不删增」。
+      // 旧逻辑要求 opts 与 Q79_OPTS 逐项完全相等，导致后台通过 API 新增的选项
+      // （如「4,5」）在每次服务重启时被强制重置回 4 项 —— 选项反复丢失的真凶。
+      // 现在只要求四个基本组合按序在位；其后的额外选项一律保留。
+      const cur = Array.isArray(c.opts) ? c.opts : [];
+      const headOk = Q79_OPTS.every((v, i) => cur[i] === v);
+      const extra = headOk ? cur.slice(Q79_OPTS.length) : [];
+      const ok = c.type === 'select' && c.def === '1,2,3' && headOk;
       if (!ok) {
-        c.type = 'select'; c.def = '1,2,3'; c.opts = Q79_OPTS.slice();
+        c.type = 'select'; c.def = '1,2,3'; c.opts = Q79_OPTS.concat(extra);
         changed = true;
         logI('检查项目', '#079「内容」列升级为可选项（默认 1,2,3）');
       }
@@ -365,8 +370,6 @@ function migrateDropLegacyTemplates() {
 // 来源：早期 Excel / 备份导入链路里的编码损坏（工厂机与本机各有若干处，互不重叠），
 //       事后无法从源头重导 → 按「上下文唯一的坏片段 → 正确文字」逐条还原。
 // 原则：只做已核对过的精确还原，绝不猜字；还原不掉的写 warning 日志留着人工处理。
-// 历史数据修复表：若某些历史字符串里残留 UTF-8 替换字符（\uFFFD），
-// 可在此登记 [/正则/, '正确文本'] 规则。开源版不内置任何具体业务文本，仅保留修复机制。
 const MOJIBAKE_FIXES = [];
 function applyMojibakeFixes(s) {
   let out = s;
@@ -560,7 +563,7 @@ async function ensureUsers() {
   const admin = kvget('admin', null);
   const ph = (admin && admin.password_hash) || await sha256('admin123' + PEPPER);
   const seed = [{ id: 'u-admin', username: 'admin', name: '管理员', password_hash: ph, role: 'admin', active: true, created_at: new Date().toISOString() }];
-  // 开源演示账号（演示数据 sample.kv.json 中 users 为空时自动创建）
+  // 开源演示账号（data/sample.kv.json 中 users 为空时自动创建）
   seed.push({ id: 'u-demo', username: 'demo-user', name: '演示用户', password_hash: await sha256('demo123' + PEPPER), role: 'user', active: true, created_at: new Date().toISOString(), dept: '演示科室', perms: { env_edit: 1 } });
   kvset('users', seed);
 }
@@ -834,6 +837,7 @@ async function handleMe(ctx) {
   const u = await getLoginUser(ctx.req);
   return sendJson(ctx.res, {
     ok: !!u, username: u ? u.username : '', name: u ? u.name : '', role: u ? u.role : '', dept: u ? (u.dept || '') : '',
+    signer_id: u ? (u.signer_id || '') : '',   // 登录人绑定的默认签名人：用于「温湿度记录员默认选中自己」
     perms: u ? (u.perms || null) : null,   // 未配置过权限的用户为 null —— 前端按默认表（PERM_DEFAULTS）推有效值
   });
 }
@@ -872,7 +876,7 @@ async function handleChangePw(ctx) {
 // GET /api/users —— 用户列表（不含敏感字段）
 async function handleListUsers(ctx) {
   const users = kvget('users', []);
-  return sendJson(ctx.res, users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active, dept: u.dept || '', perms: u.perms || null })));
+  return sendJson(ctx.res, users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active, dept: u.dept || '', signer_id: u.signer_id || '', perms: u.perms || null })));
 }
 // POST /api/users —— 新增用户
 async function handleCreateUser(ctx) {
@@ -887,6 +891,7 @@ async function handleCreateUser(ctx) {
     password_hash: await sha256(b.password + PEPPER),
     role: b.role === 'admin' ? 'admin' : 'user', active: b.active === false ? false : true,
     dept: (b.dept || '').toString().trim(),
+    signer_id: (b.signer_id || '').toString().trim(),
     created_at: new Date().toISOString() });
   kvset('users', users);
   return sendJson(ctx.res, { ok: true });
@@ -912,6 +917,7 @@ async function handleUpdateUser(ctx) {
   }
   if (b.role === 'admin' || b.role === 'user') u.role = b.role;
   if ('dept' in b) u.dept = (b.dept || '').toString().trim();
+  if ('signer_id' in b) u.signer_id = (b.signer_id || '').toString().trim();   // 登录人默认签名人（可为空 = 不绑定）
   if (typeof b.active === 'boolean') u.active = b.active;
   // 功能权限（v1.9.0）：只接受已知键、值钳到 0/1；传 null 清空 = 回到默认
   if (b.perms !== undefined) {
@@ -1757,9 +1763,16 @@ async function handleSaveCheckRecord(ctx) {
   for (const k in rows) {
     const day = parseInt(k, 10);
     if (!day || day < 1 || day > 31) continue;
-    const dd = ym + '-' + String(day).padStart(2, '0');
+    // 行键仍是周一（稳定身份）；该行若带「手动改期 __date」，未来判定与落库按改后日期。
+    // __date 归一：非法/等于行键的覆盖一律剥掉，库里只留干净的行。
+    const r0 = rows[k] || {};
+    const ovd = parseInt(r0.__date, 10);
+    const hasOvd = ovd >= 1 && ovd <= 31 && ovd !== day;
+    const dd = ym + '-' + String(hasOvd ? ovd : day).padStart(2, '0');
     if (isFutureDate(dd)) continue;
-    clean[k] = rows[k];
+    const rowCopy = Object.assign({}, r0);
+    if (hasOvd) rowCopy.__date = String(ovd); else delete rowCopy.__date;
+    clean[k] = rowCopy;
   }
   const list = allCheckRecords();
   const idx = list.findIndex(r => r.program_id === pid && r.device_id === did && r.ym === ym);
@@ -2364,12 +2377,14 @@ async function handleExportEnvCsv(ctx) {
 // 否则会出现「后台填进去的值，在温湿度页反而被标红」这种自相矛盾的结果。
 // 房间「温湿度要求」的自由文本 → 数值范围。线上实测到的写法（都要认）：
 //   温度：10℃-35℃ ／ 温度：15℃~25℃ (ASTM E23-25) ／ 温度要求：— （表示没有温度要求）
-//   湿度：≤80%RH ／ 湿度要求：≤60% ／ 湿度：≤65%RH
+//   湿度：≤80%RH ／ 湿度要求：≤60% ／ 湿度：≤65%RH ／ 湿度：40~70%（区间写法，上下限都认）
 // 一个房间可以列多条温度标准（冲击室 = ASTM E23-25 15~25℃ + GB/T229-2020 18~28℃），
 // 按 mode 合成：union（默认，宽）取「下限最小 / 上限最大」；intersect（严）取「下限最大 / 上限最小」。
 // 交集为空时退化为并集，避免把房间判成「永远超限」。
 const ENV_TEMP_LINE_RE = /温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C|C)?\s*[-~—–～至]\s*(-?\d+(?:\.\d+)?)/g;
-const ENV_HUM_LINE_RE = /湿度(?:要求)?\s*[：:]\s*(?:≤|<=|<|不超过)\s*(\d+(?:\.\d+)?)/;
+// 湿度支持两种写法：① 上限「湿度：≤70%RH」只取上限；② 区间「湿度：40~70%RH」同时取上下限
+const ENV_HUM_RANGE_RE = /湿度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:%|％|%RH|RH)?\s*(?:[-~—–～至])\s*(-?\d+(?:\.\d+)?)/;
+const ENV_HUM_UP_RE = /湿度(?:要求)?\s*[：:]\s*(?:≤|<=|<|不超过)\s*(\d+(?:\.\d+)?)/;
 function parseEnvLimits(txt, mode) {
   const s = String(txt || '');
   const ranges = [];
@@ -2377,8 +2392,11 @@ function parseEnvLimits(txt, mode) {
     const a = parseFloat(m[1]), b = parseFloat(m[2]);
     if (Number.isFinite(a) && Number.isFinite(b) && b > a) ranges.push([a, b]);
   }
-  const h = s.match(ENV_HUM_LINE_RE);
-  if (!ranges.length && !h) return null;
+  let hMin = null, hMax = null;
+  const hr = s.match(ENV_HUM_RANGE_RE);
+  if (hr) { hMin = parseFloat(hr[1]); hMax = parseFloat(hr[2]); }
+  else { const hu = s.match(ENV_HUM_UP_RE); if (hu) hMax = parseFloat(hu[1]); }
+  if (!ranges.length && hMax == null) return null;
   let tMin = null, tMax = null;
   if (ranges.length) {
     const los = ranges.map(r => r[0]), his = ranges.map(r => r[1]);
@@ -2388,7 +2406,7 @@ function parseEnvLimits(txt, mode) {
     }
     if (tMin == null) { tMin = Math.min.apply(null, los); tMax = Math.max.apply(null, his); }
   }
-  return { tMin, tMax, hMax: h ? parseFloat(h[1]) : null, stdCount: ranges.length };
+  return { tMin, tMax, hMin, hMax, stdCount: ranges.length };
 }
 // 在 [lo,hi] 内取一个「留了余量」的安全区间：两端各退让 max(绝对余量, 跨度×比例)。
 // 为什么要留余量：填出来的值若贴着边界（10℃ 房间填 10.0），打印评审时容易被质疑是不是超了；
@@ -2406,14 +2424,22 @@ function envBands(lim) {
   lim = lim || {};
   if (lim.tMin == null || lim.tMax == null) return { error: '未配置温度范围（应形如「温度：10℃-35℃」）' };
   if (!(lim.tMax > lim.tMin)) return { error: '温度范围写法有误（下限不小于上限）' };
-  if (lim.hMax == null) return { error: '未配置湿度上限（应形如「湿度：≤80%RH」）' };
+  if (lim.hMax == null) return { error: '未配置湿度上限（应形如「湿度：≤80%RH」或「湿度：40~70%RH」）' };
   if (!(lim.hMax > 0)) return { error: '湿度上限写法有误' };
   const temp = safeBand(lim.tMin, lim.tMax, 0.5, 0.10);
-  // 湿度只有上限 → 下限取上限的一半（且不低于 30%RH），上限再退让 3~6 个点
-  const hl = Math.max(30, lim.hMax * 0.5);
-  const hh = lim.hMax - Math.max(3, lim.hMax * 0.06);
-  const hum = hh > hl ? [hl, hh]
-            : [Math.max(1, lim.hMax * 0.4), Math.max(2, lim.hMax - Math.max(1, lim.hMax * 0.05))];
+  let hum;
+  if (lim.hMin != null) {
+    // 显式区间（如 40~70%）：两端留安全余量，与温度同理
+    if (!(lim.hMax > lim.hMin)) return { error: '湿度区间写法有误（下限不小于上限）' };
+    if (lim.hMin <= 0 || lim.hMax > 100) return { error: '湿度区间应在 0~100%RH 之间' };
+    hum = safeBand(lim.hMin, lim.hMax, 2, 0.10);
+  } else {
+    // 只有上限（如 ≤70%）：下限取上限的一半（且不低于 30%RH），上限再退让 3~6 个点
+    const hl = Math.max(30, lim.hMax * 0.5);
+    const hh = lim.hMax - Math.max(3, lim.hMax * 0.06);
+    hum = hh > hl ? [hl, hh]
+              : [Math.max(1, lim.hMax * 0.4), Math.max(2, lim.hMax - Math.max(1, lim.hMax * 0.05))];
+  }
   return { temp, hum };
 }
 // 后台自定义「随机生成范围」（kv.envfill.range）→ 直接作为取值区间。
@@ -2561,8 +2587,9 @@ async function handleEnvAlerts(ctx) {
       }
       if (lim.hMax != null) {
         const hv = parseFloat(c.humidity);
-        if (!isNaN(hv) && hv > lim.hMax) {
-          alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '上限', lim.hMax, hv - lim.hMax));
+        if (!isNaN(hv)) {
+          if (hv > lim.hMax) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '上限', lim.hMax, hv - lim.hMax));
+          else if (lim.hMin != null && hv < lim.hMin) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '下限', lim.hMin, lim.hMin - hv));
         }
       }
     }
@@ -2676,10 +2703,10 @@ const LIMS_DEFAULTS = {
   strategy: 'random',
   overwrite: false,                          // true = 连已有内容的格子也覆盖（慎用）
   // 别名 = LIMS源房间名 → 点检房间名。同名房间无需别名（同名直配）。
-  // 注：'室温拉伸实验室' 经核查 LIMS 侧房间名就是「室温拉伸实验室」、点检房间同名，无需别名；
+  // 注：'测试室05' 经核查 LIMS 侧房间名就是「测试室05」、点检房间同名，无需别名；
   //     旧默认 '室拉，高拉室' 是错误映射（会路由到不存在的房间），已移除。
   roomAlias: { '金相分析': '测试室04', '金相制样间': '金相试样间' },
-  limsRooms: ['冲击室', '室温拉伸实验室', '测试室02', '测试室01', '硬度室', '金相制样间', 'ICP-MS',
+  limsRooms: ['冲击室', '测试室05', '测试室02', '测试室01', '测试室06', '金相制样间', 'ICP-MS',
     '直读光谱（OES）', '碳硫分析（C、S）', 'ICP-OES', '金相分析（办公）', '金相分析', '化学制样', '化学分析', '氧氮氢（O、N、H）'],
   // allowShare：**显式允许**「与别的点检房间共用同一个 LIMS 数据源」的点检房间名。
   //   背景：别名若指向一个「本身也是点检房间名」的 LIMS 源（如 疲劳，弯曲室 → 冲击室），
@@ -2988,7 +3015,7 @@ function limsMappedRooms() {
 // 判定指纹（2026-09-16 实测）：
 //   · 名字不存在   → 20~70ms 秒回 code=5000「未查询到房间设备关联」（压根没查库）
 //   · 房间存在     → 7~8 秒（真查库）返回 code=1
-//   · 存在但没挂设备 → 7~8 秒 code=1 且 0 点（工厂「室温拉伸实验室」就是这种）
+//   · 存在但没挂设备 → 7~8 秒 code=1 且 0 点（工厂「测试室05」就是这种）
 // ⚠ 另一个坑：humidityChart 的 startDate == endDate 时**恒返回 0 点**（所有房间都一样），
 //   所以校验必须给 ≥2 天的区间，否则会把每个房间都误判成"没数据"。
 async function limsProbeRoomName(cfg, token, room, days) {
@@ -4486,7 +4513,7 @@ function envReqText(roomName) {
 //   ① 后台「按房间覆盖」里手填的数字（最高优先，只覆盖填了的那一项）
 //   ② 房间自己的「温湿度要求」自动解析（默认走这条，后台无需配置）
 //   ③ 全局默认阈值（仅当该房间压根没写要求时兜底）
-// 房间要求里没写的指标（如硬度室没写湿度、金相试样间温度写「—」）= 不判定（null），
+// 房间要求里没写的指标（如测试室06没写湿度、金相试样间温度写「—」）= 不判定（null），
 // 不再拿全局默认去凑——否则会给没有依据的指标报预警。
 function envAlertLimits(room) {
   const cfg = envAlertCfgRaw();
@@ -4496,7 +4523,7 @@ function envAlertLimits(room) {
   const { txt, empty } = envReqText(room);
   const req = (cfg.useRoomReq !== false && !empty) ? parseEnvLimits(txt, cfg.multiStd) : null;
   const base = req
-    ? { tMin: req.tMin, tMax: req.tMax, hMin: null, hMax: req.hMax, src: 'room' }
+? { tMin: req.tMin, tMax: req.tMax, hMin: req.hMin, hMax: req.hMax, src: 'room' }
     : { tMin: num(d.tMin), tMax: num(d.tMax), hMin: num(d.hMin), hMax: num(d.hMax), src: empty ? 'default' : 'off' };
   const has = f => o[f] != null && o[f] !== '' && !isNaN(Number(o[f]));
   const pick = f => has(f) ? Number(o[f]) : base[f];
@@ -4569,7 +4596,7 @@ async function handleEnvAlertCfgGet(ctx) {
     const L = envAlertLimits(r.name);
     return {
       name: r.name, dept: r.dept || '', requirement: txt, empty,
-      parsed: parsed ? { tMin: parsed.tMin, tMax: parsed.tMax, hMax: parsed.hMax, stdCount: parsed.stdCount } : null,
+      parsed: parsed ? { tMin: parsed.tMin, tMax: parsed.tMax, hMin: parsed.hMin, hMax: parsed.hMax, stdCount: parsed.stdCount } : null,
       effective: { tMin: L.tMin, tMax: L.tMax, hMin: L.hMin, hMax: L.hMax }, src: L.src
     };
   });
@@ -4884,7 +4911,7 @@ function serveStatic(req, res) {
   // 浏览器会无条件请求 /favicon.ico；不给就会在控制台留一条 404（回归测试会误判成 JS 报错）
   // 用与页面 <link rel="icon"> 同款的内联闪电图标应答，顺带让所有页面都有标签页图标
   if (p === '/favicon.ico') {
-    // 统一回这枚中性内联 SVG 闪电图标（与各页 <link rel="icon"> 同款），不依赖任何图片文件，永不 500
+    // 开源版：直接回中性内联 SVG（不依赖任何图片文件），保证这条路由永不 500。
     res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
     res.end("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='#0f1b2d'/><path d='M18 4 L9 18 h6 l-2 10 9-14 h-6 z' fill='#38bdf8'/></svg>");
     return;

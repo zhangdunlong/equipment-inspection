@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>点检作业</title>
 <link rel="stylesheet" href="/assets/v2/theme.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" sizes="64x64" href="data:image/svg+xml,generic">
 <script src="/assets/v2/core.js"></script>
 <script src="/assets/dept.js"></script>
 <script src="/assets/sig.js"></script>
@@ -143,12 +143,12 @@ textarea.abn-input{ min-height:52px; resize:vertical; }
 .print-code{ display:none; }
 .dev-header .dh-code{ position:absolute; right:8mm; top:5mm; font-size:8pt; color:#888; font-weight:600; letter-spacing:.5px; pointer-events:none; }
 @media print {
-@page { size: A4 landscape; margin: 5mm 6mm; }
+@page { size: A4 landscape; margin: 4mm 4mm; }
 .print-code{ display:block; text-align:right; font-size:8pt; color:#333; font-weight:600; letter-spacing:.5px; margin-bottom:1pt; padding-right:1mm; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 body{ background:#fff !important; color:#000 !important; margin:0!important; padding:0!important; min-height:0!important; height:auto!important; overflow:visible!important; }
 html{ margin:0!important; padding:0!important; min-height:0!important; height:auto!important; }
-.app-nav,.toolbar,.tabs,.sumbar,.banner,.toast-host,.no-print,.combo-list,
+.app-nav,.toolbar,.tabs,.sumbar,.banner,.toast-host,.no-print,.combo-list,#p_batch,
 .sig-ops .so-meta,.sig-ops .so-prev,.sig-ops .so-title,canvas,input[type=file],
 .actions,.mlegend,.sig-ops{ display:none !important; }
 .page{ max-width:none!important; margin:0!important; padding:0!important; }
@@ -163,25 +163,25 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
 .dh-meta b{ border-bottom:1px solid #000!important; color:#000!important; }
 .grid-wrap{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; break-inside:avoid; color:#000!important;
   font-family:"SimSun","宋体","Microsoft YaHei",serif!important; margin-top:2pt!important; display:block; overflow:visible!important; }
-.mtable{ min-width:0!important; font-size:6.5pt!important; width:100%!important; height:auto!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
+.mtable{ min-width:0!important; font-size:7pt!important; width:100%!important; height:auto!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
 .mtable th,.mtable td{ border:1px solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
-.mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:6pt; }
-.mtable tbody td{ vertical-align:middle!important; height:18pt; box-sizing:border-box; }
-.mtable .c-sn{ width:14pt!important; font-size:6pt; }
-.mtable .c-content{ width:210pt!important; font-size:6pt!important; line-height:1.1!important; white-space:nowrap!important; overflow:hidden!important; }
-.mtable .c-freq{ width:20pt!important; font-size:5.5pt!important; }
-.mtable .c-day{ width:15pt!important; font-size:6pt; }
+.mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:7pt; }
+.mtable tbody td{ vertical-align:middle!important; box-sizing:border-box; }
+.mtable .c-sn{ width:16pt!important; font-size:7pt; }
+.mtable .c-content{ width:190pt!important; font-size:7.5pt!important; line-height:1.2!important; white-space:normal!important; word-break:break-word!important; overflow:visible!important; }
+.mtable .c-freq{ width:22pt!important; font-size:7pt!important; }
+.mtable .c-day{ width:auto!important; font-size:7pt; }
 .mtable .sigrow{ margin-top:0!important; }
-.mtable .sigrow td{ height:22pt!important; padding:0!important; overflow:hidden!important; }
+.mtable .sigrow td{ height:50pt!important; padding:0!important; overflow:hidden!important; }
 .mtable .sigrow .sigcell{ padding:0!important; text-align:center!important; vertical-align:middle!important; line-height:0!important; overflow:hidden!important; }
 .mtable .sigrow .sigthumb{
   display:inline-block!important; position:static!important; top:auto!important; left:auto!important; transform:none!important;
   margin:0 auto!important; padding:0!important; vertical-align:middle!important;
-  width:10pt!important; height:13pt!important; max-width:10pt!important; max-height:13pt!important;
+  width:26pt!important; height:44pt!important; max-width:26pt!important; max-height:44pt!important;
   object-fit:contain!important; object-position:center center!important;
   border:0!important; outline:0!important; background:transparent!important; }
 .mtable .sigrow .sph{ display:none!important; }
-.mcell{ font-size:7pt!important; }
+.mcell{ font-size:8pt!important; }
 .mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; }
 .mcell.holiday{ color:#000!important; } .mcell-monthly{ text-align:center!important; }
 .mtable .c-content-monthly{ text-align:center !important; }
@@ -192,12 +192,12 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
 .abn-section{ border:1.5px solid #000!important; border-radius:0!important; margin-top:4pt!important; padding:3pt 5pt!important;
   page-break-inside:avoid; break-inside:avoid; font-family:"SimSun","宋体",serif!important; color:#000!important; background:transparent!important; }
 .abn-section .abn-h{ font-size:9.5pt!important; font-weight:800!important; margin-bottom:2pt!important; color:#000!important; }
-.abn-table{ font-size:6.5pt!important; width:100%!important; border-collapse:collapse!important; }
+.abn-table{ font-size:7.5pt!important; width:100%!important; border-collapse:collapse!important; }
 .abn-table th,.abn-table td{ border:1px solid #000!important; color:#000!important; padding:.6pt 2pt!important; vertical-align:top!important; text-align:left!important; }
 .abn-table th{ background:#eee!important; }
-.abn-table .ac{ font-size:6pt!important; }
+.abn-table .ac{ font-size:7pt!important; }
 .abn-empty{ color:#000!important; font-size:7pt!important; }
-.note-line{ margin-top:3pt!important; font-size:6.5pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
+.note-line{ margin-top:3pt!important; font-size:7.5pt!important; color:#000!important; font-family:"SimSun","宋体",serif!important; }
 .sigdel{ display:none !important; }
 .wk-hint,.del-hint,.mlegend{ display:none !important; }
 }
@@ -288,6 +288,15 @@ const ST = { ok:{mark:'√',cls:'ok',next:'ng'}, ng:{mark:'×',cls:'ng',next:'ho
              holiday:{mark:'/',cls:'holiday',next:'none'}, none:{mark:'',cls:'empty',next:'ok'} };
 
 let DEVICES=[], SIGNERS=[], ROOMS=[], CUR_ROOM='', ROOM_SCOPE=null;
+// 登录人对应的签名人：签名区/批量面板默认预选自己（优先账号绑定 signer_id，其次姓名/账号名匹配）
+let OWN_SIGNER='';
+function ownSignerOf(me){
+  if(!me || !me.ok) return '';
+  const nm=String(me.name||'').trim(), un=String(me.username||'').trim();
+  if(me.signer_id && SIGNERS.some(s=>s.id===me.signer_id)) return me.signer_id;
+  const hit=(nm&&SIGNERS.find(s=>s.name===nm))||(un&&SIGNERS.find(s=>s.name===un));
+  return hit?hit.id:'';
+}
 let CUR=null, CUR_MONTH=null, SIG_ASSETS={}, CAN_DELETE=false, SIGN_NO_PW=false;
 let STATE={ items:[], dailyItems:[], monthlyItems:[], matrix:{}, monthlyStatus:{}, abnormal:[],
             abnormalSaved:[], days:{}, autoSlash:{}, touched:{} };
@@ -421,7 +430,7 @@ function renderMonth(dev, month, dmon){
   });
 
   const totalRowCount = Math.max(1, dailyItems.length + monthlyItems.length);
-  const dailyRowPt = Math.max(12, Math.min(28, Math.floor(380/totalRowCount)));
+  const dailyRowPt = Math.max(12, Math.min(32, Math.floor(350/totalRowCount)));
   const monthlyRowPt = Math.max(16, dailyRowPt+4);
 
   let dayHeads='';
@@ -473,7 +482,7 @@ function renderMonth(dev, month, dmon){
     sigCells += `<td class="${cls}" data-day="${dd}" tabindex="0" role="button" title="${ttl}">${sigDelHTML(dd)}${body}</td>`;
   }
 
-  const so = SIGNERS.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const so = SIGNERS.map(s=>`<option value="${s.id}"${s.id===OWN_SIGNER?' selected':''}>${esc(s.name)}</option>`).join('');
 
   $('#s_body').innerHTML = `
   <div class="sheet">
@@ -823,9 +832,10 @@ async function init(){
   mountNav({ me });
   // 权限判定必须与 server.js PERM_DEFS 一致：inspect_batch 默认 0（关闭）。
   // 注意 me.perms 为 null（从未配置过的老账号）或对象里缺该 key 时，都按默认 0 处理。
+  // 同一把钥匙管两件事：批量面板可见性（一键点检=批量电子签名）与批量删除入口。
   CAN_DELETE = !!(me && me.ok && (me.role==='admin'
     || (me.perms && Object.prototype.hasOwnProperty.call(me.perms,'inspect_batch') && !!me.perms.inspect_batch)));
-  if(me && me.ok && me.role==='admin') $('#p_batch').hidden=false;
+  if(me && me.ok && CAN_DELETE) $('#p_batch').hidden=false;   // 管理员恒可见；普通用户需后台勾选「批量点检操作」
 
   $('#b_date').value = localToday();
   $('#b_date').max   = localToday();
@@ -835,7 +845,8 @@ async function init(){
   SIGNERS = await api('/api/signers/public'); if(!Array.isArray(SIGNERS)) SIGNERS=[];
   const st = await api('/api/settings'); SIGN_NO_PW = !!(st && st.signNoPw);
   $('#b_pw_box').hidden = SIGN_NO_PW;
-  $('#b_signer').innerHTML = SIGNERS.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  OWN_SIGNER = ownSignerOf(me);
+  $('#b_signer').innerHTML = SIGNERS.map(s=>`<option value="${esc(s.id)}"${s.id===OWN_SIGNER?' selected':''}>${esc(s.name)}</option>`).join('');
   renderBatch();
 
   // 房间

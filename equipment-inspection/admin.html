@@ -103,7 +103,7 @@
 </head>
 <body data-page-node-id="RvLgTuOm6uqFgvBLvRkwy0">
 <nav class="nav" data-page-node-id="gOdJJbobV9gjx1jkn6W9bu">
-  <div class="brand"><span class="brand-text">设备点检系统</span></div>
+  <div class="brand" data-page-node-id="5tU0rx3J5t0DIvcwI0C8cR"><span class="brand-text">设备点检系统</span></div>
   <div class="sp" data-page-node-id="bKo1bOzVVT3Iz3BohGo9Zj"></div>
   <a href="/" data-page-node-id="CRY5hQfffadzvorFA0a3By">设备大屏</a>
   <a href="/inspect" data-page-node-id="usI7VVhkcCWLEfDr9KRatu">点检作业</a>
@@ -554,7 +554,7 @@
       <div class="row">
         <div class="field"><label>启用 LIMS 数据源</label><select id="l_enabled"><option value="1">启用</option><option value="0">停用</option></select></div>
         <div class="field"><label>LIMS 地址</label><input id="l_base" placeholder="https://example.com/lims"></div>
-        <div class="field"><label>LIMS 账号</label><input id="l_user" placeholder="LIMS 账号"></div>
+        <div class="field"><label>LIMS 账号</label><input id="l_user" placeholder="演示签名人"></div>
         <div class="field"><label>LIMS 密码</label><input id="l_pass" type="password" placeholder="留空 = 不修改"></div>
       </div>
       <div class="row">
@@ -821,6 +821,13 @@ async function savePerms(id){
   if(r.error){toast(r.error,'err');return;}
   toast('权限已保存','ok');closeM();loadUsers();
 }
+// 填充「默认签名人」下拉（来源 /api/signers/public）；cur 为已选中的 signer_id
+async function fillSignerSelect(sel, cur){
+  if(!sel) return;
+  let sgs=[]; try{ sgs=await api('/api/signers/public')||[]; }catch(e){ sgs=[]; }
+  sel.innerHTML='<option value="">（不绑定 · 按姓名自动匹配）</option>'+
+    sgs.map(s=>`<option value="${esc(s.id)}"${s.id===(cur||'')?' selected':''}>${esc(s.name)}</option>`).join('');
+}
 $('#user_add').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>新增用户</h3>
     <div class="field"><label>用户名 / 姓名</label><input id="u_name" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">必填，唯一。<b>这一个名字同时是登录账号、也是页面显示的姓名</b>（已合并为一条，不用重复填）；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
@@ -828,16 +835,19 @@ $('#user_add').onclick=()=>{
     <div class="field"><label>角色</label><select id="u_role"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
     <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
       <div class="muted tiny" style="margin-top:3px">指定后，该用户登录只看到本科室的房间；留空则按角色（管理员看全部，普通用户看全部）</div></div>
+    <div class="field"><label>默认签名人（可选）</label><select id="u_signer"></select>
+      <div class="muted tiny" style="margin-top:3px">绑定后，该账号登录温湿度页时「记录员」默认选中此人。管理员「管理员」账号名称无法按姓名匹配签名人，必须在此绑定。</div></div>
     <div class="flex"><button class="btn primary" onclick="saveUser()">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
   fillDeptSelect($('#u_dept'));
+  fillSignerSelect($('#u_signer'));
 };
 async function saveUser(){
   const username=$('#u_name').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
   if(!username||!pw){toast('用户名与密码必填','err');return;}
   if(!/^[\u4e00-\u9fa5A-Za-z0-9._@-]{2,32}$/.test(username)){toast('用户名需 2-32 位，可中文/英文/数字/下划线/点/@/连字符，不能含空格','err');return;}
   // 姓名不再单独填写：用户名本身就是显示姓名（后端 name 为空时也会回落为 username）
-  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name:username,password:pw,role,dept})});
+  const r=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,name:username,password:pw,role,dept,signer_id:$('#u_signer').value.trim()})});
   if(r.error){toast(r.error,'err');return;}
   toast('已新增用户','ok');closeM();loadUsers();
 }
@@ -851,9 +861,12 @@ async function editUser(id){
     <div class="field"><label>角色</label><select id="u_role"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></div>
     <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
       <div class="muted tiny" style="margin-top:3px">指定后，该用户登录只看到本科室的房间；留空则按角色（管理员看全部，普通用户看全部）</div></div>
+    <div class="field"><label>默认签名人（可选）</label><select id="u_signer"></select>
+      <div class="muted tiny" style="margin-top:3px">绑定后，该账号登录温湿度页时「记录员」默认选中此人。管理员「管理员」账号名称无法按姓名匹配签名人，必须在此绑定。</div></div>
     <div class="flex"><button class="btn primary" onclick="saveUserEdit('${id}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
   fillDeptSelect($('#u_dept'), u.dept||'');
+  fillSignerSelect($('#u_signer'), u.signer_id||'');
 }
 async function saveUserEdit(id){
   const val=$('#u_name').value.trim(), pw=$('#u_pw').value, role=$('#u_role').value, dept=$('#u_dept').value.trim();
@@ -861,7 +874,7 @@ async function saveUserEdit(id){
   if(!/^[\u4e00-\u9fa5A-Za-z0-9._@-]{2,32}$/.test(val)){toast('需 2-32 位，可中文/英文/数字/下划线/点/@/连字符，不能含空格','err');return;}
   // 「用户名 / 姓名」已合并为一条：name 始终跟随；username 只在原本「登录名 == 显示名」时才跟随改，
   // 以免把 admin（显示名“管理员”≠登录名）这类账号的登录名改掉 —— 登录名一变该账号就登不进来了
-  const body={name:val,role,dept};
+  const body={name:val,role,dept,signer_id:$('#u_signer').value.trim()};
   if(_euOrig && _euOrig.u===_euOrig.n) body.username=val;
   if(pw) body.password=pw;
   const r=await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -942,12 +955,27 @@ function renameRoom(name,focus){
       <div class="muted tiny" style="margin-top:3px">该房间归属的科室；留空 = 不限定（全员可见）。用户登录后只看到本科室的房间。</div></div>
     <h4 style="margin:4px 0 8px;font-size:13px">🌡 温湿度监测配置（新建月度记录时自动带出）</h4>
     <div class="field"><label>监测仪器型号和编号</label><input id="rm_app" maxlength="80" value="${esc(r.thermo_apparatus||'')}" placeholder="如 DEMO-INSTR-10/DEMO-ZX-882"></div>
-    <div class="field"><label>被监测的设备型号和编号</label><input id="rm_eq" maxlength="300" value="${esc(r.thermo_equipment||'')}"></div>
+    <div class="field"><label>被监测的设备型号和编号</label><textarea id="rm_eq" rows="5" maxlength="1000" placeholder="一个型号占一行，或每条用逗号分隔：&#10;设备型号-A/DEMO-NO-1~DEMO-NO-54&#10;设备型号-B/DEMO-NO-401~DEMO-NO-408">${esc(r.thermo_equipment||'')}</textarea>
+      <div class="muted tiny" id="rm_eq_prev" style="margin-top:4px"></div>
+      <div class="muted tiny" style="margin-top:2px">多个型号请<b>分行</b>或用<b>逗号</b>分隔。温湿度表上会按分条逐行完整显示，不会截断。</div></div>
     <div class="field"><label>综合温湿度要求</label><textarea id="rm_req" rows="3" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH">${esc(r.thermo_requirement||'')}</textarea></div>
     <p class="muted tiny">重命名后该房间下所有设备的位置会同步更新，点检记录不受影响。</p>
     <div class="flex"><button class="btn primary" onclick="saveRoom('${esc(name).replace(/'/g,"\\'")}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
   fillDeptSelect($('#rm_dept'), r.dept||'');
+  // v1.30.0：被监测设备录入的实时预览（隔出条目数，提醒别把多个型号粘在一行）
+  (function(){
+    const ta=$('#rm_eq'), pv=$('#rm_eq_prev');
+    if(!ta||!pv) return;
+    const upd=function(){
+      const items=ta.value.split(/[\n\r|,，、；;]+/).map(x=>x.trim()).filter(Boolean);
+      if(!items.length){ pv.textContent=''; return; }
+      const glued=items.filter(x=>/[\d](?=[A-Za-z]{2})/.test(x)&&/[~\/]/.test(x));
+      pv.innerHTML='共 <b>'+items.length+'</b> 条'+(glued.length?' &nbsp;<span style="color:#c00">⚠ 有 '+glued.length+' 条疑似与下一项粘在一起，请检查是否漏了换行/逗号</span>':' &nbsp;<span style="color:#2a8">✔ 分段正常</span>');
+    };
+    ta.addEventListener('input',upd);
+    upd();
+  })();
   // 从列表点「🌡 表头配置」进来时，直接定位并聚焦到监测仪器输入框
   if(focus==='thermo'){ const el=$('#rm_app'); if(el){ el.scrollIntoView({block:'center'}); setTimeout(()=>{ try{el.focus();}catch(e){} },80); } }
 }
@@ -958,7 +986,7 @@ async function saveRoom(oldName){
     group:$('#rm_group').value.trim(),
     dept:$('#rm_dept').value.trim(),
     thermo_apparatus:$('#rm_app').value.trim(),
-    thermo_equipment:$('#rm_eq').value.trim(),
+    thermo_equipment:$('#rm_eq').value.replace(/\r\n?/g,'\n').split('\n').map(x=>x.trim()).filter(Boolean).join('\n'),
     thermo_requirement:$('#rm_req').value.trim()};
   if(desc) body.desc=desc;
   const r=await api('/api/rooms/'+encodeURIComponent(oldName),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -3076,6 +3104,16 @@ async function editSig(id) {
     </div>
     <div class="flex"><div class="sp"></div><button class="btn" onclick="closeM()">取消</button><button class="btn primary" onclick="saveSig('${id}')">保存</button></div>`;
   $('#mask').classList.add('show');
+  // 科室下拉：必须填充选项并回显当前值——旧版下拉一直是空的，保存时 dept:'' 会把科室静默清空
+  try {
+    const d = await api('/api/depts');
+    const dl = (d.depts || []).slice();
+    if (s.dept && !dl.includes(s.dept)) dl.push(s.dept);   // 历史自定义科室也要能显示
+    $('#es_dept').innerHTML = '<option value="">（不限科室）</option>'
+      + dl.map(x => `<option value="${esc(x)}"${x === s.dept ? ' selected' : ''}>${esc(x)}</option>`).join('');
+  } catch (e) {
+    $('#es_dept').innerHTML = `<option value="${esc(s.dept || '')}">${esc(s.dept || '（科室清单加载失败）')}</option>`;
+  }
   editPad = makeSigPad(m.querySelector('#es_sigpad'));
   editPad.setNames(spSplitName(s.name));
   editPad.setSrcImage(sd.image || sd.image_h || sd.image_v || null);
@@ -3575,7 +3613,7 @@ $('#l_test').onclick=async()=>{
   btn.disabled=false; $('#l_stat').textContent='';
   let h='';
   if(!r.ok){ h='<div style="color:var(--warn)">❌ '+esc(r.error||'测试失败')+'</div>'
-    +'<div class="muted">请检查 LIMS 地址 / 账号密码，以及本机到 LIMS 的网络（本机端口转发地址 LIMS 服务地址，内网设备直连一般用 LIMS 服务地址）。</div>'; }
+    +'<div class="muted">请检查 LIMS 地址 / 账号密码，以及本机到 LIMS 的网络（本机端口转发地址 https://example.com/lims，内网设备直连一般用 https://example.com/lims）。</div>'; }
   else{
     h='<div>✅ 登录成功（'+esc(r.user)+' @ '+esc(r.base)+'）</div>'
      +'<div>· 探测房间「'+esc(r.probe_room)+'」'+r.probe_month+' 湿度 <b>'+r.probe_points+'</b> 点'+(r.probe_points?('（'+esc(r.probe_first)+' ~ '+esc(r.probe_last)+'）'):'')+'</div>'
@@ -4014,7 +4052,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
 </script>
 
 <script>
-/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+/* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
 (function () {
   if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
   function banner() {
@@ -4046,7 +4084,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
     document.querySelectorAll('button,a,.btn').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');

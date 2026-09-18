@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>选择实验房间 · 设备点检系统</title>
 <link rel="stylesheet" href="/assets/v2/theme.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" sizes="64x64" href="data:image/svg+xml,generic">
 <style>
   /* ===== 顶部标题区 ===== */
   .hero { text-align:center; padding:var(--s-4) var(--s-4) var(--s-5); }
@@ -503,7 +503,7 @@ $('#q').addEventListener('keydown', e => {
 </script>
 
 <script>
-/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+/* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
 (function () {
   if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
   function banner() {
@@ -535,7 +535,7 @@ $('#q').addEventListener('keydown', e => {
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
     document.querySelectorAll('button,a,.btn').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');

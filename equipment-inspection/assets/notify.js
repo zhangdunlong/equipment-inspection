@@ -1,4 +1,4 @@
-// 温湿度预警 · 站内通知组件（v1.21.0 初版 / v1.24.0 修 UI 遮挡 + 补 head 引入场景）
+// 温湿度预警 · 站内通知组件（v1.21.0 初版 / v1.24.0 修 UI 遮挡 + 补 head 引入场景 / v1.30.1 点击横幅/条目直达对应房间温湿度页）
 // 用法：在页面 </body> 前 <script src="/assets/notify.js"></script>
 // 效果：铃铛（未读红点）+ 下拉通知列表；顶部预警横幅（未读预警时显示，可关闭）
 //
@@ -43,8 +43,31 @@
     else fn();
   }
 
-  ready(function () {
-    if (document.getElementById('ntBell')) return;
+ready(function () {
+  // v1.30.3 引入版本自检；v1.31.0 修复「更新提示一直弹」：
+  //   旧实现拿手写常量 NOTIFY_VER 对比 /api/version，发版忘改常量就永久误报（v1.30.5 起实锤，
+  //   常量停在 v1.30.4 而服务端已是 v1.30.5，每次轮询都弹、刷新也没用）。
+  //   现改为：页面启动时记一次服务端版本 bootVer，之后每次 poll 再取当前版本对比 ——
+  //   不一致说明服务端已重启升版、本标签页还跑着旧代码，才提示刷新；刷新后 bootVer 自然跟上不再弹。
+  //   代价：只改文件不升版的修复不会触发提示（此类仍按 Ctrl+Shift+R 强刷）。
+  var bootVer = null;
+  fetch('/api/version').then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (v) { bootVer = (v && v.version) ? v.version : null; }).catch(function () { });
+  function checkUpgrade() {
+    if (!bootVer) return;   // 启动版本还没拿到（或拿不到）就不误报
+    fetch('/api/version').then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (v && v.version && v.version !== bootVer) showUpgrade(v.version);
+    }).catch(function () {});
+  }
+  function showUpgrade(ver) {
+    var el = document.getElementById('ntUpgrade'); if (el) return;
+    el = document.createElement('div'); el.id = 'ntUpgrade';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#1f6feb;color:#fff;padding:6px 40px 6px 14px;font-size:13px;cursor:pointer';
+    el.innerHTML = '🔄 系统已更新到 ' + esc(ver) + '，点击此处刷新以加载新功能<span style="position:absolute;right:12px;top:5px">✕</span>';
+    el.addEventListener('click', function (e) { if (e.target.tagName === 'SPAN') { el.style.display = 'none'; return; } location.reload(true); });
+    document.body.appendChild(el);
+  }
+  if (document.getElementById('ntBell')) return;
     // 顶部导航：优先新版 .app-nav，其次旧版 nav.nav
     var nav = document.querySelector('.app-nav[data-nav]') || document.querySelector('nav.nav');
 
@@ -86,6 +109,20 @@
     var unread = 0, items = [];
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     function fmt(t) { return String(t || '').replace('T', ' ').slice(0, 16); }
+    // v1.30.1：从通知里取出房间名，用于「点进去直达该房间温湿度页」
+    //   body 形如 【房间名】…；title 形如 🌡 温湿度预警：房间名
+    function roomOf(n) {
+      var b = (n && n.body) || '';
+      var m = b.match(/^\s*【\s*([^】]+?)\s*】/);
+      if (m) return m[1];
+      var t = (n && n.title) || '';
+      var i = t.indexOf('：');
+      if (i >= 0) return t.slice(i + 1).trim();
+      return '';
+    }
+    function gotoRoom(room) {
+      if (room) location.href = '/env.html?room=' + encodeURIComponent(room);
+    }
 
     function render() {
       var dot = bell.querySelector('.nt-dot');
@@ -98,8 +135,14 @@
           '<div class="t">' + esc(n.title) + '</div><div class="b">' + esc(n.body) + '</div>' +
           '<div class="tm">' + fmt(n.at) + (n.read ? '' : ' · <b style="color:#b42318">未读</b>') + '</div></div>';
       }).join('');
-      lst.querySelectorAll('.nt-i.unread').forEach(function (el) {
-        el.addEventListener('click', function () { markRead([el.getAttribute('data-id')]); });
+      lst.querySelectorAll('.nt-i').forEach(function (el) {
+        el.addEventListener('click', function () {
+          var id = el.getAttribute('data-id');
+          var n = items.filter(function (x) { return String(x.id) === String(id); })[0];
+          var room = roomOf(n);
+          markRead([id]);
+          gotoRoom(room);
+        });
       });
     }
     function markRead(ids) {
@@ -107,6 +150,7 @@
         .then(function (r) { return r.json(); }).then(function () { poll(); });
     }
     function poll() {
+      checkUpgrade();
       fetch('/api/notifs').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.ok) return;
         items = j.rows || []; unread = j.unread || 0;
@@ -130,7 +174,12 @@
     panel.querySelector('#ntReadAll').addEventListener('click', function () { markRead(items.filter(function (n) { return !n.read; }).map(function (n) { return n.id; })); });
     banner.addEventListener('click', function (e) {
       if (e.target.className === 'x') { banner.style.display = 'none'; return; }
-      markRead(items.filter(function (n) { return !n.read; }).map(function (n) { return n.id; }));
+      var unreadAlerts = items.filter(function (n) { return !n.read; });
+      // 优先取「能解析出房间名的未读告警」跳转；避免首条未读是非环境类通知时 roomOf 返空、点了不跳
+      var firstEnv = unreadAlerts.filter(function (n) { return roomOf(n); })[0] || unreadAlerts[0];
+      var room = roomOf(firstEnv);
+      markRead(unreadAlerts.map(function (n) { return n.id; }));
+      gotoRoom(room);
     });
     document.addEventListener('click', function (e) {
       if (panel.style.display === 'block' && !panel.contains(e.target) && e.target !== bell && !bell.contains(e.target)) panel.style.display = 'none';

@@ -63,6 +63,18 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
 
 /* 结论格 / 检查情况格：点一下就切换，默认从「正常」开始 */
 .ccell{ cursor:pointer; font-weight:700; font-size:13px; user-select:none; }
+/* 周检日期改期下拉（079）：平时融入表格，悬停/聚焦时浮出。
+   ⚠️ select 会继承页面深色主题的浅色文字（#eaf1fb），在白纸上近乎隐形——
+   必须显式给深色，且字号字重与表格文字对齐才清晰。 */
+.ctab select.dsel{ font:inherit; font-size:12.5px; font-weight:600; color:#111; border:1px solid transparent; background:transparent; padding:1px 3px; cursor:pointer; border-radius:4px; }
+.ctab select.dsel:hover{ border-color:#9db3d0; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,.14); }
+.ctab select.dsel:focus{ outline:none; border-color:#4a7dbe; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,.14); }
+.ctab select.dsel option,.ctab select.csel option{ color:#111; background:#fff; }
+/* 可选项下拉（079「内容」）：与日期下拉同一套「融入纸张」样式（原生默认样式是灰色大块，突兀） */
+.ctab select.csel{ font:inherit; font-size:12.5px; color:#111; border:1px solid transparent; background:transparent; padding:1px 3px; cursor:pointer; border-radius:4px; }
+.ctab select.csel:hover{ border-color:#9db3d0; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,.14); }
+.ctab select.csel:focus{ outline:none; border-color:#4a7dbe; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,.14); }
+.ctab select.csel:disabled{ color:#bbb; background:transparent; box-shadow:none; }
 .ccell:hover{ background:#fff7fb; }
 .ccell.v-normal{ color:#0a8f3c; }
 .ccell.v-abnormal{ color:#d11; font-weight:800; }
@@ -140,7 +152,7 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
   .ccell.empty{ color:transparent; }
   .ctab tr.r td.future{ background:transparent; }
   .sgcell{ height:auto; }
-  .sgcell img{ max-height:5.4mm; }
+  .sgcell img{ max-height:9mm; }
   .sgcell .nm{ display:none; }
   .ctab tr.r td.today{ background:transparent; }
   .note-block{ font-size:6.2pt; margin-top:3pt; line-height:1.35; }
@@ -365,15 +377,34 @@ function render(){
     cols.map((c, i) => `<td class="lb"${colSpans[i] > 1 ? ` colspan="${colSpans[i]}"` : ''}>${esc(c.label||'')}${c.label_en?`<i>${esc(c.label_en)}</i>`:''}</td>`).join('') + sideBodyHtml + `</tr>`;
 
   // 数据行
+  // 周检（079）日期手动改期：每行有效日期 = __date（手动改期）或默认周一；
+  // 各行日期互斥（已被其他行占用的日期禁选），未来日期仍不可选/不可填。
+  const dimAll = new Date(+CUR_YM.slice(0,4), +CUR_YM.slice(5,7), 0).getDate();
+  const effOf = k2 => {
+    const ovd = parseInt((rowsData[k2] || {}).__date, 10);
+    return (ovd >= 1 && ovd <= dimAll) ? ovd : +k2;
+  };
   keys.forEach(d => {
     const k = String(d);
     const row = rowsData[k] || {};
-    const dayStr = CUR_YM + '-' + pad2(d);
+    const effDay = p.row_unit === 'week' ? effOf(k) : d;   // 有效日期（改期优先）
+    const dayStr = CUR_YM + '-' + pad2(effDay);
     const isToday = dayStr === tdy;
-    const isFut = dayStr > tdy;             // 未来日期不可填（与点检 / 温湿度口径一致）
+    const isFut = dayStr > tdy;             // 未来日期不可填（改期行按改后日期判）
     const futCls = isFut ? ' future' : '';
-    const dateTxt = p.row_unit === 'week' ? (CUR_YM.replace('-', '.') + '.' + pad2(d)) : String(d);
-    html += `<tr class="r" data-day="${k}" data-fut="${isFut?1:0}"><td class="${(isToday?'today':'')+futCls}">${dateTxt}</td>`;
+    let dateCell;
+    if(p.row_unit === 'week'){
+      const used = new Set(keys.filter(x => String(x) !== k).map(x => effOf(String(x))));
+      let os = '';
+      for(let dd = 1; dd <= dimAll; dd++){
+        const dis = (used.has(dd) && dd !== effDay) || (CUR_YM + '-' + pad2(dd) > tdy);
+        os += `<option value="${dd}"${dd === effDay ? ' selected' : ''}${dis ? ' disabled' : ''}>${CUR_YM.replace('-', '.')}.${pad2(dd)}</option>`;
+      }
+      dateCell = `<select class="dsel" data-day="${k}" title="日期可点击更改">${os}</select>`;
+    }else{
+      dateCell = String(d);
+    }
+    html += `<tr class="r" data-day="${k}" data-fut="${isFut?1:0}"><td class="${(isToday?'today':'')+futCls}">${dateCell}</td>`;
     cols.forEach((c, ci) => {
       const v = row[c.key];
       // 数据行的跨列必须跟表头一致（跨列表头下的数据格也要跨同样多的网格列），
@@ -423,7 +454,7 @@ function render(){
   $('#sheet_box').innerHTML = html;
 
   bindCells();
-  $('#tipbar').textContent = (p.row_unit === 'week' ? '每周一行（固定周一）' : '每天一行') +
+  $('#tipbar').textContent = (p.row_unit === 'week' ? '每周一行（默认周一，日期可点击更改）' : '每天一行') +
     ' · 未填写的行就是没做，打印时保持空白 · 结论点一下循环：空 → √ → × → /' +
     ' · 电子签名需输入签名人密码（签名格右键清除）';
 }
@@ -443,6 +474,16 @@ function bindCells(){
       const [day, key] = sel.dataset.f.split('|');
       if(!rowsData[day]) rowsData[day] = {};
       rowsData[day][key] = sel.value;
+    };
+  });
+  // 周检日期手动更改（如 #079 显微镜维护）：写入 __date；改回默认周一则清除；改完重渲刷新未来锁/占用
+  document.querySelectorAll('.ctab select.dsel').forEach(sel => {
+    sel.onchange = () => {
+      const day = sel.dataset.day;
+      if(!rowsData[day]) rowsData[day] = {};
+      if(+sel.value === +day) delete rowsData[day].__date;
+      else rowsData[day].__date = sel.value;
+      render();
     };
   });
   // 结论（√/×/）
@@ -483,11 +524,15 @@ function openSig(ref){
   sigTarget = { day, key };
   const dev = CUR_DEV, p = CUR_PROG;
   $('#sg_t').textContent = '选择签名人';
+  const ovdRow = rowsData[day] || {};
+  const ovdSig = parseInt(ovdRow.__date, 10);
+  const effSig = (p.row_unit==='week' && ovdSig >= 1 && ovdSig <= 31) ? ovdSig : +day;
   $('#sg_sub').textContent = (p.name||'') + ' · ' + (dev.no||'') + ' · ' +
-    (p.row_unit==='week' ? (CUR_YM.replace('-','.')+'.'+pad2(+day)) : (CUR_YM+'-'+pad2(+day)));
+    (p.row_unit==='week' ? (CUR_YM.replace('-','.')+'.'+pad2(effSig)) : (CUR_YM+'-'+pad2(effSig)));
   const usable = SIGNERS.filter(s => s.signature_image || s.signature_image_v);
+  const myId = ownSignerId();   // 登录人自己的签名排最前/默认选中
   $('#sg_sel').innerHTML = usable.length
-    ? usable.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')
+    ? usable.map(s => `<option value="${esc(s.id)}"${s.id === myId ? ' selected' : ''}>${esc(s.name)}</option>`).join('')
     : '<option value="">（没有可用签名人，请先在后台签名人管理里上传签名）</option>';
   $('#sg_pw').value = '';
   $('#sgmask').classList.add('show');
@@ -566,6 +611,14 @@ window.addEventListener('beforeprint', () => {
     span.textContent = sel.value;
     sel.replaceWith(span);
   });
+  // 周检日期下拉打印时也替换成纯文本（不露下拉箭头）
+  document.querySelectorAll('.ctab select.dsel').forEach(sel => {
+    const span = document.createElement('span');
+    span.className = 'dsel-txt';
+    const op = sel.options[sel.selectedIndex];
+    span.textContent = op ? op.textContent : '';
+    sel.replaceWith(span);
+  });
 });
 window.addEventListener('afterprint', () => { render(); });
 
@@ -578,11 +631,20 @@ $('#ym_sel').onchange = async () => {
   await loadSheet();
 };
 
-// 后台入口（仅管理员可见）
+// 登录人信息：后台入口可见性与「签名弹窗默认预选登录人签名」共用同一份结果
+let ME=null;
 (async () => { try{
-  const me = await api('/api/admin/me');
-  if(me && me.ok && me.role === 'admin'){ const a = document.getElementById('nav_admin'); if(a) a.style.display=''; }
+  ME = await api('/api/admin/me');
+  if(ME && ME.ok && ME.role === 'admin'){ const a = document.getElementById('nav_admin'); if(a) a.style.display=''; }
 }catch(e){} })();
+// 登录人对应的签名人：优先用账号绑定的 signer_id（后台用户管理可配），其次按姓名/账号名匹配
+function ownSignerId(){
+  if(!ME || !ME.ok) return '';
+  const nm=String(ME.name||'').trim(), un=String(ME.username||'').trim();
+  if(ME.signer_id && SIGNERS.some(s=>s.id===ME.signer_id)) return ME.signer_id;
+  const hit=(nm&&SIGNERS.find(s=>s.name===nm))||(un&&SIGNERS.find(s=>s.name===un));
+  return hit?hit.id:'';
+}
 
 fetch('/api/version').then(r=>r.json()).then(v=>{
   document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);
@@ -592,7 +654,7 @@ boot();
 </script>
 
 <script>
-/* 演示站只读模式：仅浏览，禁用一切写入操作的入口与提示 */
+/* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
 (function () {
   if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
   function banner() {
@@ -624,7 +686,7 @@ boot();
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程'];
+    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
     document.querySelectorAll('button,a,.btn').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');
