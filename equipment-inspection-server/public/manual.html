@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
+<title>操作手册 · 设备点检系统</title>
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  .manual-note{max-width:780px;margin:48px auto;padding:28px 32px;background:#fff;border-radius:14px;
+    box-shadow:0 6px 24px rgba(15,27,45,.10);color:#243b53;line-height:1.9}
+  .manual-note h1{font-size:22px;margin:0 0 6px}
+  .manual-note h2{font-size:15px;margin:22px 0 6px;color:#0f1b2d}
+  .manual-note p,.manual-note li{font-size:14px}
+  .manual-note ul{padding-left:20px;margin:6px 0}
+  .manual-note .tip{margin-top:18px;padding:12px 14px;background:#eef6ff;border-left:3px solid #2563eb;border-radius:6px;font-size:13px}
+  .manual-note a{color:#0d6efd}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="mark"></span><span class="brand-text">设备点检系统</span></div>
+  <div class="sp"></div>
+  <a href="/">设备大屏</a>
+  <a href="/rooms.html">房间</a>
+  <a href="/inspect.html">点检作业</a>
+  <a href="/env.html">温湿度</a>
+  <a href="/admin.html">管理后台</a>
+  <a href="/logout">退出</a>
+</nav>
+<main class="manual-note">
+  <h1>操作手册未随开源版分发</h1>
+  <p>本系统内置的《操作手册》由 13 个章节与 18 张<strong>真实界面截图</strong>组成，截图内容包含实际运行环境中的设备、房间与人员信息，无法通过文本替换完成脱敏，因此<strong>未纳入开源脱敏版</strong>。</p>
+  <h2>你仍然可以</h2>
+  <ul>
+    <li>在演示站浏览全部功能页面（只读模式，可登录查看后台）。</li>
+    <li>在自托管版本（Node 服务版 / Windows 便携版）中通过系统内「📖 操作手册」入口查看完整手册 —— 该手册由系统自身托管，访问地址会自动取当前部署地址。</li>
+  </ul>
+  <h2>如何自建手册</h2>
+  <p>自托管部署后，管理员可在「管理后台 → 系统 → 外部系统跳转」面板中控制顶栏「📖 操作手册」入口是否显示；手册本体由系统以 <code>/manual</code> 路径托管。</p>
+  <div class="tip">本页为开源版占位说明页（中性内容，不含任何公司标识或真实业务信息）。</div>
+</main>
+<script>
+fetch('/api/version').then(function(r){return r.json();}).then(function(v){
+  document.querySelectorAll('[data-appver]').forEach(function(e){e.textContent=v.version;});
+}).catch(function(){});
+</script>
+</body>
+</html>

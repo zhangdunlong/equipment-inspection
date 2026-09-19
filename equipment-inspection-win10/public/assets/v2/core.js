@@ -113,11 +113,37 @@
       { href: '/inspect.html',text: '点检作业' },
       { href: '/env.html',       text: '温湿度' }
     ];
+    // 内置操作手册（v1.35.0）：新窗口打开，所有登录人员可见；排在站内导航之后、外链之前
+    const manualLink = { href: '/manual', text: '📖 操作手册' };
     if (me.role === 'admin') links.push({ href: '/admin', text: '管理后台' });
     const here = location.pathname.split('/').pop();
-    nav.querySelector('.links').innerHTML =
+    const box = nav.querySelector('.links');
+    box.innerHTML =
       links.map(l => `<a href="${l.href}"${l.href.indexOf(here) >= 0 ? ' aria-current="page"' : ''}>${esc(l.text)}</a>`).join('');
-    nav.querySelector('.links').insertAdjacentHTML('beforeend', '<a href="/logout">退出</a>');
+    box.insertAdjacentHTML('beforeend', '<a href="/logout">退出</a>');
+    // 外部系统快捷入口（v1.34.0）：LIMS 对所有登录人员可见；力学工具箱仅「力学」科室 + 管理员
+    // 数据源 GET /api/settings → links（可用后台/kv 覆盖地址）；取不到就静默不显示，绝不影响导航
+    api('/api/settings').then(st => {
+      // 外部系统跳转：后台可配（名称/地址/可见科室/启用）
+      // 可见规则：depts 为空 = 所有登录人员；非空 = 仅这些科室；管理员恒可见已启用项
+      const items = ((st && st.links && st.links.items) || []).filter(x => x && x.enabled && x.url);
+      const mine = items.filter(x => {
+        if (me.role === 'admin') return true;
+        const d = x.depts || [];
+        return !d.length || (me.dept && d.indexOf(me.dept) >= 0);
+      });
+      // 操作手册入口：后台可配显示/隐藏（v1.36.0；默认显示），data-origin 用相对路径即可
+      const manualOn = !(st && st.links && st.links.manual) || st.links.manual.enabled !== false;
+      if (!mine.length && !manualOn) return;
+      const logout = box.querySelector('a[href="/logout"]');
+      if (!logout) return;
+      const manHtml = manualOn
+        ? '<a class="man" href="' + manualLink.href + '" target="_blank" rel="noopener" title="新窗口打开操作手册">' + esc(manualLink.text) + '</a>'
+        : '';
+      if (!mine.length) { logout.insertAdjacentHTML('beforebegin', manHtml); return; }
+      logout.insertAdjacentHTML('beforebegin', manHtml + '<span class="sep" aria-hidden="true"></span>' + mine.map(e =>
+        `<a class="ext" href="${esc(e.url)}" target="_blank" rel="noopener" title="在新窗口打开：${esc(e.name)}">${esc(e.name)}<span class="ar">↗</span></a>`).join(''));
+    }).catch(() => { });
 
     const tg = nav.querySelector('.nav-toggle');
     if (tg) tg.addEventListener('click', () => {

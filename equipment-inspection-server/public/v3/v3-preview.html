@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备点检系统 · UI 优化方案预览（v3 提案）</title>
+<style>
+:root{
+  --bg:#0b1626; --bg2:#0e1c31; --panel:#13253f; --panel2:#182e4d; --line:#24405f;
+  --ink:#eaf1fb; --sub:#8fa8c7; --dim:#5f7b9d;
+  --acc:#2f7df6; --acc2:#57a0ff;
+  --ok:#22b573; --okbg:rgba(34,181,115,.12);
+  --warn:#f5a623; --warnbg:rgba(245,166,35,.12);
+  --bad:#e5484d; --badbg:rgba(229,72,77,.12);
+  --r:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:
+  radial-gradient(1200px 500px at 80% -10%, rgba(47,125,246,.10), transparent 60%),
+  var(--bg);
+  color:var(--ink);font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+  font-size:14.5px;line-height:1.7}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 22px 90px}
+header.hero{background:linear-gradient(135deg,#10233f,#173least0);border:1px solid var(--line);
+  border-radius:14px;padding:26px 30px;margin-bottom:22px;
+  background:linear-gradient(135deg,#10233f,#16304f)}
+header.hero h1{margin:0 0 6px;font-size:23px;letter-spacing:.5px}
+header.hero .s{color:var(--sub);font-size:13.5px}
+.hero .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{background:rgba(87,160,255,.12);border:1px solid rgba(87,160,255,.3);color:var(--acc2);
+  border-radius:20px;padding:2px 13px;font-size:12.5px}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+nav.toc a{color:var(--ink);text-decoration:none;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;padding:6px 14px;font-size:13.5px;transition:.15s}
+nav.toc a:hover{border-color:var(--acc);color:var(--acc2)}
+section.mod{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:22px 26px;margin-bottom:26px}
+h2.mt{margin:0 0 4px;font-size:18px;display:flex;align-items:center;gap:10px}
+h2.mt .no{background:var(--acc);color:#fff;border-radius:7px;font-size:13px;padding:1px 10px}
+.mdesc{color:var(--sub);font-size:13.5px;margin:6px 0 16px}
+.mdesc b{color:var(--ink)}
+/* 旧/新切换 */
+.vt{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:9px;
+  overflow:hidden;margin-bottom:16px}
+.vt button{appearance:none;border:none;background:transparent;color:var(--sub);cursor:pointer;
+  padding:7px 22px;font-size:13.5px;font-family:inherit;transition:.15s}
+.vt button.on{background:var(--acc);color:#fff}
+.vt button:not(.on):hover{color:var(--ink)}
+.demo{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:18px 20px}
+.verdict{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+.verdict .v{flex:1 1 240px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 14px;font-size:13px;color:var(--sub)}
+.verdict .v b{color:var(--ink);display:block;margin-bottom:2px}
+.badge{display:inline-block;font-size:11.5px;border-radius:5px;padding:0 8px;margin-left:8px;vertical-align:2px}
+.badge.old{background:#3a4a60;color:#b9c9dc}
+.badge.new{background:rgba(34,181,115,.18);color:#4fd69c;border:1px solid rgba(79,214,156,.4)}
+
+/* ===== M1 设备卡片 ===== */
+.dash{display:flex;flex-direction:column;gap:12px}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--sub);align-items:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.old-cards,.new-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
+.card-old{background:#101f38;border:1px solid #223a58;border-radius:8px;padding:10px 12px;position:relative}
+.card-old .h{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--dim)}
+.card-old .h .tagr{border:1px solid #2f7df6;color:#57a0ff;border-radius:4px;padding:0 6px;font-size:10.5px}
+.card-old .no{font-size:11px;color:var(--sub);margin-top:4px}
+.card-old .nm{font-size:14px;font-weight:600;margin:2px 0}
+.card-old .md{font-size:11.5px;color:var(--sub)}
+.card-old .st{font-size:11.5px;color:var(--dim);margin-top:8px;border-top:1px dashed #223a58;padding-top:6px}
+.card-new{background:linear-gradient(180deg,#152a49,#12233e);border:1px solid #26415f;border-radius:10px;
+  padding:12px 14px 12px 16px;position:relative;overflow:hidden;transition:.18s;cursor:pointer}
+.card-new::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--warn)}
+.card-new.ok::before{background:var(--ok)}
+.card-new.bad::before{background:var(--bad)}
+.card-new:hover{transform:translateY(-3px);border-color:var(--acc);box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.card-new .top{display:flex;justify-content:space-between;align-items:center}
+.card-new .no{font-size:11.5px;color:var(--sub)}
+.card-new .stb{font-size:11px;font-weight:700;border-radius:5px;padding:1px 9px}
+.card-new .stb.w{background:var(--warnbg);color:var(--warn)}
+.card-new .stb.o{background:var(--okbg);color:var(--ok)}
+.card-new .stb.b{background:var(--badbg);color:var(--bad)}
+.card-new .nm{font-size:14.5px;font-weight:700;margin:5px 0 1px}
+.card-new .md{font-size:11.5px;color:var(--sub)}
+.card-new .bar{height:4px;border-radius:2px;background:#0d1b30;margin:10px 0 6px;overflow:hidden}
+.card-new .bar i{display:block;height:100%;border-radius:2px;background:var(--acc)}
+.card-new .ft{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--dim)}
+.card-new .qa{display:flex;gap:6px;margin-top:9px;opacity:0;transform:translateY(4px);transition:.18s}
+.card-new:hover .qa{opacity:1;transform:none}
+.card-new .qa a{flex:1;text-align:center;font-size:11.5px;color:var(--acc2);background:rgba(87,160,255,.1);
+  border:1px solid rgba(87,160,255,.35);border-radius:6px;padding:3px 0;text-decoration:none}
+.card-new .qa a:hover{background:rgba(87,160,255,.22)}
+
+/* ===== M2 一键点检表格 ===== */
+table.bt{width:100%;border-collapse:collapse;font-size:13px}
+table.bt th{background:#16294a;color:var(--sub);font-weight:600;text-align:left;
+  padding:9px 12px;border-bottom:1px solid var(--line);position:sticky;top:0}
+table.bt td{padding:8px 12px;border-bottom:1px solid #1b3050}
+table.bt tr:hover td{background:rgba(87,160,255,.06)}
+table.bt tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+table.bt tr:hover:nth-child(even) td{background:rgba(87,160,255,.06)}
+table.bt tr.bad td{background:var(--badbg)}
+table.bt tr.bad:hover td{background:rgba(229,72,77,.18)}
+.mini-ck{width:15px;height:15px;accent-color:var(--acc)}
+.tgl{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none;padding:3px 6px;border-radius:7px}
+.tgl:hover{background:rgba(255,255,255,.05)}
+.tgl .tk{width:38px;height:20px;border-radius:10px;background:#33507a;position:relative;transition:.18s;flex:none}
+.tgl .tk::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:#cfe0f5;transition:.18s}
+.tgl.on .tk{background:var(--bad)}
+.tgl.on .tk::after{left:20px;background:#fff}
+.tgl .lb{font-size:12.5px;min-width:30px;color:var(--sub)}
+.tgl.on .lb{color:var(--bad);font-weight:700}
+.abn-in{transition:.18s}
+.abn-in.ph{color:var(--dim)}
+.trcount{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.trcount .c{font-size:12.5px;color:var(--sub)}
+.trcount .c b{color:var(--bad)}
+.btn{appearance:none;border:none;border-radius:8px;padding:7px 16px;font-family:inherit;font-size:13px;
+  cursor:pointer;transition:.15s}
+.btn.pri{background:var(--acc);color:#fff}
+.btn.pri:hover{background:#3f8bff}
+.btn.gho{background:transparent;border:1px solid var(--line);color:var(--sub)}
+.btn.gho:hover{color:var(--ink);border-color:var(--acc)}
+
+/* ===== M3 后台页签 ===== */
+.tabs-old{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.tabs-old button{background:#12233e;border:1px solid #223a58;color:var(--sub);border-radius:7px;
+  padding:8px 4px;font-size:12.5px;font-family:inherit}
+.tabs-old button.act{background:var(--acc);border-color:var(--acc);color:#fff}
+.tabs-new{display:flex;flex-direction:column;gap:8px}
+.tg-row{display:flex;align-items:center;gap:10px}
+.tg-row .gl{font-size:11.5px;color:var(--dim);width:74px;flex:none;text-align:right;letter-spacing:1px}
+.tg-row .ts{display:flex;gap:6px;flex-wrap:wrap}
+.tg-row button{background:transparent;border:1px solid var(--line);color:var(--sub);border-radius:18px;
+  padding:4px 15px;font-size:12.5px;font-family:inherit;cursor:pointer;transition:.15s}
+.tg-row button:hover{color:var(--ink);border-color:var(--acc)}
+.tg-row button.act{background:rgba(47,125,246,.16);border-color:var(--acc);color:var(--acc2);font-weight:600}
+.adm-search{display:flex;gap:8px;margin-top:12px}
+.adm-search .inp{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:8px;
+  padding:7px 12px;color:var(--ink);font-family:inherit;font-size:13px}
+.adm-search .inp::placeholder{color:var(--dim)}
+
+/* ===== M4 温湿度工具栏 ===== */
+.tb-old{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tb-old .ob{background:#12233e;border:1px solid #223a58;color:var(--ink);border-radius:7px;
+  padding:7px 13px;font-size:12.5px}
+.tb-old .ob.save{background:#1f4f9c;border-color:#2f6fd0}
+.tb-old .sel{background:var(--bg2);border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:7px 10px;font-size:12.5px}
+.tb-new{display:flex;flex-direction:column;gap:10px}
+.tb-new .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg .sel{background:var(--bg2);border:none;border-right:1px solid var(--line);color:var(--ink);
+  padding:8px 12px;font-size:12.5px;font-family:inherit}
+.seg .sel:last-child{border-right:none}
+.btn.big{padding:8px 20px;font-size:13.5px;font-weight:600}
+.btn.ok{background:var(--ok);color:#fff}
+.btn.ok:hover{background:#2ac984}
+.menu{position:relative;display:inline-block}
+.menu>button{background:transparent;border:1px solid var(--line);color:var(--sub);border-radius:8px;
+  padding:8px 14px;font-size:12.5px;font-family:inherit;cursor:pointer}
+.menu>button:hover{color:var(--ink);border-color:var(--acc)}
+.menu .dd{display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--panel2);
+  border:1px solid var(--line);border-radius:10px;min-width:190px;box-shadow:0 12px 30px rgba(0,0,0,.45);
+  z-index:30;overflow:hidden}
+.menu.open .dd{display:block}
+.menu .dd a{display:block;padding:9px 16px;color:var(--ink);text-decoration:none;font-size:13px}
+.menu .dd a:hover{background:rgba(87,160,255,.12)}
+.menu .dd .div{height:1px;background:var(--line);margin:4px 0}
+
+footer{text-align:center;color:var(--dim);font-size:12.5px;margin-top:40px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>设备点检系统 · UI/交互优化方案预览 <span style="font-size:14px;color:var(--acc2)">v3 提案 · 仅供评审</span></h1>
+  <div class="s">基于现行 v1.32.1 实际界面重制 · 每个模块可切换「现行版 / 优化版」对比 · 本预览为静态演示，未改动系统任何文件</div>
+  <div class="chips">
+    <span class="chip">🎨 沿用 SCADA/HMI 深色工业风</span>
+    <span class="chip">🖱️ 更大点击命中区</span>
+    <span class="chip">👁️ 状态一眼可辨</span>
+    <span class="chip">🧩 操作分组降噪</span>
+    <span class="chip">⌨️ 不改变任何业务逻辑与接口</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#m1">① 设备大屏 · 设备卡片</a>
+  <a href="#m2">② 点检作业 · 一键点检表格</a>
+  <a href="#m3">③ 管理后台 · 页签导航</a>
+  <a href="#m4">④ 温湿度 · 工具栏</a>
+  <a href="#m5">⑤ 采纳方式说明</a>
+</nav>
+
+<!-- ================= M1 ================= -->
+<section class="mod" id="m1">
+  <h2 class="mt"><span class="no">①</span>设备大屏 · 设备卡片</h2>
+  <div class="mdesc"><b>问题：</b>81 台卡片几乎全同，需逐张读文字才能分辨状态；「未点检」按钮命中区小；缺少本月进度感。<b>优化：</b>左侧 4px 状态色条 + 右上角状态徽章，颜色即状态；悬停浮起并露出「今日点检 / 月度表」快捷入口；卡片底部增加本月完成度细进度条；卡片墙上方增加状态图例。</div>
+  <div class="vt" data-demo="d1">
+    <button class="on" data-v="old">现行版</button><button data-v="new">优化版</button>
+  </div>
+  <div class="demo" id="d1">
+    <div class="dash" id="d1body"></div>
+  </div>
+  <div class="verdict">
+    <div class="v"><b>改动点</b>纯 CSS/模板级，无接口改动</div>
+    <div class="v"><b>收益</b>81 台中异常/未检一眼定位；点检入口少一次跳转</div>
+    <div class="v"><b>影响面</b>仅 index.html 卡片渲染与样式</div>
+  </div>
+</section>
+
+<!-- ================= M2 ================= -->
+<section class="mod" id="m2">
+  <h2 class="mt"><span class="no">②</span>点检作业 · 一键点检表格</h2>
+  <div class="mdesc"><b>问题：</b>「标记异常」复选框过小（易漏勾/误触）；「异常说明」输入框对正常设备也常显，81 行全是输入框视觉噪音大；行与行缺乏状态区分。<b>优化：</b>复选框改为「正常 / 异常」大滑块开关（整行可点）；勾选异常时该行整行变红、说明框高亮展开，正常行收起显示「—」；表头吸附；顶部实时统计「已标记异常 N 台」。</div>
+  <div class="vt" data-demo="d2">
+    <button class="on" data-v="old">现行版</button><button data-v="new">优化版</button>
+  </div>
+  <div class="demo" id="d2"><div id="d2body"></div></div>
+  <div class="verdict">
+    <div class="v"><b>改动点</b>inspect.html 表格行渲染 + 少量 JS（联动说明框显隐）</div>
+    <div class="v"><b>收益</b>异常勾选不易漏；表格噪音降低约 60%；提交前异常数一目了然</div>
+    <div class="v"><b>影响面</b>仅一键点检面板，逐日点检表格不动</div>
+  </div>
+</section>
+
+<!-- ================= M3 ================= -->
+<section class="mod" id="m3">
+  <h2 class="mt"><span class="no">③</span>管理后台 · 页签导航</h2>
+  <div class="mdesc"><b>问题：</b>12 个功能页签挤成两行，无分组语义，新管理员难以定位；「批量操作选中」等危险按钮与常规操作混排。<b>优化：</b>按「基础档案 / 业务数据 / 温湿度 / 系统」四组分行呈现，激活态改为胶囊高亮；搜索框与批量操作独立成行、危险按钮右置并保持红色警示。</div>
+  <div class="vt" data-demo="d3">
+    <button class="on" data-v="old">现行版</button><button data-v="new">优化版</button>
+  </div>
+  <div class="demo" id="d3"><div id="d3body"></div></div>
+  <div class="verdict">
+    <div class="v"><b>改动点</b>admin.html 页签条重排（tab 的 data-t 键不变）</div>
+    <div class="v"><b>收益</b>功能定位由「找两行」变「按类直达」</div>
+    <div class="v"><b>影响面</b>仅导航样式与排布，各面板逻辑零改动</div>
+  </div>
+</section>
+
+<!-- ================= M4 ================= -->
+<section class="mod" id="m4">
+  <h2 class="mt"><span class="no">④</span>温湿度 · 工具栏</h2>
+  <div class="mdesc"><b>问题：</b>一行挤了房间/月份选择器 + 7 个操作按钮，主操作（保存/打印）与低频操作（LIMS、CSV、批量签名、划线）平级，误点风险与视觉负担都高。<b>优化：</b>房间+月份合并为一段式选择器；「💾 保存」「🖨 打印」保留为常驻主按钮；低频操作全部收纳进「更多操作 ▾」下拉菜单（点击下方按钮可体验）。</div>
+  <div class="vt" data-demo="d4">
+    <button class="on" data-v="old">现行版</button><button data-v="new">优化版</button>
+  </div>
+  <div class="demo" id="d4"><div id="d4body"></div></div>
+  <div class="verdict">
+    <div class="v"><b>改动点</b>env.html 工具栏 DOM 重排 + 下拉菜单</div>
+    <div class="v"><b>收益</b>高频操作更大更醒目；低频操作收纳后误触率下降</div>
+    <div class="v"><b>影响面</b>按钮 onclick 处理函数保持原名</div>
+  </div>
+</section>
+
+<!-- ================= M5 ================= -->
+<section class="mod" id="m5">
+  <h2 class="mt"><span class="no">⑤</span>采纳方式说明</h2>
+  <div class="mdesc">本预览全部为静态演示。<b>未修改系统任何文件</b>（public/ 现有页面、server.js 均保持 v1.32.1 原样）。若确认采纳，可整体落地，也可按模块勾选（①～④ 相互独立），落地流程沿用上次 v2 采纳的做法：</div>
+  <table class="ui" style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <tr><th style="text-align:left;padding:8px 12px;border:1px solid var(--line);background:var(--panel2)">步骤</th><th style="text-align:left;padding:8px 12px;border:1px solid var(--line);background:var(--panel2)">内容</th></tr>
+    <tr><td style="padding:8px 12px;border:1px solid var(--line)">1. 备份</td><td style="padding:8px 12px;border:1px solid var(--line)">现版四页备份至 <code>_BACKUP_日期_v3adopt/public/</code>（md5 校验）</td></tr>
+    <tr><td style="padding:8px 12px;border:1px solid var(--line)">2. 落地</td><td style="padding:8px 12px;border:1px solid var(--line)">按选定模块改写对应页面，打印 CSS（A4 横版）逐字保留</td></tr>
+    <tr><td style="padding:8px 12px;border:1px solid var(--line)">3. 验证</td><td style="padding:8px 12px;border:1px solid var(--line)">regression 99 项 + 无头 Chrome 渲染零报错 + 打印单页校验</td></tr>
+    <tr><td style="padding:8px 12px;border:1px solid var(--line)">4. 版本</td><td style="padding:8px 12px;border:1px solid var(--line)">APP_VERSION 升 v1.33.0（UI 改版），更新日志/交接文档同步</td></tr>
+  </table>
+  <div class="mdesc" style="margin-top:14px">💬 回复「<b>全部采用</b>」或「采用 ①③」等即可执行；也可指出某模块再调整。</div>
+</section>
+
+<footer>设备点检系统 · UI 优化方案预览（v3 提案）— 生成于 2026-09-18 · 基于 v1.32.1</footer>
+</div>
+
+<script>
+// ---------- M1 ----------
+const DEVS = [
+  {no:'DEMO-NO-1', nm:'高温电子持久试验机', md:'设备型号-A', st:'w'},
+  {no:'DEMO-NO-1', nm:'高温电子持久试验机', md:'设备型号-A', st:'o', pct:100},
+  {no:'DEMO-NO-1', nm:'高温电子持久试验机', md:'设备型号-A', st:'b'},
+  {no:'DEMO-NO-1', nm:'高温电子持久试验机', md:'设备型号-A', st:'w'},
+  {no:'DEMO-NO-1', nm:'高温电子持久试验机', md:'设备型号-B', st:'o', pct:64},
+];
+const STN = {w:'未检', o:'正常', b:'异常'};
+function oldCards(){
+  return '<div class="old-cards">' + DEVS.map(d=>`
+    <div class="card-old">
+      <div class="h"><span>测试室01</span><span class="tagr">点检</span></div>
+      <div class="no">No.${d.no}</div>
+      <div class="nm">${d.nm}</div>
+      <div class="md">${d.md}</div>
+      <div class="st">未点检</div>
+    </div>`).join('') + '</div>';
+}
+function newCards(){
+  return `
+  <div class="legend" style="margin-bottom:4px">
+    <span><i style="background:var(--warn)"></i>未检</span>
+    <span><i style="background:var(--ok)"></i>正常</span>
+    <span><i style="background:var(--bad)"></i>异常</span>
+    <span style="margin-left:auto">悬停卡片可快捷操作 · 进度条为本月完成度</span>
+  </div>
+  <div class="new-cards">` + DEVS.map(d=>`
+    <div class="card-new ${d.st}">
+      <div class="top"><span class="no">No.${d.no}</span><span class="stb ${d.st}">${STN[d.st]}</span></div>
+      <div class="nm">${d.nm}</div>
+      <div class="md">${d.md} · 测试室01</div>
+      <div class="bar"><i style="width:${d.pct||8}%"></i></div>
+      <div class="ft"><span>本月 ${d.pct?Math.round(30*(d.pct||8)/100):3}/30 天</span><span>最近: 昨日</span></div>
+      <div class="qa"><a href="javascript:void(0)">⚡ 今日点检</a><a href="javascript:void(0)">📋 月度表</a></div>
+    </div>`).join('') + '</div>';
+}
+// ---------- M2 ----------
+const BDEVS = ['DEMO-NO-1','DEMO-NO-1','DEMO-NO-1','DEMO-NO-1','DEMO-NO-1'];
+function oldBatch(){
+  return `<table class="bt"><thead><tr><th style="width:110px">编号</th><th>设备</th><th style="width:90px">型号</th><th style="width:90px">标记异常</th><th style="width:45%">异常说明</th></tr></thead><tbody>` +
+    BDEVS.map(n=>`<tr><td>${n}</td><td>高温电子持久试验机</td><td>设备型号-A</td>
+      <td><input type="checkbox" class="mini-ck"></td>
+      <td><input class="abn-in" placeholder="异常说明" style="width:95%;background:#0d1b30;border:1px solid #223a58;border-radius:6px;color:var(--ink);padding:5px 9px;font-family:inherit"></td></tr>`).join('') +
+    '</tbody></table>';
+}
+function newBatch(){
+  return `
+  <div class="trcount">
+    <span class="c">共 <b style="color:var(--ink)">5</b> 台 · 已标记异常 <b id="badN">1</b> 台 · 其余将记「正常」</span>
+    <button class="btn pri" onclick="alert('演示：提交一键点检')">⚡ 一键点检所有设备（当日）</button>
+  </div>
+  <table class="bt"><thead><tr><th style="width:110px">编号</th><th>设备</th><th style="width:100px">型号</th><th style="width:150px">当日状态</th><th>异常说明（仅异常设备填写）</th></tr></thead><tbody>` +
+  BDEVS.map((n,i)=>`
+    <tr class="row-b ${i===2?'bad':''}">
+      <td>${n}</td><td>高温电子持久试验机</td><td>设备型号-A</td>
+      <td><span class="tgl ${i===2?'on':''}" onclick="tg(this)"><span class="tk"></span><span class="lb">${i===2?'异常':'正常'}</span></span></td>
+      <td>${i===2?'<input class="abn-in" value="保温段温度波动，待复查" style="width:95%;background:#0d1b30;border:1px solid rgba(229,72,77,.5);border-radius:6px;color:var(--ink);padding:5px 9px;font-family:inherit">':'<span class="abn-in ph">—</span>'}</td>
+    </tr>`).join('') + '</tbody></table>';
+}
+function tg(el){
+  const tr = el.closest('tr');
+  const on = el.classList.toggle('on');
+  el.querySelector('.lb').textContent = on ? '异常' : '正常';
+  tr.classList.toggle('bad', on);
+  const td = tr.children[4];
+  td.innerHTML = on
+    ? '<input class="abn-in" placeholder="请填写异常说明" style="width:95%;background:#0d1b30;border:1px solid rgba(229,72,77,.5);border-radius:6px;color:var(--ink);padding:5px 9px;font-family:inherit">'
+    : '<span class="abn-in ph">—</span>';
+  if(on) td.querySelector('input').focus();
+  document.getElementById('badN').textContent = document.querySelectorAll('.tgl.on').length;
+}
+// ---------- M3 ----------
+function oldTabs(){
+  const ts=['设备管理','房间管理','点检模板','签名人员','点检记录','月度点检','温湿度填充','用户管理','科室管理','温湿度预警','系统','运行日志'];
+  return '<div class="tabs-old">' + ts.map((t,i)=>`<button class="${i===0?'act':''}">${t}</button>`).join('') + '</div>';
+}
+function newTabs(){
+  const G=[
+    ['基础档案',[['设备管理',1],['房间管理',0],['科室管理',0]]],
+    ['业务数据',[['点检模板',0],['点检记录',0],['月度点检',0],['签名人员',0]]],
+    ['温湿度',[['温湿度填充',0],['温湿度预警',0]]],
+    ['系统',[['用户管理',0],['系统',0],['运行日志',0]]],
+  ];
+  return '<div class="tabs-new">' + G.map(g=>
+    `<div class="tg-row"><span class="gl">${g[0]}</span><span class="ts">` +
+    g[1].map(t=>`<button class="${t[1]?'act':''}">${t[0]}</button>`).join('') +
+    '</span></div>').join('') +
+  `</div>
+  <div class="adm-search">
+    <input class="inp" placeholder="🔍 按编号搜索（也可搜名称 / 型号 / 房间）…">
+    <button class="btn gho">＋ 新增单台</button>
+    <button class="btn gho">按行导入</button>
+    <button class="btn gho" style="color:var(--bad);border-color:rgba(229,72,77,.5)">🗑 批量操作选中</button>
+  </div>`;
+}
+// ---------- M4 ----------
+function oldTb(){
+  return `<div class="tb-old">
+    <span class="sel">房间：测试室01 ▾</span>
+    <span class="sel">月份：2026年09月 ▾</span>
+    <span class="ob">⬇ 本房间设备点检 →</span>
+    <span class="ob">批量电子签名: 关</span>
+    <span class="ob">— 划线标记: 关</span>
+    <span class="ob">⬇ LIMS 抓取</span>
+    <span class="ob save">💾 保存</span>
+    <span class="ob">🖨 打印 / 另存PDF</span>
+    <span class="ob">⬇ 导出CSV</span>
+  </div>`;
+}
+function newTb(){
+  return `<div class="tb-new">
+    <div class="row">
+      <span class="seg"><span class="sel">房间：测试室01 ▾</span><span class="sel">月份：2026年09月 ▾</span></span>
+      <span style="flex:1"></span>
+      <button class="btn ok big">💾 保存</button>
+      <button class="btn pri big">🖨 打印 / 另存PDF</button>
+      <span class="menu" id="mm">
+        <button onclick="document.getElementById('mm').classList.toggle('open')">更多操作 ▾</button>
+        <span class="dd">
+          <a href="javascript:void(0)">⬇ 本房间设备点检 →</a>
+          <a href="javascript:void(0)">🔁 批量电子签名</a>
+          <a href="javascript:void(0)">— 划线标记</a>
+          <a href="javascript:void(0)">⬇ LIMS 抓取</a>
+          <span class="div"></span>
+          <a href="javascript:void(0)">⬇ 导出CSV（管理员）</a>
+        </span>
+      </span>
+    </div>
+    <div style="font-size:12px;color:var(--dim)">上次保存：2026-09-16 03:59:25 · 常用操作固定，低频操作收进「更多操作」（点开可预览）</div>
+  </div>`;
+}
+// ---------- 渲染 & 切换 ----------
+const R = {d1:{old:oldCards,new:newCards,el:'d1body'}, d2:{old:oldBatch,new:newBatch,el:'d2body'},
+           d3:{old:oldTabs,new:newTabs,el:'d3body'}, d4:{old:oldTb,new:newTb,el:'d4body'}};
+for(const k in R) R[k].el && (document.getElementById(R[k].el).innerHTML = R[k].old());
+document.querySelectorAll('.vt').forEach(vt=>{
+  vt.addEventListener('click', e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    vt.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
+    const r = R[vt.dataset.demo];
+    document.getElementById(r.el).innerHTML = r[b.dataset.v]();
+  });
+});
+document.addEventListener('click', e=>{
+  document.querySelectorAll('.menu.open').forEach(m=>{ if(!m.contains(e.target)) m.classList.remove('open'); });
+});
+</script>
+</body>
+</html>

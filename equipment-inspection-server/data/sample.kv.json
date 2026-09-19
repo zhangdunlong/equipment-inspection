@@ -1162,5 +1162,42 @@
         "period": "AM"
       }
     }
-  ]
+  ],
+  "links": {
+    "items": [
+      {
+        "key": "lims",
+        "name": "LIMS 系统",
+        "url": "https://lims.example.com",
+        "depts": [],
+        "enabled": true
+      },
+      {
+        "key": "mechanics",
+        "name": "力学工具箱",
+        "url": "https://toolbox.example.com",
+        "depts": [
+          "演示科室一"
+        ],
+        "enabled": true
+      },
+      {
+        "key": "bpm",
+        "name": "BPM 系统",
+        "url": "https://bpm.example.com",
+        "depts": [],
+        "enabled": true
+      },
+      {
+        "key": "docs",
+        "name": "文档中心",
+        "url": "https://docs.example.com",
+        "depts": [],
+        "enabled": true
+      }
+    ],
+    "manual": {
+      "enabled": true
+    }
+  }
 }

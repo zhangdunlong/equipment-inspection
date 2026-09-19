@@ -6,6 +6,19 @@
 <title>管理后台</title>
 <link rel="stylesheet" href="/assets/style.css" data-page-node-id="YhFHUAgYDou8mQu26AuGcG">
 <style>
+/* ===== v1.33.0 · 后台页签分组胶囊（不改 data-t / onclick 逻辑）===== */
+.tabs{ display:flex; flex-direction:column; gap:8px; margin:0 0 16px; padding:10px 12px;
+  background:rgba(10,16,28,.45); border:1px solid var(--glass-bd); border-radius:12px; }
+.tabs .tg-row{ display:flex; align-items:center; gap:12px; }
+.tabs .tg-row .gl{ flex:none; width:62px; text-align:right; font-size:11px; color:var(--muted);
+  letter-spacing:1px; user-select:none; }
+.tabs .tg-row .ts{ display:flex; gap:8px; flex-wrap:wrap; }
+.tabs button{ appearance:none; -webkit-appearance:none; border:1px solid var(--glass-bd);
+  background:transparent; color:var(--muted); border-radius:999px; padding:5px 16px;
+  font-size:13px; font-family:inherit; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
+.tabs button:hover{ color:var(--txt); border-color:var(--cyan); }
+.tabs button.active{ background:rgba(34,193,220,.16); border-color:var(--cyan); color:var(--cyan); font-weight:600; }
+
 /* ===== 逐字签名组件（v1.3.0）===== */
 .sigpad{margin-top:2px}
 .sp-tip{display:block;font-size:12px;color:var(--muted);margin-bottom:8px}
@@ -74,6 +87,10 @@
 .lan-st.warn{border-color:rgba(255,209,102,.5);color:var(--warn);background:rgba(255,209,102,.10)}
 .lan-st.busy{border-color:rgba(34,193,220,.55);color:var(--cyan);background:rgba(34,193,220,.12)}
 .lan-pkgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+/* 行内控件不得超出所在列：内联 min-width 曾把下拉撑破 .row 列宽、压住右邻控件（v1.33.1 修复） */
+.row>.field>select,.row>.field>input,.row>.field>textarea{min-width:0}
+/* 月度点检「专项检查表」行：7 个控件同排，列最小宽度收窄以容纳较宽的「检查项目」下拉 */
+#cm_row>.field{min-width:150px;max-width:340px}
 .lan-pkg{position:relative;padding:11px 13px;border:1px solid var(--glass-bd);border-radius:12px;background:var(--glass);cursor:pointer;transition:.16s}
 .lan-pkg:hover{border-color:var(--pink);box-shadow:0 0 14px rgba(79,140,255,.22)}
 .lan-pkg.on{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan) inset,0 0 18px rgba(34,193,220,.25)}
@@ -103,7 +120,7 @@
 </head>
 <body data-page-node-id="RvLgTuOm6uqFgvBLvRkwy0">
 <nav class="nav" data-page-node-id="gOdJJbobV9gjx1jkn6W9bu">
-  <div class="brand" data-page-node-id="5tU0rx3J5t0DIvcwI0C8cR"><span class="brand-text">设备点检系统</span></div>
+  <div class="brand" data-page-node-id="5tU0rx3J5t0DIvcwI0C8cR"><span class="mark" aria-hidden="true"></span>设备点检系统</div>
   <div class="sp" data-page-node-id="bKo1bOzVVT3Iz3BohGo9Zj"></div>
   <a href="/" data-page-node-id="CRY5hQfffadzvorFA0a3By">设备大屏</a>
   <a href="/inspect" data-page-node-id="usI7VVhkcCWLEfDr9KRatu">点检作业</a>
@@ -127,18 +144,26 @@
     <button class="btn sm" id="logout" data-page-node-id="Xc4RI1SPazxQLHE6cYck0H">退出</button>
   </div>
   <div class="tabs" data-page-node-id="sqqyHEYlWXMKgCnFaSwhD2">
-    <button class="active" data-t="dev" data-page-node-id="9ANWIe93Uc9yPExtYQhR8h">📦 设备管理</button>
-    <button data-t="room" data-page-node-id="SUAjsRTkwsT7gKVZoQs6yE">🏠 房间管理</button>
-    <button data-t="tpl" data-page-node-id="K9LgEk7j1ermXYxhP3wt6A">📋 点检模板</button>
-    <button data-t="sig" data-page-node-id="L6hCDQ6RB1eFMCMA5nPN9I">✍️ 签名人员</button>
-    <button data-t="rec" data-page-node-id="6Tqm6ScuvPcuX1BsKiyVJs">📑 点检记录</button>
-    <button data-t="month" data-page-node-id="LkqgtW5QdjoqB14c2E7rw7">📅 月度点检</button>
-    <button data-t="env" data-page-node-id="EnvFillTab000000000001">🌡 温湿度填充</button>
-    <button data-t="user" data-page-node-id="yvGHzG1cgMHBOgFfK5sGF2">👥 用户管理</button>
-    <button data-t="dept" data-page-node-id="pS3QaKz7mNxV2LhRtYb9Wc">🏢 科室管理</button>
-    <button data-t="alert">🚨 温湿度预警</button>
-    <button data-t="sys" data-page-node-id="2UmR7JEXmVL4svbpwnPS5N">⚙️ 系统</button>
-    <button data-t="logs">🧾 运行日志</button>
+    <div class="tg-row"><span class="gl">基础档案</span><span class="ts">
+      <button class="active" data-t="dev" data-page-node-id="9ANWIe93Uc9yPExtYQhR8h">📦 设备管理</button>
+      <button data-t="room" data-page-node-id="SUAjsRTkwsT7gKVZoQs6yE">🏠 房间管理</button>
+      <button data-t="dept" data-page-node-id="pS3QaKz7mNxV2LhRtYb9Wc">🏢 科室管理</button>
+    </span></div>
+    <div class="tg-row"><span class="gl">业务数据</span><span class="ts">
+      <button data-t="tpl" data-page-node-id="K9LgEk7j1ermXYxhP3wt6A">📋 点检模板</button>
+      <button data-t="sig" data-page-node-id="L6hCDQ6RB1eFMCMA5nPN9I">✍️ 签名人员</button>
+      <button data-t="rec" data-page-node-id="6Tqm6ScuvPcuX1BsKiyVJs">📑 点检记录</button>
+      <button data-t="month" data-page-node-id="LkqgtW5QdjoqB14c2E7rw7">📅 月度点检</button>
+    </span></div>
+    <div class="tg-row"><span class="gl">温湿度</span><span class="ts">
+      <button data-t="env" data-page-node-id="EnvFillTab000000000001">🌡 温湿度填充</button>
+      <button data-t="alert">🚨 温湿度预警</button>
+    </span></div>
+    <div class="tg-row"><span class="gl">系统</span><span class="ts">
+      <button data-t="user" data-page-node-id="yvGHzG1cgMHBOgFfK5sGF2">👥 用户管理</button>
+      <button data-t="sys" data-page-node-id="2UmR7JEXmVL4svbpwnPS5N">⚙️ 系统</button>
+      <button data-t="logs">🧾 运行日志</button>
+    </span></div>
   </div>
 
   <!-- 设备 -->
@@ -342,11 +367,30 @@
     </p>
     <p class="muted tiny" id="sys_signnopw_stat" style="color:var(--warn);margin:0 0 18px"></p>
 
+    <!-- v1.34.0：外部系统跳转（顶栏快捷入口，可配「谁看得到」） -->
+    <h3 style="margin:18px 0 8px;font-size:15px">🔗 外部系统跳转</h3>
+    <p class="muted tiny" style="margin:0 0 8px;line-height:1.85">
+      配置的入口会出现在<b>顶栏</b>（设备大屏 / 点检作业 / 房间页），点开在新窗口打开。<b>可见人员</b>不勾任何科室＝所有登录人员都看得到；
+      勾了科室就只有该科室的登录人员看得到（<b>管理员始终可见</b>，方便验证链接是否可用）。地址留空则该条不显示。改完点保存，现场刷新页面生效。
+    </p>
+    <label class="flex" style="align-items:center;gap:8px;cursor:pointer;margin:2px 0 10px">
+      <input type="checkbox" id="link_manual" style="width:auto">
+      <span>显示顶栏「<b>📖 操作手册</b>」入口（<b>所有登录人员</b>可见；取消勾选后顶栏不再显示该按钮，手册本身仍可用 /manual 打开）</span>
+    </label>
+    <div id="link_list"></div>
+    <div class="flex mb" style="margin:8px 0 4px;align-items:center">
+      <button class="btn sm" id="link_add">＋ 新增一条</button>
+      <button class="btn primary sm" id="link_save">💾 保存跳转</button>
+      <span class="muted tiny" id="link_stat"></span>
+    </div>
+
     <div class="field" style="max-width:360px" data-page-node-id="t6P9pDfbZ5Ay5tPGZvKrnp"><label data-page-node-id="EdVlWXVyEgIX60ISuNPHlC">修改后台密码</label>
       <input type="password" id="npw" placeholder="新密码（至少4位）" data-page-node-id="U6p1g6pUZGn8QVTwsw9lsF">
       <button class="btn sm mt" id="npw_go" data-page-node-id="GMHCwbVzzRKHQEqXY1o4Nh">保存</button>
     </div>
     <p class="muted tiny mt" data-page-node-id="yIFeFdthSM7MJ2xipHHEPi">数据库文件：<code data-page-node-id="WQiEkud1dzM7FsxWTN9KPG">data/kv.json</code></p>
+<p class="mt"><a class="btn sm" href="/manual" target="_blank" rel="noopener">📖 打开操作手册（新窗口）</a>
+  <span class="muted tiny">　手册随系统一起部署，所有登录人员都能在顶栏打开</span></p>
 
     <h3 style="margin:18px 0 8px;font-size:15px" data-page-node-id="H3QAVLrrKwNsIFm39qu01A">📊 数据统计</h3>
     <div class="flex mb" id="sys_stat" style="flex-wrap:wrap;gap:10px" data-page-node-id="yn3u3cfPN824FRWZN6cCFf"></div>
@@ -473,8 +517,8 @@
         要一并落签就选<b>签名人</b>并输入<b>签名密码</b>（走检查表同一套强制密码校验）；不选则签名格留空，之后在检查表页面逐格补签。
         <br>· 未来日期不生成；「上一次」没有记录的设备会被跳过，并在下方结果里列出来。
       </p>
-      <div class="row" data-page-node-id="ChkMonthRow00000000001">
-        <div class="field" data-page-node-id="ChkMonthFProg00000001"><label data-page-node-id="ChkMonthLProg00000001">检查项目</label><select id="cm_prog" style="min-width:220px" data-page-node-id="ChkMonthIProg00000001"></select></div>
+      <div class="row" id="cm_row" data-page-node-id="ChkMonthRow00000000001">
+        <div class="field" style="flex:2 1 230px" data-page-node-id="ChkMonthFProg00000001"><label data-page-node-id="ChkMonthLProg00000001">检查项目</label><select id="cm_prog" style="width:100%" data-page-node-id="ChkMonthIProg00000001"></select></div>
         <div class="field" data-page-node-id="ChkMonthFMonth0000001"><label data-page-node-id="ChkMonthLMonth0000001">月份</label><input type="month" id="cm_month" data-page-node-id="ChkMonthIMonth0000001"></div>
         <div class="field" data-page-node-id="ChkMonthFEnd000000001"><label data-page-node-id="ChkMonthLEnd000000001">截止日期</label><input type="date" id="cm_end" data-page-node-id="ChkMonthIEnd000000001"><p class="muted tiny" style="margin-top:2px" data-page-node-id="ChkMonthHEnd000000001">默认整月；当前月截到今天</p></div>
         <div class="field" data-page-node-id="ChkMonthFOver0000001"><label data-page-node-id="ChkMonthLOver0000001">已有数据</label><select id="cm_overwrite" data-page-node-id="ChkMonthIOver0000001"><option value="0" data-page-node-id="ChkMonthOver0k0000001">只补空格（推荐）</option><option value="1" data-page-node-id="ChkMonthOver1k0000001">整份替换目标月</option></select></div>
@@ -3613,7 +3657,7 @@ $('#l_test').onclick=async()=>{
   btn.disabled=false; $('#l_stat').textContent='';
   let h='';
   if(!r.ok){ h='<div style="color:var(--warn)">❌ '+esc(r.error||'测试失败')+'</div>'
-    +'<div class="muted">请检查 LIMS 地址 / 账号密码，以及本机到 LIMS 的网络（本机端口转发地址 https://example.com/lims，内网设备直连一般用 https://example.com/lims）。</div>'; }
+    +'<div class="muted">请检查 LIMS 地址 / 账号密码，以及本机到 LIMS 的网络（本机端口转发地址 https://example.com/lims，内网设备直连一般用 https://lims.example.com）。</div>'; }
   else{
     h='<div>✅ 登录成功（'+esc(r.user)+' @ '+esc(r.base)+'）</div>'
      +'<div>· 探测房间「'+esc(r.probe_room)+'」'+r.probe_month+' 湿度 <b>'+r.probe_points+'</b> 点'+(r.probe_points?('（'+esc(r.probe_first)+' ~ '+esc(r.probe_last)+'）'):'')+'</div>'
@@ -4029,6 +4073,58 @@ if($('#sys_signnopw')) $('#sys_signnopw').onchange=async()=>{
 };
 loadSysSignNoPw();
 
+// ===== 外部系统跳转（系统 tab，v1.34.0）=====
+// 顶栏快捷入口：名称 / 地址 / 可见科室（不勾＝所有登录人员）/ 启用；数据存 kv.links.items
+let LINK_DEPTS = [];
+function collectLinks(){
+  return [...document.querySelectorAll("#link_list .link-row")].map(r=>({
+    key: r.dataset.key || "",   // 保留原 key（稳定标识，勿用地址派生）
+    name: r.querySelector(".lk_name").value.trim(),
+    url: r.querySelector(".lk_url").value.trim(),
+    depts: [...r.querySelectorAll(".lk_depts input:checked")].map(c=>c.value),
+    enabled: r.querySelector(".lk_en").checked,
+  }));
+}
+function renderLinks(items){
+  const host=$("#link_list"); if(!host) return;
+  if(!items||!items.length){ host.innerHTML='<p class="muted tiny">还没有配置任何跳转。</p>'; return; }
+  host.innerHTML = items.map((it,i)=>`
+    <div class="link-row" data-i="${i}" data-key="${esc(it.key||'')}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div class="field" style="flex:1 1 120px;min-width:0;margin:0"><label>名称</label><input class="lk_name" value="${esc(it.name||'')}" maxlength="40" style="width:100%"></div>
+      <div class="field" style="flex:3 1 250px;min-width:0;margin:0"><label>地址（http:// 开头）</label><input class="lk_url" value="${esc(it.url||'')}" placeholder="http://192.168.x.x:端口" style="width:100%"></div>
+      <div class="field" style="flex:2 1 220px;min-width:0;margin:0"><label>可见人员（不勾＝所有登录人员）</label>
+        <div class="lk_depts" style="display:flex;gap:12px;flex-wrap:wrap;padding:4px 0">${LINK_DEPTS.map(d=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px"><input type="checkbox" value="${esc(d)}" ${((it.depts||[]).includes(d))?'checked':''} style="width:auto">${esc(d)}</label>`).join('')||'<span class="muted tiny">（还没有科室，先到「科室管理」添加）</span>'}</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding-bottom:8px"><input type="checkbox" class="lk_en" ${it.enabled!==false?'checked':''} style="width:auto">启用</label>
+      <button class="btn sm danger lk_del" data-i="${i}">删除</button>
+    </div>`).join('');
+  host.querySelectorAll(".lk_del").forEach(b=>b.onclick=()=>{ const rows=collectLinks(); rows.splice(+b.dataset.i,1); renderLinks(rows); });
+}
+async function loadLinks(){
+  if(!$("#link_list")) return;
+  try{ LINK_DEPTS=(await api("/api/depts")).depts||[]; }catch(e){ LINK_DEPTS=[]; }
+  try{
+    const st=await api("/api/settings");
+    renderLinks((st&&st.links&&st.links.items)||[]);
+    if($("#link_manual")) $("#link_manual").checked = !(st&&st.links&&st.links.manual) || st.links.manual.enabled!==false;
+  }
+  catch(e){ $("#link_list").innerHTML='<p class="muted tiny">读取失败：'+esc(e.message||'')+'</p>'; }
+}
+if($("#link_add")) $("#link_add").onclick=()=>{ const rows=collectLinks(); rows.push({key:"",name:"",url:"",depts:[],enabled:true}); renderLinks(rows); };
+if($("#link_save")) $("#link_save").onclick=async()=>{
+  const items=collectLinks();
+  for(const it of items){
+    if(!it.name){ toast("每条的「名称」都不能为空","err"); return; }
+    if(it.url && !/^https?:\/\//i.test(it.url)){ toast("地址必须以 http:// 或 https:// 开头："+it.url,"err"); return; }
+  }
+  const r=await api("/api/admin/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({links:{items, manual:{enabled: $("#link_manual")? $("#link_manual").checked : true}}})});
+  if(r.error){ toast(r.error,"err"); return; }
+  if($("#link_stat")) $("#link_stat").textContent="已保存 "+items.length+" 条跳转 · 手册入口"+($("#link_manual")&&$("#link_manual").checked?"显示":"隐藏")+" · "+new Date().toLocaleTimeString();
+  toast("跳转已保存（现场刷新页面生效）","ok");
+  loadLinks();
+};
+loadLinks();
+
 function closeM(){$('#mask').classList.remove('show');var mm=$('#modal');if(mm)mm.style.maxWidth='';}
 $('#mask').onclick=e=>{if(e.target.id==='mask')closeM();};
 me().then(r=>{if(r.ok)enter();}).then(async()=>{
@@ -4085,7 +4181,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
-    document.querySelectorAll('button,a,.btn').forEach(function (el) {
+    document.querySelectorAll('button,a,.btn,.big').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');
       if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';

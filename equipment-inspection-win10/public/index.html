@@ -67,7 +67,18 @@
   .card .sig { height:20px; max-width:46px; background:#fff; border-radius:3px; padding:0 2px; }
   .card .tm { font-size:10px; color:var(--tx-4); font-variant-numeric:tabular-nums; }
 
-  .badge-ng { position:absolute; top:8px; right:8px; }
+  /* v1.33.0 · 状态徽章（颜色即状态，一眼可辨，替代原 tiny 圆点） */
+  .card .stb { flex:none; font-size:10px; font-weight:700; border-radius:var(--r-sm); padding:1px 7px; line-height:1.7; }
+  .card .stb-ok   { color:var(--ok);   background:var(--ok-soft); }
+  .card .stb-ng   { color:var(--ng);   background:var(--ng-soft); }
+  .card .stb-none { color:var(--idle); background:var(--idle-soft); }
+  /* v1.33.0 · 卡片墙图例 */
+  .legend { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    font-size:var(--fs-xs); color:var(--tx-3); margin:0 0 var(--s-3); }
+  .legend i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .legend .lg-ok{background:var(--ok)} .legend .lg-ng{background:var(--ng)} .legend .lg-none{background:var(--idle)}
+  .legend .sp{ flex:1; }
+  .legend .hint{ color:var(--tx-4); }
 
   .sect { display:flex; align-items:center; gap:var(--s-2); margin:var(--s-6) 0 var(--s-3); }
   .sect h2 { font-size:var(--fs-lg); }
@@ -112,7 +123,7 @@
 <body>
 
 <nav class="app-nav" data-nav>
-  <div class="brand"><span class="brand-text">设备点检系统</span></div>
+  <div class="brand"><span class="mark" aria-hidden="true"></span>设备点检系统</div>
   <div class="sp"></div>
   <span class="ver" data-appver></span>
   <button class="nav-toggle" aria-label="展开菜单" aria-expanded="false">☰</button>
@@ -170,6 +181,13 @@
     <span class="sm muted" id="cnt">—</span>
     <span class="sp"></span>
     <span class="sm dim" id="stamp"></span>
+  </div>
+  <div class="legend">
+    <span><i class="lg-ok"></i>正常</span>
+    <span><i class="lg-ng"></i>异常</span>
+    <span><i class="lg-none"></i>未点检</span>
+    <span class="sp"></span>
+    <span class="hint">卡片左色条与右上徽章均为状态色 · 点击卡片进入对应点检表</span>
   </div>
   <div class="grid" id="grid">
     <div class="skel" style="height:118px"></div><div class="skel" style="height:118px"></div>
@@ -305,9 +323,9 @@ function jobCardHtml(j) {
   const when = j.status !== 'none' && j.signed_at ? CORE.fmtHM(j.signed_at) : '';
   return `<a class="card ${cls}" href="${href}" data-no="${esc(j.no)}" data-kind="${esc(j.job_kind)}"
       title="${esc(ttl)}｜No.${esc(j.no)} ${esc(j.name)}｜${label}">
-    <span class="dot ${dot} badge-ng"></span>
     <div class="hd"><span class="loc">${esc(j.location) || '—'}</span>
-      <span class="ktag ${isProg ? 'kt-p' : 'kt-d'}">${isProg ? '专项' : '点检'}</span></div>
+      <span class="ktag ${isProg ? 'kt-p' : 'kt-d'}">${isProg ? '专项' : '点检'}</span>
+      <span class="stb stb-${j.status === 'ok' ? 'ok' : j.status === 'ng' ? 'ng' : 'none'}">${label}</span></div>
     <div class="no">No.${esc(j.no)}</div>
     <div class="nm">${esc(ttl) || '—'}</div>
     <div class="md">${esc(sub)}</div>

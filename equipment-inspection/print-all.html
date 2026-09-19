@@ -360,7 +360,7 @@ function syncRoomLinks(){
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
-    document.querySelectorAll('button,a,.btn').forEach(function (el) {
+    document.querySelectorAll('button,a,.btn,.big').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');
       if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';

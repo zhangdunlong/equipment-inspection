@@ -24,8 +24,15 @@ button{font-family:inherit;cursor:pointer}
 /* nav */
 .nav{display:flex;align-items:center;gap:14px;padding:12px 22px;position:sticky;top:0;z-index:30;
   background:rgba(10,17,32,.6);backdrop-filter:blur(12px);border-bottom:1px solid var(--glass-bd)}
-.brand{font-weight:800;font-size:19px;letter-spacing:.5px;
-  background:linear-gradient(90deg,var(--pink),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+/* 顶栏标识（v1.36.2）：登录后不再放公司大图标，改「方块标记 + 文字」，中性色不刺眼 */
+.brand{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:16.5px;letter-spacing:.4px;color:var(--txt)}
+.brand .mark{width:24px;height:24px;flex:none;border-radius:7px;position:relative;
+  background:linear-gradient(135deg,#4f8cff,#22c1dc)}
+.brand .mark::after{content:'';position:absolute;left:5px;right:5px;top:6px;bottom:6px;
+  background:
+    linear-gradient(#0a1120,#0a1120) 0 0/100% 2px no-repeat,
+    linear-gradient(#0a1120,#0a1120) 0 50%/72% 2px no-repeat,
+    linear-gradient(#0a1120,#0a1120) 0 100%/48% 2px no-repeat}
 .nav .sp{flex:1}
 .nav a,.nav button{font-size:14px;padding:8px 14px;border-radius:11px;border:1px solid var(--glass-bd);
   background:var(--glass);color:var(--txt);transition:.2s}
@@ -139,8 +146,4 @@ tbody tr:hover{background:rgba(255,255,255,.04)}
 @media print{.dept-bar{display:none!important}}
 
 /* v1.27.0 左上角品牌图（白底片保证黑字在深色导航上可读） */
-.brand .brand-logo {
-  height:34px; width:auto; display:block; flex:none;   /* 34 = 26 内容 + 上下各 4 内边距（两个表都开了 border-box，写 26 会被吃掉） */
-  background:#fff; border-radius:8px; padding:4px 8px;
-  box-shadow:0 1px 8px rgba(0,0,0,.35);
-}
+/* .brand-logo 已废弃（v1.36.2）：登录页 logo 用 login.html 自己的 .login-brand 样式 */

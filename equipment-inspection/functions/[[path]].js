@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions —— 设备点检巡检系统后端
 // 单文件 catch-all 路由，所有 /api/* 请求在此处理。
-// 移植自本地最新版 server.js（v1.32.1 / 2026-09-18：声明式路由表 + 科室管理 + 房间温湿度配置 +
+// 移植自本地最新版 server.js（v1.36.2 / 2026-09-19：声明式路由表 + 科室管理 + 房间温湿度配置 +
 // 温湿度点检（按房间+年月）一键填充/批量删除/CSV 导出 + LIMS 数据源抓取 + 整月按科室随机分派签名 +
 // 模板高级编辑（改表头/整体替换检查项/复制/删除/导入）+ 数据备份 + CSV 导出 + 单台明细 +
 // 多用户角色权限 + 后台用户管理）。
@@ -1644,8 +1644,29 @@ async function handleNotifs(ctx) {
   const rows = ctx.kvget('notifs', []).filter(x => x.to === u.id).slice(-200).reverse();
   return json({ ok: true, unread: rows.filter(x => !x.read).length, rows });
 }
+// ===================== 外部系统跳转（v1.34.0 / v1.36.0 口径） =====================
+// 数据：kv.links.items = [{ key, name, url, depts:[科室...], enabled }]，depts 为空 = 所有登录人员可见；
+// kv.links.manual = { enabled } 控制顶栏「📖 操作手册」入口是否显示（默认显示）。
+// 前端 assets/v2/core.js 的 mountNav() 读 GET /api/settings 渲染并按登录人科室过滤；取不到就静默不显示。
+const LINK_URL_RE = /^https?:\/\/[^\s"'<>]+$/i;
+function sanitizeLinkItem(it) {
+  if (!it || typeof it !== 'object') return null;
+  const key = String(it.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24)
+    || ('link' + Math.random().toString(36).slice(2, 8));
+  const name = String(it.name || '').trim().slice(0, 40);
+  const url = String(it.url || '').trim().slice(0, 200).replace(/\/+$/, '');
+  const depts = (Array.isArray(it.depts) ? it.depts : []).map(x => String(x).trim()).filter(Boolean).slice(0, 20);
+  return { key, name: name || key, url: LINK_URL_RE.test(url) ? url : '', depts, enabled: it.enabled !== false };
+}
+function externalLinks(ctx) {
+  const L = ctx.kvget('links', {}) || {};
+  const items = Array.isArray(L.items) ? L.items.map(sanitizeLinkItem).filter(Boolean) : [];
+  const manual = (L.manual && typeof L.manual === 'object') ? { enabled: L.manual.enabled !== false } : { enabled: true };
+  return { items, manual };
+}
 async function handleSettings(ctx) {
-  return json({ signNoPw: !!ctx.kvget('signNoPw', false) });
+  // links：外部系统跳转 + 操作手册入口开关（公开可读，供前端导航使用）
+  return json({ signNoPw: !!ctx.kvget('signNoPw', false), links: externalLinks(ctx) });
 }
 // GET /api/admin/env-alert-cfg —— 预警配置 + 各房间「生效阈值」及其来源
 async function handleAdminEnvAlertCfg(ctx) {
@@ -1815,8 +1836,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（与本地 server.js 保持一致）
-const APP_VERSION = 'v1.32.1';
-const APP_VERSION_DATE = '2026-09-18';
+const APP_VERSION = 'v1.36.2';
+const APP_VERSION_DATE = '2026-09-19';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

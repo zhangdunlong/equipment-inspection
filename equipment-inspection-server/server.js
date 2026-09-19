@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.32.1';
-const APP_VERSION_DATE = '2026-09-18';
+const APP_VERSION = 'v1.36.2';
+const APP_VERSION_DATE = '2026-09-19';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -1663,7 +1663,8 @@ async function handleListPrograms(ctx) {
 // GET /api/settings —— 前端需要的少量开关（点检 / 温湿度页据此决定是否显示「签名密码」框）。
 // 公开可读：它只影响 UI 是否显示输入框，真正的放行判定仍在服务端 verifySigner 里。
 async function handleGetSettings(ctx) {
-  return sendJson(ctx.res, { signNoPw: signNoPw() });
+  // links：外部系统跳转（顶栏快捷入口）—— 公开可读，供前端导航使用
+  return sendJson(ctx.res, { signNoPw: signNoPw(), links: externalLinks() });
 }
 // PUT /api/admin/settings —— 管理员改开关
 async function handlePutSettings(ctx) {
@@ -1672,7 +1673,24 @@ async function handlePutSettings(ctx) {
     kvset('signNoPw', b.signNoPw);
     logI('设置', '签名免密 = ' + (b.signNoPw ? '开（点检页不再要求签名密码）' : '关（恢复密码校验）'));
   }
-  return sendJson(ctx.res, { ok: true, signNoPw: signNoPw() });
+  // 只改「操作手册入口」开关（不带条目列表）时也要生效 —— v1.36.1 修正
+  if (b.links && !Array.isArray(b.links.items) && b.links.manual && typeof b.links.manual === 'object') {
+    const cur = Object.assign({}, kvget('links', {}) || {});
+    cur.manual = { enabled: b.links.manual.enabled !== false };
+    if (!Array.isArray(cur.items)) cur.items = [];
+    kvset('links', cur);
+    logI('设置', '操作手册入口 = ' + (cur.manual.enabled ? '显示' : '隐藏'));
+  }
+  if (b.links && Array.isArray(b.links.items)) {
+    const items = b.links.items.map(sanitizeLinkItem).filter(Boolean).slice(0, 12);
+    const prev = kvget('links', {}) || {};
+    const manual = (b.links.manual && typeof b.links.manual === 'object')
+      ? { enabled: b.links.manual.enabled !== false }
+      : (prev.manual || { enabled: true });
+    kvset('links', { items, manual });
+    logI('设置', '外部系统跳转已更新：' + items.map(i => i.name + '(' + (i.depts.length ? i.depts.join('/') : '全部') + (i.enabled ? '' : '·停用') + ')').join('、'));
+  }
+  return sendJson(ctx.res, { ok: true, signNoPw: signNoPw(), links: externalLinks() });
 }
 // PUT /api/programs/:id —— 维护项目（本项目用于设置参与设备 device_ids 与表头文字）
 async function handleUpdateProgram(ctx) {
@@ -2103,6 +2121,47 @@ async function handleDeviceDetail(ctx) {
 // GET /api/version —— 公开接口：前端各页面（含登录页）启动时拉取显示
 async function handleVersion(ctx) {
   return sendJson(ctx.res, { version: APP_VERSION, date: APP_VERSION_DATE });
+}
+
+// 顶栏「外部系统」快捷入口（v1.34.0）—— 全部可在后台「系统」页维护：名称 / 地址 / 可见人员 / 启用
+// 数据：kv.links.items = [{ key, name, url, depts:[科室...], enabled:true }]
+//   · depts 为空数组 = 所有登录人员可见；非空 = 仅这些科室可见（按 users.dept 匹配）
+//   · 管理员（role=admin）恒可见全部「已启用」项，便于验证链接是否可用
+//   · 默认三条见 DEFAULT_LINK_ITEMS：LIMS（全员）/ 力学工具箱（力学）/ BPM（全员）
+//     lims 的地址取自 kv.lims.base —— LIMS 地址的唯一数据源，改一处即可
+// 前端：assets/v2/core.js 的 mountNav() 读 GET /api/settings 渲染；取不到则静默不显示，绝不影响导航
+const DEFAULT_LINK_ITEMS = [
+  { key: 'lims',      name: 'LIMS 系统',  url: '',                           depts: [],       enabled: true },
+  { key: 'mechanics', name: '力学工具箱', url: 'https://toolbox.example.com', depts: ['力学'], enabled: true },
+  { key: 'bpm',       name: 'BPM 系统',   url: 'https://bpm.example.com',   depts: [],       enabled: true },
+];
+const LINK_URL_RE = /^https?:\/\/[^\s"'<>]+$/i;
+function sanitizeLinkItem(it) {
+  if (!it || typeof it !== 'object') return null;
+  const key = String(it.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24)
+    || ('link' + Math.random().toString(36).slice(2, 8));
+  const name = String(it.name || '').trim().slice(0, 40);
+  const url = String(it.url || '').trim().slice(0, 200).replace(/\/+$/, '');
+  const depts = (Array.isArray(it.depts) ? it.depts : []).map(x => String(x).trim()).filter(Boolean).slice(0, 20);
+  return { key, name: name || key, url: LINK_URL_RE.test(url) ? url : '', depts, enabled: it.enabled !== false };
+}
+// 启动初始化（幂等：只在「一条都没有」时写默认，绝不覆盖后台改过的配置 —— 与启动迁移同一铁律）
+function seedLinkItems() {
+  const L = kvget('links', null);
+  if (L && Array.isArray(L.items) && L.items.length) return;
+  const limsBase = String((kvget('lims', {}) || {}).base || '').trim().replace(/\/+$/, '');
+  const items = DEFAULT_LINK_ITEMS
+    .map(d => Object.assign({}, d, { url: d.key === 'lims' ? limsBase : d.url }))
+    .map(sanitizeLinkItem);
+  kvset('links', { items, manual: { enabled: true } });
+  logI('设置', '已初始化外部系统跳转：' + items.map(i => i.name + '(' + (i.depts.length ? i.depts.join('/') : '全部') + ')').join('、'));
+}
+function externalLinks() {
+  const L = kvget('links', {}) || {};
+  const items = Array.isArray(L.items) ? L.items.map(sanitizeLinkItem).filter(Boolean) : [];
+  // manual：顶栏「📖 操作手册」入口是否显示（v1.36.0 起后台可配；默认显示）
+  const manual = (L.manual && typeof L.manual === 'object') ? { enabled: L.manual.enabled !== false } : { enabled: true };
+  return { items, manual };
 }
 
 // ===================== 房间管理 =====================
@@ -4897,6 +4956,7 @@ const CLEAN = {
   '/login': 'login.html',
   '/rooms': 'rooms.html',
   '/env': 'env.html',
+  '/manual': 'manual.html',   // v1.35.0：内置操作手册（随系统分发，登录后可看）
 };
 // 是否为需要登录的 HTML 页面（静态资源 .css/.js/.png 等不拦截）
 function isHtmlPage(p) {
@@ -4983,6 +5043,7 @@ syncProgramDevices(); // 每次启动按模板 key 自动关联项目设备（�
 migrateProgramColumns(); // v1.20.0：#079「内容」列升级为可选项 + 历史值归一（幂等）
 migrate079Notes(); // v1.22.0：#079 备注补全「4.期间核查；5.校准」（幂等，乱码随覆写修复）
 migrateDropLegacyTemplates(); // v1.24.0：清理旧显微镜 / 冲击分型号点检模板（归档留底，幂等）
+seedLinkItems(); // v1.34.0：外部系统跳转初始化（幂等：只在缺失时写默认，不覆盖后台配置）
 pruneOldLogs(); // 启动时清理超过保留期的日志文件
 logI('SYS', '服务启动 ' + APP_VERSION + '，端口 ' + PORT + '，数据文件 ' + DATA_FILE);
 server.listen(PORT, async () => {

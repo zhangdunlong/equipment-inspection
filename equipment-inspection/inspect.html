@@ -136,6 +136,28 @@ textarea.abn-input{ min-height:52px; resize:vertical; }
 
 /* ---------- 一键点检（管理员） ---------- */
 .batch-list { max-height:420px; overflow:auto; }
+/* v1.33.0 · 一键点检表格优化：整行可点滑块 + 异常行高亮 + 粘性表头 + 实时计数 */
+.batch-count{ display:flex; align-items:center; gap:12px; margin:2px 0 10px; flex-wrap:wrap;
+  font-size:var(--fs-sm); color:var(--tx-3); }
+.batch-count b{ font-weight:700; }
+.batch-count #b_count_n{ color:var(--ng); }
+.batch-list .tbl{ width:100%; border-collapse:collapse; }
+.batch-list thead th{ position:sticky; top:0; z-index:2; background:var(--bg-3); box-shadow:0 1px 0 var(--line-1); }
+.batch-list tbody tr{ cursor:pointer; transition:background var(--t-fast); }
+.batch-list tbody tr:hover{ background:var(--bg-3); }
+.batch-list tbody tr.bad{ background:var(--ng-soft); }
+.batch-list tbody tr.bad:hover{ background:rgba(229,72,77,.24); }
+.batch-list td{ border-bottom:1px solid var(--line-1); padding:7px 10px; font-size:var(--fs-sm); vertical-align:middle; }
+.batch-list .c-sn{ width:96px; } .batch-list .c-model{ width:96px; } .batch-list .c-toggle{ width:152px; }
+.tgl{ display:inline-flex; align-items:center; gap:9px; user-select:none; }
+.tgl .tk{ width:40px; height:22px; border-radius:11px; background:var(--line-2); position:relative; transition:background var(--t-fast); flex:none; }
+.tgl .tk::after{ content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+  background:#e8eefc; transition:left var(--t-fast); }
+.tgl.on .tk{ background:var(--ng); }
+.tgl.on .tk::after{ left:20px; }
+.tgl .lb{ font-size:var(--fs-sm); min-width:30px; color:var(--tx-3); }
+.tgl.on .lb{ color:var(--ng); font-weight:700; }
+.batch-list .abn-cell .ph{ color:var(--tx-4); }
 
 /* ==========================================================================
    打印：整月一张 A4 横页（与 v1 完全一致，勿改）
@@ -206,7 +228,7 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
 <body>
 
 <nav class="app-nav" data-nav>
-  <div class="brand"><span class="brand-text">设备点检系统</span></div>
+  <div class="brand"><span class="mark" aria-hidden="true"></span>设备点检系统</div>
   <div class="sp"></div>
   <span class="ver" data-appver></span>
   <button class="nav-toggle" aria-label="展开菜单" aria-expanded="false">☰</button>
@@ -252,9 +274,10 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
         <button class="btn btn-primary" id="b_go">⚡ 一键点检所有设备（当日）</button>
         <span class="sm muted" id="b_stat"></span>
       </div>
+      <div class="batch-count">共 <b id="b_total_n" style="color:var(--tx-2)">0</b> 台 · 已标记异常 <b id="b_count_n">0</b> 台 · 其余将记「正常」</div>
       <div class="table-wrap batch-list">
         <table class="tbl"><thead><tr><th style="width:90px">编号</th><th>设备</th><th style="width:100px">型号</th>
-          <th style="width:88px">标记异常</th><th>异常说明</th></tr></thead><tbody id="b_list"></tbody></table>
+          <th style="width:152px">当日状态</th><th>异常说明（仅异常设备填写）</th></tr></thead><tbody id="b_list"></tbody></table>
       </div>
     </div>
   </div>
@@ -780,11 +803,37 @@ async function saveMonth(){
 
 /* ================= 一键点检 ================= */
 function renderBatch(){
-  $('#b_list').innerHTML = DEVICES.map(d=>`<tr>
-    <td>${esc(d.no)}</td><td>${esc(d.name)}</td><td>${esc(d.model||'')}</td>
-    <td style="text-align:center"><input type="checkbox" class="abn" data-id="${esc(d.id)}" aria-label="标记 ${esc(d.no)} 异常"></td>
-    <td><input type="text" class="abn_note" data-id="${esc(d.id)}" placeholder="异常说明"></td></tr>`).join('');
+  $('#b_list').innerHTML = DEVICES.map(d=>`<tr data-id="${esc(d.id)}">
+    <td class="c-sn">${esc(d.no)}</td><td>${esc(d.name)}</td><td class="c-model">${esc(d.model||'')}</td>
+    <td class="c-toggle"><span class="tgl" role="switch" aria-pressed="false" aria-label="切换 ${esc(d.no)} 异常状态">
+        <span class="tk"></span><span class="lb">正常</span>
+        <input type="checkbox" class="abn" data-id="${esc(d.id)}" tabindex="-1" aria-hidden="true"
+               style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none"></span></td>
+    <td class="abn-cell"><span class="ph">—</span></td></tr>`).join('');
+  updateBatchCount();
 }
+function updateBatchCount(){
+  const n = document.querySelectorAll('#b_list tr.bad').length;
+  const el = $('#b_count_n'); if(el) el.textContent = n;
+  const tot = $('#b_total_n'); if(tot) tot.textContent = (typeof DEVICES!=='undefined'?DEVICES.length:0);
+}
+function toggleBatchRow(tr){
+  const on = !tr.classList.contains('bad');
+  tr.classList.toggle('bad', on);
+  const cb = tr.querySelector('.abn'); if(cb) cb.checked = on;
+  const tgl = tr.querySelector('.tgl'); if(tgl) tgl.setAttribute('aria-pressed', on?'true':'false');
+  const lb = tr.querySelector('.tgl .lb'); if(lb) lb.textContent = on?'异常':'正常';
+  const cell = tr.querySelector('.abn-cell');
+  if(on){ cell.innerHTML = '<input type="text" class="abn_note" data-id="'+tr.dataset.id+'" placeholder="请填写异常说明">'; cell.querySelector('input').focus(); }
+  else { cell.innerHTML = '<span class="ph">—</span>'; }
+  updateBatchCount();
+}
+// 整行可点切换（点「异常说明」输入框不触发，避免打字时误切换）
+$('#b_list').addEventListener('click', e=>{
+  const tr = e.target.closest('tr'); if(!tr) return;
+  if(e.target.closest('.abn_note')) return;
+  toggleBatchRow(tr);
+});
 $('#b_go').onclick = async ()=>{
   const sid=$('#b_signer').value, pw=$('#b_pw')?$('#b_pw').value:'', date=$('#b_date').value;
   if(!sid||(!SIGN_NO_PW&&!pw)){ toast(SIGN_NO_PW?'请选择签名人':'请选择签名人并输入密码','err'); return; }
@@ -964,7 +1013,7 @@ init();
   }
   function hideWrites() {
     var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
-    document.querySelectorAll('button,a,.btn').forEach(function (el) {
+    document.querySelectorAll('button,a,.btn,.big').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');
       if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';

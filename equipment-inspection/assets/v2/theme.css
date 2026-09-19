@@ -124,6 +124,18 @@ h1,h2,h3,h4 { margin:0; line-height:var(--lh-tight); font-weight:700; }
 .app-nav .links a[aria-current="page"] {
   background:var(--accent-soft); border-color:var(--accent-line); color:#fff; font-weight:600;
 }
+/* 操作手册入口（v1.35.0）：站内页面但新窗口打开，用「按钮感」与普通导航项区分 */
+.app-nav .links a.man { color:var(--tx-1); border-color:var(--line-2); background:var(--bg-3); }
+.app-nav .links a.man:hover { background:var(--bg-4); border-color:var(--line-2); }
+/* 外部系统快捷入口（v1.34.0）：青色 + ↗ 表示「点开会离开本站」 */
+.app-nav .links .sep { width:1px; height:16px; background:var(--line-2); margin:0 6px; flex:none; }
+.app-nav .links a.ext { color:var(--cyan); }
+.app-nav .links a.ext:hover { background:var(--cyan-soft); color:var(--cyan); }
+.app-nav .links a.ext .ar { font-size:var(--fs-xs); opacity:.85; margin-left:3px; }
+@media (max-width:900px) {
+  .app-nav .links .sep { display:none; }
+  .app-nav .links a.ext { color:var(--cyan); }
+}
 .app-nav .sp { flex:1; }
 .app-nav .ver { font-size:var(--fs-xs); color:var(--tx-4); font-variant-numeric:tabular-nums; }
 .nav-toggle { display:none; }
@@ -326,8 +338,16 @@ svg.ic { flex:none; display:inline-block; vertical-align:-.16em;
 }
 
 /* v1.27.0 左上角品牌图（白底片保证黑字在深色导航上可读） */
-.app-nav .brand .brand-logo {
-  height:34px; width:auto; display:block; flex:none;   /* 34 = 26 内容 + 上下各 4 内边距（两个表都开了 border-box，写 26 会被吃掉） */
-  background:#fff; border-radius:8px; padding:4px 8px;
-  box-shadow:0 1px 8px rgba(0,0,0,.35);
+/* 顶栏标识（v1.36.2）：登录后不再放公司大图标，改用「方块标记 + 文字」——
+   标记用 CSS 画的 3 条横杠（记录/清单意象），零图片、零 emoji，与控制台风格一致 */
+.app-nav .brand .mark {
+  width:24px; height:24px; flex:none; border-radius:7px; position:relative;
+  background:linear-gradient(135deg,var(--accent),var(--cyan));
+}
+.app-nav .brand .mark::after {
+  content:''; position:absolute; left:5px; right:5px; top:6px; bottom:6px;
+  background:
+    linear-gradient(#04101f,#04101f) 0 0/100% 2px no-repeat,
+    linear-gradient(#04101f,#04101f) 0 50%/72% 2px no-repeat,
+    linear-gradient(#04101f,#04101f) 0 100%/48% 2px no-repeat;
 }
