@@ -28,6 +28,9 @@
     font-size:14px; padding:6px 10px; border-radius:10px; border:1px solid #e3c6d8;
     background:#fff; color:#333; outline:none;
   }
+  /* 展开列表的选项要单独给色：Windows 上系统绘制选项时不认 select 的 color，
+     不写这行「全部设备 / 各台设备」在部分机型上会是浅灰字，几乎看不见。 */
+  .toolbar select option{ color:#333; background:#fff; }
   .btn{
     cursor:pointer; border:none; border-radius:10px; padding:8px 16px; font-size:14px; font-weight:600;
     color:#fff; background:linear-gradient(135deg,var(--pink),var(--cyan));
@@ -208,7 +211,8 @@ function buildForm(d, yy, mm){
   }
 
   // 表头取自后台「点检模板」配置，未配置时回退公司通用表头
-  const formHead=[d.form_code||'DEMO-QR-032', d.form_rev||'Rev.A1'].join(' ');
+  // v1.37.0：优先用服务端算好的 form_head（「后台表单页眉 > 模板自带 > 默认」已在服务端解析）
+  const formHead=d.form_head||[d.form_code||'DEMO-QR-032', d.form_rev||'Rev.A1'].join(' ');
   const tblTitle=d.title||'设备维护保养记录';
   const tblTitleEn=d.title_en||'Maintenance Record of Equipment';
   const signers=(d.signers&&d.signers.length)?d.signers.join('、'):'—';

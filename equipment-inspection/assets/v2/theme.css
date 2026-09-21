@@ -16,24 +16,35 @@
   --line-1:#26344f;        /* 分隔线 */
   --line-2:#33456a;        /* 强调线 */
 
-  /* 文本（对比度按 WCAG AA 校准，正文在 --bg-1 上 ≥ 4.5:1） */
-  --tx-1:#e8eefc;          /* 主文本  15.2:1 */
-  --tx-2:#b3c2dd;          /* 次文本   8.4:1 */
-  --tx-3:#8b9dbe;          /* 辅助文本 5.6:1  —— 替代原 --muted，小字也可读 */
-  --tx-4:#6b7c9c;          /* 占位符   3.4:1（仅用于非关键提示/图标） */
+  /* 文本（对比度按 WCAG AA 校准，正文在 --bg-1 / --bg-2 上均 ≥ 4.5:1） */
+  --tx-1:#e8eefc;          /* 主文本  14.5:1（在 --bg-2 上） */
+  --tx-2:#b3c2dd;          /* 次文本   9.4:1 */
+  --tx-3:#8b9dbe;          /* 辅助文本 6.1:1 */
+  --tx-4:#7d8eaf;          /* 占位符 5.1:1 —— 原来 #6b7c9c 只有 4.0:1，且被大量当作
+                              「次要说明文字」用（设备点检表的「—」占位等），12.5px 下偏低；
+                              统一提到 5.1:1，占位符与小字说明都稳过 AA。 */
 
   /* 强调色 */
   --accent:#3d8bfd;        /* 主强调（蓝） */
   --accent-hi:#5fa0ff;
   --accent-soft:rgba(61,139,253,.16);
   --accent-line:rgba(61,139,253,.42);
+  --accent-ink:#2563eb;    /* 需要「白字压底」的实心按钮专用：白字 5.2:1。
+                              原来的 --accent(#3d8bfd) 上压白字只有 3.33:1，14px 下不达标
+                              （截图里的主按钮看着发虚就是这个原因）。仅用于实心底，
+                              描边/文字强调仍用 --accent，保持原有视觉语言。 */
+  --accent-ink-hi:#1d4ed8;
   --cyan:#22b8cf;
   --cyan-soft:rgba(34,184,207,.14);
 
   /* 语义状态色（红涨绿跌不适用，此处为「正常/异常」设备状态） */
   --ok:#2fbf71;   --ok-soft:rgba(47,191,113,.15);  --ok-line:rgba(47,191,113,.42);
   --ng:#e5484d;   --ng-soft:rgba(229,72,77,.15);   --ng-line:rgba(229,72,77,.45);
+  /* 深底上的红字：--ng 在 --bg-2 上仅 4.30:1，改用 --ng-hi 压到 5.8:1。
+     表格异常数字、异常计数这类「要一眼看见」的小字都用它。 */
+  --ng-hi:#ff6b6b;
   --warn:#e2a03f; --warn-soft:rgba(226,160,63,.15);--warn-line:rgba(226,160,63,.42);
+  --warn-hi:#f0b355;       /* 深底上的黄字，比 --warn 再亮一档 */
   --idle:#64748b; --idle-soft:rgba(100,116,139,.16);
 
   /* 圆角 */
@@ -177,11 +188,13 @@ h1,h2,h3,h4 { margin:0; line-height:var(--lh-tight); font-weight:700; }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
 .btn-sm { min-height:30px; padding:0 11px; font-size:var(--fs-sm); border-radius:var(--r-sm); }
 .btn-lg { min-height:44px; padding:0 22px; font-size:var(--fs-lg); }
-.btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-.btn-primary:hover { background:var(--accent-hi); border-color:var(--accent-hi); }
+/* 实心主按钮用 --accent-ink（白字 5.2:1）；悬停反而「更浅」会掉到 3.3:1，
+   所以悬停往更深走，保证鼠标停上去时文字照样清晰。 */
+.btn-primary { background:var(--accent-ink); border-color:var(--accent-ink); color:#fff; }
+.btn-primary:hover { background:var(--accent-ink-hi); border-color:var(--accent-ink-hi); color:#fff; }
 .btn-ghost { background:transparent; border-color:var(--line-2); color:var(--tx-2); }
 .btn-ghost:hover { background:var(--bg-3); color:var(--tx-1); }
-.btn-danger { background:transparent; border-color:var(--ng-line); color:var(--ng); }
+.btn-danger { background:transparent; border-color:var(--ng-line); color:var(--ng-hi); }
 .btn-danger:hover { background:var(--ng-soft); }
 .btn-icon { min-width:36px; padding:0 9px; }
 
@@ -195,6 +208,12 @@ h1,h2,h3,h4 { margin:0; line-height:var(--lh-tight); font-weight:700; }
   outline:none; transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
 input::placeholder, textarea::placeholder { color:var(--tx-4); }
+/* 展开后的原生下拉列表由操作系统绘制，会忽略 select 自身的 color：
+   不显式给 option 设色，未选中项就会以系统灰字落在暗底上（选中项因系统高亮反而看得见）——
+   这正是「房间下拉里只有当前房间清楚、其他都发虚」的根因。 */
+select option, select optgroup { color:var(--tx-1); background:var(--bg-3); }
+select option:disabled { color:var(--tx-4); }
+select optgroup { font-style:normal; font-weight:700; color:var(--tx-3); }
 input:focus, select:focus, textarea:focus {
   border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
 }

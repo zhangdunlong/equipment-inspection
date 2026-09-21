@@ -4,6 +4,12 @@
   --pink:#4f8cff; --cyan:#22c1dc; --purple:#6ea8ff;
   --glass:rgba(255,255,255,.06); --glass-bd:rgba(255,255,255,.14);
   --txt:#eaf1fb; --muted:#93a4c0; --ok:#36d399; --ng:#ff5d6c; --warn:#ffd166;
+  /* 深底上的一组「提高可读性」补充色（2026-09-21）。
+     背景是 #16233f 这类深蓝，原来的 --muted(#93a4c0) 才 3.3:1、--ng(#ff5d6c) 3.9:1，
+     当作正文小字用都偏低 —— 实测后统一抬高，语义不变、只提亮度。 */
+  --muted-hi:#aab8d0;      /* 5.2:1（原 3.3:1） */
+  --faint:#8494b3;         /* 4.0:1 —— 仅用于真正无关紧要的角落文字 */
+  --ok-hi:#4be3a8; --ng-hi:#ff7b86; --warn-hi:#ffdd8a;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{
@@ -78,9 +84,13 @@ button{font-family:inherit;cursor:pointer}
 /* buttons */
 .btn{padding:10px 18px;border-radius:12px;border:1px solid var(--glass-bd);background:var(--glass);color:var(--txt);font-weight:600;transition:.2s}
 .btn:hover{border-color:var(--pink);box-shadow:0 0 14px rgba(79,140,255,.35)}
-.btn.primary{background:linear-gradient(90deg,var(--pink),#7fb0ff);border:none;color:#fff;box-shadow:0 6px 18px rgba(79,140,255,.4)}
+/* 实心主按钮：原渐变 #4f8cff→#7fb0ff 压白字的最差端只有 2.20:1（14px 小字基本糊成一片），
+   换成深蓝渐变后最差端 5.17:1；描边/悬停强调仍沿用 --pink，视觉语言不变。 */
+.btn.primary{background:linear-gradient(90deg,#1d4ed8,#2563eb);border:none;color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.4)}
+.btn.primary:hover{background:linear-gradient(90deg,#1e40af,#1d4ed8);box-shadow:0 6px 20px rgba(37,99,235,.5)}
+
 .btn.cyan{background:linear-gradient(90deg,var(--cyan),#4fd8ec);border:none;color:#06222a}
-.btn.danger{border-color:var(--ng);color:var(--ng)}
+.btn.danger{border-color:var(--ng);color:var(--ng-hi)}
 .btn.danger:hover{background:rgba(255,93,108,.15)}
 .btn.sm{padding:6px 12px;font-size:13px;border-radius:9px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -90,6 +100,13 @@ button{font-family:inherit;cursor:pointer}
 input,select,textarea{padding:10px 12px;border-radius:11px;border:1px solid var(--glass-bd);
   background:rgba(0,0,0,.25);color:var(--txt);font-size:14px;width:100%;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(34,193,220,.2)}
+/* 原生下拉展开后的选项列表：Windows 上由操作系统绘制，会忽略 select 自身的 color，
+   若只设 select{color:浅色} 而不管 option，未选中项会以系统灰字落在暗色底上 → 看不清。
+   这里把暗色主题的选项统一钉成浅字+明显底色；白底页面（check/monthly 等）会用自己的
+   .toolbar/.sgbox/.ctab option 规则覆盖回去，互不影响。 */
+select option,select optgroup{color:var(--txt);background:#16233f}
+select option:disabled{color:var(--muted)}
+select optgroup{font-style:normal;font-weight:600}
 textarea{resize:vertical;min-height:64px}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .row>*{flex:1;min-width:160px}

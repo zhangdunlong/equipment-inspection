@@ -411,7 +411,8 @@
       "thermo_requirement": "温度：15℃~25℃ (GB/T 228.1)\n温度：18℃~28℃ (ASTM E23-25)\n湿度：40~70%RH",
       "thermo_equipment": "试验机 DEMO-001 系列",
       "group": "第1组",
-      "dept": "演示科室一"
+      "dept": "演示科室一",
+      "form_head": "DEMO-QR-008B Rev.A0"
     },
     {
       "name": "测试室02",

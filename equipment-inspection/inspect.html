@@ -415,7 +415,8 @@ function renderMonth(dev, month, dmon){
   const today = localToday();
   const items = (dmon.items && dmon.items.length) ? dmon.items : [];
   const days = dmon.days || {};
-  const formHead = [dmon.form_code||'DEMO-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
+  // v1.37.0：优先用服务端算好的 form_head（「后台表单页眉 > 模板自带 > 默认」已在服务端解析）
+  const formHead = dmon.form_head || [dmon.form_code||'DEMO-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
   const tblTitle = dmon.title || '设备维护保养记录';
   const tblTitleEn = dmon.title_en || 'Maintenance Record of Equipment';
 
@@ -869,9 +870,11 @@ function roomOpts(list, cur, allLabel){
     if(g){ let e=groups.find(x=>x.g===g); if(!e){e={g:g,items:[]};groups.push(e);} e.items.push(r); }
     else plain.push(r);
   });
+  // ⚠️ optgroup 必须排在普通 option 之前：HTML 规范如此，否则浏览器会把分组甩到列表末尾
+  //（分组里的房间看起来像掉到了所有独立房间后面）。未分组房间统一收进「独立房间」组。
+  if(plain.length) groups.push({g:'独立房间',items:plain});
   return (allLabel!=null?`<option value=""${cur===''?' selected':''}>${esc(allLabel)}</option>`:'')
-    + groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('')
-    + plain.map(opt).join('');
+    + groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('');
 }
 
 async function init(){

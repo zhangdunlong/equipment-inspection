@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.36.2';
-const APP_VERSION_DATE = '2026-09-19';
+const APP_VERSION = 'v1.37.1';
+const APP_VERSION_DATE = '2026-09-21';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -576,6 +576,53 @@ const allSigners = () => kvget('signers', []);
 const allDepts = () => kvget('depts', []);
 const allInspections = () => kvget('inspections', []);
 const allAbnormal = () => kvget('abnormalRecords', []);
+
+// ===================== 表单页眉（formHeads，v1.37.0） =====================
+// 需求：「所有模板对应的页眉也可以在后台编辑」。
+// 页眉 = 打印/屏幕上表格右上角那行表单编号（如 DEMO-QR-008 Rev.A0）。
+// 它散落在 4 张表上，且来源各不相同：
+//   env      → 温湿度监测记录（原先是 env.html 里写死的 FORM_DOCNO 常量）
+//   device   → 设备日常点检记录（原取模板 templates[].form_code/form_rev）
+//   program  → 专项检查记录（原取 programs[].form_code/form_rev，如 QR-102 / QR-079）
+//   checkall → 批量打印页的表头（与 device 同源，但允许单独覆盖）
+// 三者原本各有各的写法、各有各的默认值，管理员改不了 env 的那份（硬编码）。
+// 这里统一成一份「按表种（kind）登记」的配置，键名与上面的 kind 一一对应：
+//   { env:{code:'DEMO-QR-008',rev:'Rev.A0',note:'',text:''}, device:{...}, ... }
+// 约定：
+//   · code / rev 分开存（而不是存一整串）—— 后台两个输入框，且前端能按需只显示其一段；
+//   · rev 留空则不显示版本（有些线下表格没有 Rev）；
+//   · 兼容旧写法：若这个表种原先在 templates/programs 上已有 form_code，仍优先生效，
+//     避免升级瞬间把管理员此前在「模板表头」里配好的编号抹掉（迁移只补缺，不覆盖）。
+const defaultFormHeads = () => ({
+  env:      { code: 'DEMO-QR-008', rev: 'Rev.A0' },
+  device:   { code: 'DEMO-QR-032', rev: 'Rev.A1' },
+  program:  { code: 'DEMO-QR-102', rev: 'Rev.A1' },
+  checkall: { code: 'DEMO-QR-032', rev: 'Rev.A1' },
+});
+// 表种清单（后台「表单页眉」页签按此渲染，标签写中文，方便非技术管理员对照纸质表）
+const FORM_HEAD_KINDS = [
+  { kind: 'env',      name: '温湿度监测记录',     hint: '测试室01等房间的温湿度表（页面 /env）',   defCode: 'DEMO-QR-008', defRev: 'Rev.A0' },
+  { kind: 'device',   name: '设备日常点检记录',   hint: '各设备点检表（页面 /inspect，取设备所属模板）', defCode: 'DEMO-QR-032', defRev: 'Rev.A1' },
+  { kind: 'program',  name: '专项检查记录',       hint: '摩擦和风阻损耗 / 显微镜维护等专项表（页面 /check）', defCode: 'DEMO-QR-102', defRev: 'Rev.A1' },
+  { kind: 'checkall', name: '批量打印页眉',       hint: '批量打印时的整册页眉（页面 /print-all）',   defCode: 'DEMO-QR-032', defRev: 'Rev.A1' },
+];
+// 读某表种（或某条具体模板 / 专项）的页眉。
+// 优先级：显式配置（formHeads[kind]）> 载体自带（tpl/program 的 form_code/form_rev）> 内置默认值。
+// 之所以把「载体自带」夹在中间：管理员在「点检模板 → 编辑表头」里填的编号是他最直接的意图，
+// 不该被一个从没动过的新配置项盖住。
+function resolveFormHead(kind, carrier) {
+  const d = defaultFormHeads()[kind] || {};
+  const cfg = (kvget('formHeads', {}) || {})[kind] || {};
+  const pick = (a, b, c) => {
+    if (a != null && String(a).trim() !== '') return String(a).trim();
+    if (b != null && String(b).trim() !== '') return String(b).trim();
+    return c != null ? String(c).trim() : '';
+  };
+  const code = pick(cfg.code, carrier && carrier.form_code, d.code);
+  const rev  = pick(cfg.rev,  carrier && carrier.form_rev,  d.rev);
+  const text = String(cfg.text || '').trim();   // 非空则整行覆盖（线下有完全自定义页眉的场合）
+  return { kind, code, rev, text, line: text || [code, rev].filter(Boolean).join(' ') };
+}
 
 // ---------- 独立检查项目 ----------
 const allPrograms = () => kvget('programs', []);
@@ -1634,6 +1681,9 @@ async function handleMonthly(ctx) {
       signers: [...signerSet], abnormal: abn, note: tpl ? (tpl.note || '') : '',
       // 表头字段（后台「点检模板」里可编辑）：表单编号 / 版本 / 标题，缺省由前端回退通用值
       form_code: tpl ? (tpl.form_code || '') : '', form_rev: tpl ? (tpl.form_rev || '') : '',
+      // 页眉最终值（v1.37.0）：配置(formHeads.device) > 模板自带 > 内置默认，服务端一次算好下发，
+      // 免得同一套优先级在前端 4 个页面各写一遍、写歪一个就出现「这台设备页眉不一样」。
+      form_head: resolveFormHead('device', tpl).line,
       title: tpl ? (tpl.title || '') : '', title_en: tpl ? (tpl.title_en || '') : '',
       tpl_key: tpl ? (tpl.key || '') : '', tpl_name: tpl ? (tpl.equip_name || '') : '' });
   }
@@ -1644,9 +1694,83 @@ async function handleMonthly(ctx) {
     if (!s.signature_image && !s.signature_image_v) return;
     sigAssets[s.id] = { h: s.signature_image || null, v: s.signature_image_v || null };
   });
-  return sendJson(ctx.res, { month, devices: out, sig_assets: sigAssets });
+  return sendJson(ctx.res, { month, devices: out, sig_assets: sigAssets,
+    // 批量打印页眉（kind=checkall）：批量打印整册的右上角编号，独立于单台设备的模板编号
+    form_head_checkall: resolveFormHead('checkall', null).line });
 }
 // ---------- 独立检查项目：接口 ----------
+// GET /api/form-heads —— 表单页眉配置（v1.37.0）
+// 返回「当前生效值」+「配置里显式写过的值」两份：
+//   items[].code/rev        = 当前实际印出去的（已按 配置 > 载体自带 > 默认 解析完）
+//   items[].cfg_code/cfg_rev= 管理员在后台显式配置过的原始值（空 = 没配过，正走默认/载体）
+// 两份都给，是为了让后台输入框能显示「未配置」这个状态本身，而不是把默认值伪装成配置值 ——
+// 否则管理员一保存，默认值就被固化成配置，此后改默认值再也影响不到这台系统。
+async function handleGetFormHeads(ctx) {
+  const cfgAll = kvget('formHeads', {}) || {};
+  const items = FORM_HEAD_KINDS.map(k => {
+    const r = resolveFormHead(k.kind, null);
+    const cfg = cfgAll[k.kind] || {};
+    return {
+      kind: k.kind, name: k.name, hint: k.hint,
+      code: r.code, rev: r.rev, text: r.text, line: r.line,
+      cfg_code: cfg.code != null ? String(cfg.code) : '',
+      cfg_rev: cfg.rev != null ? String(cfg.rev) : '',
+      def_code: k.defCode, def_rev: k.defRev,
+      // 该表种是否被「载体自带值」接管（如设备表种取模板的 form_code）——
+      // 此时配置留空也不会回退到内置默认，后台要如实说明，免得管理员以为留空=用默认。
+      carrier_driven: !!(cfg.code == null || String(cfg.code).trim() === ''),
+    };
+  });
+  return sendJson(ctx.res, {
+    items,
+    // 温湿度表的页眉按「房间」下发（env_room_map）：表种级配置是默认值，
+    // 个别房间若要单独的表单编号，只在这里覆盖，不影响别的房间。
+    env_room_map: envRoomHeadMap(),
+  });
+}
+// 温湿度页眉的「房间 → 生效文字」映射。
+// 优先级：room.form_head > formHeads.env > 内置默认。房间级留这一档，
+// 是因为线下确实存在「同一张温湿度表、不同房间页眉编号不同」的写法。
+function envRoomHeadMap() {
+  const base = resolveFormHead('env', null).line;
+  const m = {};
+  kvget('rooms', []).forEach(r => {
+    const own = String(r.form_head || '').trim();
+    m[r.name] = own || base;
+  });
+  return m;
+}
+// PUT /api/form-heads —— 保存表单页眉配置（adminOnly）
+// body: { kind:'env'|'device'|'program'|'checkall', code, rev, text }
+// 只改传入的那一个 kind（逐字段独立分支）——否则在一个页签点保存会把别的页签一起清空。
+async function handlePutFormHead(ctx) {
+  const b = ctx.body || {};
+  const kind = String(b.kind || '').trim();
+  if (!FORM_HEAD_KINDS.some(k => k.kind === kind)) return fail(ctx.res, '未知的表单类型：' + kind);
+  if (String(b.code || '').length > 60) return fail(ctx.res, '表单编号不能超过 60 字');
+  if (String(b.rev || '').length > 30) return fail(ctx.res, '版本号不能超过 30 字');
+  if (String(b.text || '').length > 200) return fail(ctx.res, '自定义页眉不能超过 200 字');
+  const all = kvget('formHeads', {}) || {};
+  const cur = all[kind] || {};
+  if (b.code !== undefined) cur.code = String(b.code).trim();
+  if (b.rev !== undefined) cur.rev = String(b.rev).trim();
+  if (b.text !== undefined) cur.text = String(b.text).trim();
+  all[kind] = cur;
+  kvset('formHeads', all);
+  const r = resolveFormHead(kind, null);
+  return sendJson(ctx.res, { ok: true, kind, item: { kind, code: r.code, rev: r.rev, text: r.text, line: r.line } });
+}
+// POST /api/form-heads/reset —— 重置某表种（清掉显式配置，回到默认/载体）——adminOnly
+async function handleResetFormHead(ctx) {
+  const kind = String((ctx.body || {}).kind || '').trim();
+  if (!FORM_HEAD_KINDS.some(k => k.kind === kind)) return fail(ctx.res, '未知的表单类型：' + kind);
+  const all = kvget('formHeads', {}) || {};
+  delete all[kind];
+  kvset('formHeads', all);
+  const r = resolveFormHead(kind, null);
+  return sendJson(ctx.res, { ok: true, kind, item: { kind, code: r.code, rev: r.rev, text: r.text, line: r.line } });
+}
+
 // GET /api/programs —— 项目清单（含参与设备、所在房间，供入口与选择器使用）
 async function handleListPrograms(ctx) {
   const dmap = {}; allDevices().forEach(d => dmap[d.id] = d);
@@ -1654,6 +1778,8 @@ async function handleListPrograms(ctx) {
     const devs = (p.device_ids || []).map(id => dmap[id]).filter(Boolean);
     return Object.assign({}, p, {
       device_count: devs.length,
+      // 页眉最终值（v1.37.0）：配置(formHeads.program) > 专项自带 form_code/rev > 内置默认
+      form_head: resolveFormHead('program', p).line,
       rooms: [...new Set(devs.map(d => String(d.location || '').trim()).filter(Boolean))],
       devices: devs.map(d => ({ id: d.id, no: d.no, name: d.name, model: d.model, location: d.location || '' }))
     });
@@ -2183,7 +2309,8 @@ async function handleListRooms(ctx) {
     group: r.group || '',   // 分组：同组房间在前端（大屏/房间选择页/下拉）合并到一个组名之下展示
     dept: r.dept || '',     // 科室：该房间归属的科室（空 = 不限定，全厂可见）
     thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '', thermo_requirement: r.thermo_requirement || '',
-    env_range: r.env_range || null   // 每房间专属随机范围（v1.9.0，null = 未设置）
+    env_range: r.env_range || null,  // 每房间专属随机范围（v1.9.0，null = 未设置）
+    form_head: r.form_head || ''     // 温湿度表页眉的房间级覆盖（v1.37.0，空 = 用表种默认值）
   })));
 }
 
@@ -2216,6 +2343,12 @@ async function handleUpdateRoom(ctx) {
   if (b.group != null) r.group = String(b.group).trim();
   // 科室：该房间归属的科室（留空 = 不限定，全员可见）
   if (b.dept != null) r.dept = String(b.dept).trim();
+  // 温湿度表页眉的房间级覆盖（v1.37.0）：留空 = 用「表单页眉」页签里配的表种默认值
+  if (b.form_head != null) {
+    const fh = String(b.form_head).trim();
+    if (fh.length > 120) return fail(ctx.res, '该房间的页眉不能超过 120 字');
+    if (fh) r.form_head = fh; else delete r.form_head;
+  }
   // 温湿度监测配置（管理员在后台「房间管理」维护，新建月度记录时自动带出）
   if (b.thermo_apparatus != null) r.thermo_apparatus = String(b.thermo_apparatus);
   if (b.thermo_equipment != null) r.thermo_equipment = String(b.thermo_equipment);
@@ -4769,6 +4902,10 @@ const routes = [
 
   // ---------- 独立检查项目（与设备点检分开的专项检查） ----------
   { method: 'GET', path: '/api/programs', handler: handleListPrograms },
+  // ---------- 表单页眉配置（v1.37.0：所有模板的页眉统一在后台编辑） ----------
+  { method: 'GET', path: '/api/form-heads', handler: handleGetFormHeads },
+  { method: 'PUT', path: '/api/form-heads', handler: handlePutFormHead, adminOnly: true, perm: 'tpl_edit' },
+  { method: 'POST', path: '/api/form-heads/reset', handler: handleResetFormHead, adminOnly: true, perm: 'tpl_edit' },
   { method: 'GET', path: '/api/settings', handler: handleGetSettings },
   { method: 'PUT', path: '/api/admin/settings', handler: handlePutSettings, adminOnly: true },
   { method: 'PUT', pattern: /^\/api\/programs\/([^/]+)$/, paramNames: ['id'], handler: handleUpdateProgram, adminOnly: true },

@@ -89,6 +89,10 @@
 .lan-pkgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
 /* 行内控件不得超出所在列：内联 min-width 曾把下拉撑破 .row 列宽、压住右邻控件（v1.33.1 修复） */
 .row>.field>select,.row>.field>input,.row>.field>textarea{min-width:0}
+/* 展开下拉选项按暗色主题绘制（与 assets/style.css 的公共规则一致，这里再钉一次防止被局部样式盖掉） */
+select option,select optgroup{color:var(--txt);background:#16233f}
+select option:disabled{color:var(--muted)}
+
 /* 月度点检「专项检查表」行：7 个控件同排，列最小宽度收窄以容纳较宽的「检查项目」下拉 */
 #cm_row>.field{min-width:150px;max-width:340px}
 .lan-pkg{position:relative;padding:11px 13px;border:1px solid var(--glass-bd);border-radius:12px;background:var(--glass);cursor:pointer;transition:.16s}
@@ -151,6 +155,7 @@
     </span></div>
     <div class="tg-row"><span class="gl">业务数据</span><span class="ts">
       <button data-t="tpl" data-page-node-id="K9LgEk7j1ermXYxhP3wt6A">📋 点检模板</button>
+      <button data-t="head">🏷 表单页眉</button>
       <button data-t="sig" data-page-node-id="L6hCDQ6RB1eFMCMA5nPN9I">✍️ 签名人员</button>
       <button data-t="rec" data-page-node-id="6Tqm6ScuvPcuX1BsKiyVJs">📑 点检记录</button>
       <button data-t="month" data-page-node-id="LkqgtW5QdjoqB14c2E7rw7">📅 月度点检</button>
@@ -204,8 +209,20 @@
     <h4 style="margin:14px 0 6px;font-size:13px">🔎 专项检查表（独立检查项目 · 日期 × 数据列 的月表）</h4>
     <p class="muted tiny" style="margin:0 0 8px">这一区的表在「设备状态」里是<b>独立卡片</b>（与点检卡并列）。点 <b>✎ 编辑检查表</b> 可改表头 / 数据列 / 右侧说明栏 / 底部判定标准 / 参与设备。表内电子签名一律要签名人密码。</p>
     <div id="prog_list"></div>
-    <h4 style="margin:18px 0 6px;font-size:13px">📋 设备点检模板（检查内容 × 频率）</h4>
+      <h4 style="margin:18px 0 6px;font-size:13px">📋 设备点检模板（检查内容 × 频率）</h4>
     <div id="tpl_list" data-page-node-id="UyqVEl2UfJsVICj6Y6TMeH"></div>
+  </div>
+
+  <!-- 表单页眉（v1.37.0）—— 所有模板对应的页眉统一在这里编辑 -->
+  <div class="panel glass" id="p_head">
+    <p class="muted tiny" style="margin:0 0 10px">打印或屏幕上每张表<b>右上角</b>那行表单编号（如 <b>DEMO-QR-008 Rev.A0</b>），都在这页里改。<br>
+      每张表各占一档，<b>留空 = 用默认值</b>（默认值就写在输入框的灰色提示里，一眼能对回纸质表）。改完点该行的 <b>保存</b>，页面立即生效（已打开的打印页需刷新一次）。</p>
+    <div id="head_list"></div>
+    <h4 style="margin:18px 0 6px;font-size:13px">🏠 各房间温湿度页眉（可选覆盖）</h4>
+    <p class="muted tiny" style="margin:0 0 8px">线下若存在「同一种表、不同房间页眉编号不同」的情况，在这里单独给某个房间写一行；<b>留空就跟着上面「温湿度监测记录」走</b>。</p>
+    <div class="scroll glass" style="max-height:340px;margin-top:8px"><table>
+      <thead><tr><th style="width:170px">房间</th><th>该房间页眉（留空 = 用上面第 1 档）</th><th style="width:150px">当前生效</th><th style="width:74px"></th></tr></thead>
+      <tbody id="head_room_list"></tbody></table></div>
   </div>
 
   <!-- 房间管理 -->
@@ -682,7 +699,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
-  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month'){loadMonthInspect();loadCheckMonth();}if(b.dataset.t==='env'){loadEnvFill();loadLims();}if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}if(b.dataset.t==='logs')loadLogs();if(b.dataset.t==='alert')loadAlertTab();
+  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='head')loadFormHeads();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month'){loadMonthInspect();loadCheckMonth();}if(b.dataset.t==='env'){loadEnvFill();loadLims();}if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}if(b.dataset.t==='logs')loadLogs();if(b.dataset.t==='alert')loadAlertTab();
 });
 
 // ===================== 温湿度预警配置（v1.21.0，顶层作用域——tab 钩子与内联 onclick 都要能调到）=====================
@@ -950,12 +967,13 @@ async function loadRooms(){
                : '<span class="pill" style="background:rgba(255,209,102,.18);color:#ffd166">⚠️ 缺 '+miss+' 项</span>';
     const missTip = miss? '<div class="muted tiny" style="margin-top:3px">缺：'+[['thermo_apparatus','仪器'],['thermo_equipment','被监测设备'],['thermo_requirement','温湿度要求']].filter((p,i)=>!parts[i]).map(p=>p[1]).join('、')+'</div>' : '';
     const rangeChip = r.env_range ? `<div class="muted tiny" style="margin-top:3px">🎲 专属范围：温 ${r.env_range.tMin}~${r.env_range.tMax}℃ / 湿 ${r.env_range.hMin}~${r.env_range.hMax}%RH</div>` : '';
+    const headChip = r.form_head ? `<div class="muted tiny" style="margin-top:3px">🏷 页眉：${esc(r.form_head)}（本房间专配）</div>` : '';
     const key=esc(r.name).replace(/'/g,"\\'");
     return `<tr>
     <td><b>${esc(r.name)}</b>${r.group?'<div class="muted tiny" style="margin-top:2px">🧩 分组：'+esc(r.group)+'（合并展示）</div>':''}</td>
     <td class="muted">${esc(r.desc)||'—'}${r.thermo_apparatus?'<br><span class="muted tiny">🌡 仪器：'+esc(r.thermo_apparatus)+(r.thermo_requirement?' · '+esc(r.thermo_requirement.split('\n')[0]):'')+'</span>':''}</td>
     <td>${r.dept?esc(r.dept):'—'}</td>
-    <td>${chip}${missTip}${rangeChip}</td>
+    <td>${chip}${missTip}${rangeChip}${headChip}</td>
     <td>${r.count} 台</td>
     <td>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
@@ -1003,6 +1021,8 @@ function renameRoom(name,focus){
       <div class="muted tiny" id="rm_eq_prev" style="margin-top:4px"></div>
       <div class="muted tiny" style="margin-top:2px">多个型号请<b>分行</b>或用<b>逗号</b>分隔。温湿度表上会按分条逐行完整显示，不会截断。</div></div>
     <div class="field"><label>综合温湿度要求</label><textarea id="rm_req" rows="3" maxlength="300" placeholder="温度：10℃-35℃&#10;湿度：≤80%RH">${esc(r.thermo_requirement||'')}</textarea></div>
+    <div class="field"><label>该房间温湿度表页眉（可选）</label><input id="rm_head" maxlength="120" value="${esc(r.form_head||'')}" placeholder="留空 = 用「表单页眉」页签里配的默认值">
+      <div class="muted tiny" style="margin-top:3px">即该房间温湿度表右上角那行表单编号（默认 DEMO-QR-008 Rev.A0）。只有线下确实按房间区分页眉时才填；一般留空即可，统一在 <b>🏷 表单页眉</b> 页签改。</div></div>
     <p class="muted tiny">重命名后该房间下所有设备的位置会同步更新，点检记录不受影响。</p>
     <div class="flex"><button class="btn primary" onclick="saveRoom('${esc(name).replace(/'/g,"\\'")}')">保存</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
@@ -1031,7 +1051,8 @@ async function saveRoom(oldName){
     dept:$('#rm_dept').value.trim(),
     thermo_apparatus:$('#rm_app').value.trim(),
     thermo_equipment:$('#rm_eq').value.replace(/\r\n?/g,'\n').split('\n').map(x=>x.trim()).filter(Boolean).join('\n'),
-    thermo_requirement:$('#rm_req').value.trim()};
+    thermo_requirement:$('#rm_req').value.trim(),
+    form_head:$('#rm_head')?$('#rm_head').value.trim():''};
   if(desc) body.desc=desc;
   const r=await api('/api/rooms/'+encodeURIComponent(oldName),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){toast(r.error,'err');return;}
@@ -1759,6 +1780,83 @@ async function saveTplHead(id){
   const r=await api('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.error){toast(r.error,'err');return;}
   toast('表头已保存','ok');closeM();loadTpl();
+}
+
+// ===== 表单页眉（v1.37.0）=====
+// 需求：「所有模板对应的页眉也可以在后台编辑」。
+// 页眉原本散落在 4 张表上、来源还不一样：温湿度表写在 env.html 的常量里（管理员根本改不了）、
+// 设备点检表取模板的 form_code、专项表取 program 的 form_code。这里收成一档一档的配置。
+// 服务端 /api/form-heads 一次给全：items[]（各表种）+ env_room_map{}（房间级覆盖）。
+let FORM_HEADS=[];
+
+async function loadFormHeads(){
+  let j=null;
+  try{ j=await api('/api/form-heads'); }catch(e){ j=null; }
+  FORM_HEADS=(j&&j.items)||[];
+  if(!FORM_HEADS.length){
+    $('#head_list').innerHTML='<p class="muted tiny">读不到页眉配置，请刷新页面重试。</p>';
+    $('#head_room_list').innerHTML='';
+    return;
+  }
+  $('#head_list').innerHTML=FORM_HEADS.map(it=>{
+    // cfg_* 是「管理员显式配过的原文」，code/rev 是「当前实际生效的」。
+    // 刻意分开显示：输入框里放 cfg_*，这样「没配过」就真的是空的（而不是把默认值伪装成配置值）——
+    // 否则管理员随手一保存，默认值就被固化成配置，以后改默认值再也影响不到这台系统。
+    return `<div class="glass" style="padding:12px;margin-bottom:10px;border-left:3px solid var(--cyan,#22c1dc)">
+      <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px">
+        <b>${esc(it.name)}</b>
+        <span class="tag" style="background:rgba(34,193,220,.16)">${esc(it.line||'—')}</span>
+        ${it.carrier_driven?'<span class="muted tiny">编号留空时用「载体自带」的编号（设备表看模板、专项表看检查表），不是走内置默认</span>':
+                            '<span class="muted tiny">留空 = 用内置默认 '+esc(it.def_code||'')+' '+esc(it.def_rev||'')+'</span>'}
+      </div>
+      <div class="muted tiny" style="margin-bottom:6px">${esc(it.hint||'')}</div>
+      <div class="row">
+        <div class="field"><label>表单编号</label><input id="fh_code_${esc(it.kind)}" value="${esc(it.cfg_code||'')}" placeholder="${esc(it.def_code||'')}"></div>
+        <div class="field"><label>版本</label><input id="fh_rev_${esc(it.kind)}" value="${esc(it.cfg_rev||'')}" placeholder="${esc(it.def_rev||'')}"></div>
+      </div>
+      <div class="field"><label>自定义整行页眉（选了就完全替代「编号 + 版本」）</label>
+        <input id="fh_text_${esc(it.kind)}" value="${esc(it.text||'')}" maxlength="200" placeholder="留空即可；仅在纸质表页眉不止「编号 版本」时才用"></div>
+      <div class="flex" style="gap:8px">
+        <span class="sp"></span>
+        <button class="btn sm" onclick="resetFormHead('${esc(it.kind)}')">↺ 恢复默认</button>
+        <button class="btn primary sm" onclick="saveFormHead('${esc(it.kind)}')">保存</button>
+      </div></div>`;
+  }).join('');
+  await loadFormHeadRooms();
+}
+async function saveFormHead(kind){
+  const body={kind:kind,code:$('#fh_code_'+kind).value.trim(),rev:$('#fh_rev_'+kind).value.trim(),text:$('#fh_text_'+kind).value.trim()};
+  const r=await api('/api/form-heads',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}
+  toast('页眉已保存：'+(r.item&&r.item.line?r.item.line:'（空）'),'ok');
+  await loadFormHeads();
+}
+async function resetFormHead(kind){
+  if(!confirm('恢复这一档的默认页眉？（清掉你在这里的配置，回到默认/载体自带）'))return;
+  const r=await api('/api/form-heads/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:kind})});
+  if(r.error){toast(r.error,'err');return;}
+  toast('已恢复默认','ok'); await loadFormHeads();
+}
+// 房间级温湿度页眉覆盖：表格里逐行改、逐行存（一间一存，避免一处手滑波及其它房间）
+async function loadFormHeadRooms(){
+  const rs=await api('/api/rooms').catch(()=>[]);
+  const rr=Array.isArray(rs)?rs:(rs.rooms||[]);
+  let map={}; try{ const fh=await api('/api/form-heads'); map=(fh&&fh.env_room_map)||{}; }catch(e){}
+  const base=(FORM_HEADS.find(x=>x.kind==='env')||{}).line||'';
+  $('#head_room_list').innerHTML=rr.map(r=>{
+    const own=(r.form_head||'').trim();
+    return `<tr>
+      <td><b>${esc(r.name)}</b></td>
+      <td><input id="fh_room_${esc(r.name)}" value="${esc(own)}" maxlength="120" placeholder="留空 = 用上面第 1 档的页眉"></td>
+      <td class="muted tiny">${esc(map[r.name]||base||'—')}${own?'':' <span style="opacity:.6">(默认)</span>'}</td>
+      <td><button class="btn sm" onclick="saveRoomHead('${esc(r.name)}')">保存</button></td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted tiny">还没有房间。</td></tr>';
+}
+async function saveRoomHead(name){
+  const v=$('#fh_room_'+name).value.trim();
+  const r=await api('/api/rooms/'+encodeURIComponent(name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({form_head:v})});
+  if(r.error){toast(r.error,'err');return;}
+  toast('房间页眉已保存','ok'); await loadFormHeadRooms();
 }
 
 // —— 检查项编辑：改内容/频率、增删、上下移（保存时整体提交，服务端重排序号并迁移历史数据）——

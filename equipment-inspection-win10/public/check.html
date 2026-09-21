@@ -17,6 +17,7 @@ body{ color:#1a1a2e; }
 .toolbar .field{ display:flex; flex-direction:column; gap:3px; }
 .toolbar label{ font-size:11px; color:#666; }
 .toolbar select,.toolbar input{ font-size:13px; padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff; color:#222; }
+.toolbar select option{ color:#222; background:#fff; }
 .btn{ cursor:pointer; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:700; color:#fff;
   background:linear-gradient(135deg,#ff5fa2,#1aa6c4); box-shadow:0 3px 10px rgba(255,95,162,.25); }
 .btn:hover{ filter:brightness(1.05); }
@@ -60,6 +61,9 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
   font-size:12px; font-family:inherit; padding:1px 0; color:#111; }
 .ctab input.cin:focus{ background:#fff7fb; box-shadow:inset 0 0 0 1px #ff8ec4; border-radius:3px; }
 .ctab input.cin::placeholder{ color:#c9c9c9; font-size:10.5px; }
+/* 选中值也强制深色：上面 select.dsel / select.csel 规则写在前面，一旦别处再对
+   .ctab select 设了 color，会反过来盖住它们 → 白底白字。这里钉死一次，权重更高。 */
+.ctab select.dsel,.ctab select.csel{ color:#111; }
 
 /* 结论格 / 检查情况格：点一下就切换，默认从「正常」开始 */
 .ccell{ cursor:pointer; font-weight:700; font-size:13px; user-select:none; }
@@ -107,7 +111,8 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
 .sgbox{ background:#fff; color:#222; border-radius:12px; padding:16px 18px; width:320px; box-shadow:0 20px 50px rgba(0,0,0,.4); }
 .sgbox h4{ margin:0 0 4px; font-size:15px; }
 .sgbox .sub{ font-size:11px; color:#888; margin-bottom:10px; }
-.sgbox select{ width:100%; font-size:13px; padding:7px 9px; border:1px solid #ccc; border-radius:7px; }
+.sgbox select{ width:100%; font-size:13px; padding:7px 9px; border:1px solid #ccc; border-radius:7px; background:#fff; color:#222; }
+.sgbox select option{ color:#222; background:#fff; }
 .sgbox #sg_pw{ width:100%; box-sizing:border-box; margin-top:8px; font-size:13px; padding:7px 9px;
   border:1px solid #ccc; border-radius:7px; font-family:inherit; }
 .sgbox #sg_pw:focus{ outline:none; border-color:#c2317e; box-shadow:0 0 0 2px rgba(194,49,126,.15); }
@@ -347,7 +352,7 @@ function render(){
     </td>` : '';
 
   let html = `<div class="sheet">
-    <div class="fcode">${esc(p.form_code||'')} ${esc(p.form_rev||'')}</div>
+    <div class="fcode">${esc(p.form_head||(p.form_code||'')+' '+(p.form_rev||''))}</div>
     <div class="ttl">${esc(p.title||p.name)}</div>
     ${p.title_en?`<div class="ttl-en">${esc(p.title_en)}</div>`:''}`;
 

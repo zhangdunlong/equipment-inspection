@@ -1,6 +1,6 @@
 // Cloudflare Pages Functions —— 设备点检巡检系统后端
 // 单文件 catch-all 路由，所有 /api/* 请求在此处理。
-// 移植自本地最新版 server.js（v1.36.2 / 2026-09-19：声明式路由表 + 科室管理 + 房间温湿度配置 +
+// 移植自本地最新版 server.js（v1.37.1 / 2026-09-21：声明式路由表 + 科室管理 + 房间温湿度配置 +
 // 温湿度点检（按房间+年月）一键填充/批量删除/CSV 导出 + LIMS 数据源抓取 + 整月按科室随机分派签名 +
 // 模板高级编辑（改表头/整体替换检查项/复制/删除/导入）+ 数据备份 + CSV 导出 + 单台明细 +
 // 多用户角色权限 + 后台用户管理）。
@@ -670,16 +670,32 @@ async function handleMonthly(ctx) {
       const dd = `${yy}-${mm}-${String(day).padStart(2, '0')}`;
       const rec = insp.find(r => r.device_id === d.id && r.inspect_date === dd);
       if (rec) {
-        days[dd] = { bySn: rec.bySn || {}, signature_image: signerSignature(ctx.store, rec), abnormal_note: rec.abnormal_note || '' };
+        days[dd] = { bySn: rec.bySn || {}, signature_image: signerSignature(ctx.store, rec),
+          signer_id: rec.signer_id || null,
+          abnormal_note: rec.abnormal_note || '' };
         if (rec.signed_by) signerSet.add(rec.signed_by);
       }
     }
     const abn = ctx.kvget('abnormalRecords', []).filter(r => r.device_id === d.id && r.month === month);
     const tpl = d.template_id ? ctx.kvget('templates', []).find(x => x.id === d.template_id) : null;
-    out.push({ id: d.id, no: d.no, name: d.name, model: d.model, items, days,
-      signers: [...signerSet], abnormal: abn, note: tpl ? (tpl.note || '') : '' });
+    out.push({ id: d.id, no: d.no, name: d.name, model: d.model, location: d.location || '', items, days,
+      signers: [...signerSet], abnormal: abn, note: tpl ? (tpl.note || '') : '',
+      // 表头字段（后台「点检模板」里可编辑）：表单编号 / 版本 / 标题，缺省由前端回退通用值
+      form_code: tpl ? (tpl.form_code || '') : '', form_rev: tpl ? (tpl.form_rev || '') : '',
+      // 页眉最终值（v1.37.0）：配置(formHeads.device) > 模板自带 > 内置默认，服务端一次算好下发
+      form_head: resolveFormHead(ctx, 'device', tpl).line,
+      title: tpl ? (tpl.title || '') : '', title_en: tpl ? (tpl.title_en || '') : '',
+      tpl_key: tpl ? (tpl.key || '') : '', tpl_name: tpl ? (tpl.equip_name || '') : '' });
   }
-  return json({ month, devices: out });
+  // 签名人的两版图（横 / 竖）随响应去重下发：月检表签名格是高窄格 → 前端自动取竖版
+  const sigAssets = {};
+  ctx.kvget('signers', []).forEach(s => {
+    if (!s.signature_image && !s.signature_image_v) return;
+    sigAssets[s.id] = { h: s.signature_image || null, v: s.signature_image_v || null };
+  });
+  return json({ month, devices: out, sig_assets: sigAssets,
+    // 批量打印页眉（kind=checkall）：批量打印整册的右上角编号，独立于单台设备的模板编号
+    form_head_checkall: resolveFormHead(ctx, 'checkall', null).line });
 }
 async function handleDashboard(ctx) {
   const date = ctx.query.get('date');
@@ -738,7 +754,9 @@ async function handleListRooms(ctx) {
   return json(rooms.map(r => ({ name: r.name, desc: r.desc || '', count: c[r.name] || 0,
     group: r.group || '', dept: r.dept || '',
     thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '',
-    thermo_requirement: r.thermo_requirement || '' })));
+    thermo_requirement: r.thermo_requirement || '',
+    form_head: r.form_head || ''   // 温湿度表页眉的房间级覆盖（v1.37.0，空 = 用表种默认值）
+  })));
 }
 async function handleCreateRoom(ctx) {
   const b = ctx.body;
@@ -1550,6 +1568,71 @@ async function handleExportCsv(ctx) {
 
 // ===================== v1.32.1 对齐的只读接口（演示站） =====================
 // GET /api/programs —— 与工厂一致：附带参与设备数与房间清单（admin.html 依赖这三个字段）
+// ===================== 表单页眉（formHeads，v1.37.0 口径） =====================
+// 页眉 = 打印/屏幕上表格右上角那行表单编号（如 DEMO-QR-008 Rev.A0）。4 张表来源各异，
+// 上游统一成一份「按表种(kind)登记」的配置；本只读版忠实移植其解析口径与下发形状。
+//   env      → 温湿度监测记录（上游原先是 env.html 里写死的常量）
+//   device   → 设备日常点检记录（取模板 templates[].form_code/form_rev）
+//   program  → 专项检查记录（取 programs[].form_code/form_rev）
+//   checkall → 批量打印页的整册页眉（与 device 同源，但允许单独覆盖）
+// 优先级：显式配置 formHeads[kind] > 载体自带（模板/检查表）> 内置默认；
+//         text 非空则整行覆盖；房间级 room.form_head 只覆盖温湿度表。
+const DEFAULT_FORM_HEADS = () => ({
+  env:      { code: 'DEMO-QR-008', rev: 'Rev.A0' },
+  device:   { code: 'DEMO-QR-032', rev: 'Rev.A1' },
+  program:  { code: 'DEMO-QR-102', rev: 'Rev.A1' },
+  checkall: { code: 'DEMO-QR-032', rev: 'Rev.A1' },
+});
+const FORM_HEAD_KINDS = [
+  { kind: 'env',      name: '温湿度监测记录',   hint: '房间温湿度表（页面 /env）',                     defCode: 'DEMO-QR-008', defRev: 'Rev.A0' },
+  { kind: 'device',   name: '设备日常点检记录', hint: '各设备点检表（页面 /inspect，取设备所属模板）',  defCode: 'DEMO-QR-032', defRev: 'Rev.A1' },
+  { kind: 'program',  name: '专项检查记录',     hint: '专项检查表（页面 /check）',                     defCode: 'DEMO-QR-102', defRev: 'Rev.A1' },
+  { kind: 'checkall', name: '批量打印页眉',     hint: '批量打印整册页眉（页面 /print-all）',            defCode: 'DEMO-QR-032', defRev: 'Rev.A1' },
+];
+// 读某表种（或某条具体模板 / 专项）的页眉。把「载体自带」夹在中间是有意的：
+// 管理员在「模板/检查表」里填过的编号是他最直接的意图，不该被从没动过的配置项盖住。
+function resolveFormHead(ctx, kind, carrier) {
+  const d = DEFAULT_FORM_HEADS()[kind] || {};
+  const cfg = (ctx.kvget('formHeads', {}) || {})[kind] || {};
+  const pick = (a, b, c) => {
+    if (a != null && String(a).trim() !== '') return String(a).trim();
+    if (b != null && String(b).trim() !== '') return String(b).trim();
+    return c != null ? String(c).trim() : '';
+  };
+  const code = pick(cfg.code, carrier && carrier.form_code, d.code);
+  const rev = pick(cfg.rev, carrier && carrier.form_rev, d.rev);
+  const text = String(cfg.text || '').trim();
+  return { kind, code, rev, text, line: text || [code, rev].filter(Boolean).join(' ') };
+}
+// 温湿度页眉的「房间 → 生效文字」映射：room.form_head > formHeads.env > 内置默认
+function envRoomHeadMap(ctx) {
+  const base = resolveFormHead(ctx, 'env', null).line;
+  const m = {};
+  (ctx.kvget('rooms', []) || []).forEach(r => {
+    const own = String(r.form_head || '').trim();
+    m[r.name] = own || base;
+  });
+  return m;
+}
+// GET /api/form-heads —— 4 档「当前生效值」+「显式配置过的值」+ 房间级映射
+async function handleGetFormHeads(ctx) {
+  const cfgAll = ctx.kvget('formHeads', {}) || {};
+  const items = FORM_HEAD_KINDS.map(k => {
+    const r = resolveFormHead(ctx, k.kind, null);
+    const cfg = cfgAll[k.kind] || {};
+    return {
+      kind: k.kind, name: k.name, hint: k.hint,
+      code: r.code, rev: r.rev, text: r.text, line: r.line,
+      cfg_code: cfg.code != null ? String(cfg.code) : '',
+      cfg_rev: cfg.rev != null ? String(cfg.rev) : '',
+      def_code: k.defCode, def_rev: k.defRev,
+      // 该档是否会被「载体自带值」接管（如设备档取模板的 form_code）——后台要如实说明
+      carrier_driven: !!(cfg.code == null || String(cfg.code).trim() === ''),
+    };
+  });
+  return json({ items, env_room_map: envRoomHeadMap(ctx) });
+}
+
 async function handleListPrograms(ctx) {
   const dmap = {};
   ctx.kvget('devices', []).forEach(d => { dmap[d.id] = d; });
@@ -1557,6 +1640,8 @@ async function handleListPrograms(ctx) {
     const devs = (p.device_ids || []).map(id => dmap[id]).filter(Boolean);
     return Object.assign({}, p, {
       device_count: devs.length,
+      // 页眉最终值（v1.37.0）：配置(formHeads.program) > 专项自带 form_code/rev > 内置默认
+      form_head: resolveFormHead(ctx, 'program', p).line,
       rooms: [...new Set(devs.map(d => String(d.location || '').trim()).filter(Boolean))],
       devices: devs.map(d => ({ id: d.id, no: d.no, name: d.name, model: d.model, location: d.location || '' }))
     });
@@ -1813,6 +1898,9 @@ const routes = [
   { method: 'GET', path: '/api/lan-upgrade/config', handler: handleLanUpgradeConfig },
   { method: 'GET', path: '/api/admin/logs', handler: handleAdminLogs },
 
+  // ---- v1.37.1 只读演示新增 ----
+  { method: 'GET', path: '/api/form-heads', handler: handleGetFormHeads },
+
   // ---- v1.32.1 只读演示新增 ----
   { method: 'GET', path: '/api/env-alerts', handler: handleEnvAlertsList },
   { method: 'GET', path: '/api/lan-upgrade/ping', handler: handleLanPing },
@@ -1836,8 +1924,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（与本地 server.js 保持一致）
-const APP_VERSION = 'v1.36.2';
-const APP_VERSION_DATE = '2026-09-19';
+const APP_VERSION = 'v1.37.1';
+const APP_VERSION_DATE = '2026-09-21';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

@@ -12,7 +12,8 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
 .wrap{ max-width:1180px; margin:0 auto; padding:14px; }
 .toolbar{ display:flex; gap:10pt; align-items:center; margin-bottom:14pt; padding:10pt; background:#fff; border:2px solid #ddd; border-radius:8px; flex-wrap:wrap; }
 .toolbar .field{ display:flex; flex-direction:column; font-size:12px; }
-.toolbar input,.toolbar select{ font-size:13px; padding:5pt 8pt; border:1px solid #ccc; border-radius:6pt; }
+.toolbar input,.toolbar select{ font-size:13px; padding:5pt 8pt; border:1px solid #ccc; border-radius:6pt; background:#fff; color:#222; }
+.toolbar select option{ color:#222; background:#fff; }
 .btn{ cursor:pointer; border:none; border-radius:10px; padding:8pt 16pt; font-size:13px; font-weight:700; color:#fff; background:linear-gradient(135deg,#ff5fa2,#1aa6c4); box-shadow:0 4px 12px rgba(255,95,162,.3); }
 .btn.ghost{ background:#fff; color:#ff5fa2; border:1px solid #ff5fa2; box-shadow:none; }
 
@@ -150,6 +151,7 @@ const esc=s=>(s==null?'':String(s)).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt
 // 房间下拉选项：一律显示完整房间名；有分组的房间用 <optgroup> 归到组名之下。
 // 用 optgroup 而不是给选项加前缀，是因为下拉收起时只显示选项文本——选项写完整房间名，
 // 收起/展开都能看清是哪个房间，同时展开时仍能看出分组归属。
+// ⚠️ 顺序有意义：optgroup 必须排在普通 option 之前，否则浏览器把分组甩到列表末尾。
 function roomOpts(list,cur,allLabel){
   const opt=r=>`<option value="${esc(r.name)}" ${r.name===cur?'selected':''}>${esc(r.name)}</option>`;
   const groups=[]; const plain=[];
@@ -158,10 +160,9 @@ function roomOpts(list,cur,allLabel){
     if(g){ let e=groups.find(x=>x.g===g); if(!e){ e={g:g,items:[]}; groups.push(e); } e.items.push(r); }
     else plain.push(r);
   });
-  let h=(allLabel!=null)?`<option value="" ${cur===''?'selected':''}>${esc(allLabel)}</option>`:'';
-  h+=groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('');
-  h+=plain.map(opt).join('');
-  return h;
+  if(plain.length) groups.push({g:'独立房间',items:plain});
+  const h=(allLabel!=null)?`<option value="" ${cur===''?'selected':''}>${esc(allLabel)}</option>`:'';
+  return h+groups.map(e=>`<optgroup label="${esc(e.g)}">${e.items.map(opt).join('')}</optgroup>`).join('');
 }
 const DOW=['日','一','二','三','四','五','六'];
 const ST={ ok:{mark:'√',cls:'ok'}, ng:{mark:'×',cls:'ng'}, holiday:{mark:'/',cls:'holiday'}, none:{mark:'',cls:'empty'} };
@@ -193,7 +194,9 @@ function renderDevice(dev, month, dmon){
   const items=(dmon.items&&dmon.items.length)?dmon.items:[];
   const days=dmon.days||{};
   // 表头（表单编号 / 中文标题 / 英文标题）取自后台「点检模板」配置，未配置时回退公司通用表头
-  const formHead=[dmon.form_code||'DEMO-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
+  // v1.37.0：优先用服务端算好的 form_head（它已按「后台表单页眉 > 模板自带 > 默认」解析过），
+  // 前端不再自己拼优先级 —— 同一套规则散在 4 个页面里各写一遍，迟早有一页写歪。
+  const formHead=dmon.form_head||[dmon.form_code||'DEMO-QR-032', dmon.form_rev||'Rev.A1'].join(' ');
   const tblTitle=dmon.title||'设备维护保养记录';
   const tblTitleEn=dmon.title_en||'Maintenance Record of Equipment';
   const dailyItems=items.filter(it=>it.frequency!=='每月');

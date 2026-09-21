@@ -94,6 +94,11 @@
   .h-box { position:relative; display:flex; align-items:center; }
   .h-box .h-ico { position:absolute; left:10px; font-size:var(--fs-sm); opacity:.55; pointer-events:none; }
   .h-srch #h_q { width:100%; padding-left:30px; padding-right:32px; }
+  /* #h_dev 是这个组合框的「值容器」：面板隐藏、不参与焦点、但仍在 DOM 里供既有查询逻辑取值。
+     原来只用 hidden 属性遮它，可一旦某条链路把 hidden 去掉（或浏览器对 hidden 的默认
+     display:none 被其他规则覆盖），这个没用的大下拉就会出现在搜索框正下方 —— 观感上像是
+     「搜出来的结果里混了一个空下拉」。这里用 !important 钉死，只留逻辑上的存在。 */
+  .h-srch #h_dev { display:none !important; }
   .h-box .h-clr { position:absolute; right:8px; width:20px; height:20px; padding:0; line-height:1;
     border:none; border-radius:var(--r-full); background:var(--bg-4); color:var(--tx-3); font-size:11px; }
   .h-box .h-clr:hover { background:var(--ng); color:#fff; }
