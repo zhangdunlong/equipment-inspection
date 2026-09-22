@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.37.1';
-const APP_VERSION_DATE = '2026-09-21';
+const APP_VERSION = 'v1.37.6';
+const APP_VERSION_DATE = '2026-09-22';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -2474,6 +2474,19 @@ async function handleSaveEnvRecord(ctx) {
   const cells = (b.cells && typeof b.cells === 'object') ? b.cells : {};
   // 仅保留合法 key（day_period）与字段，防止脏数据
   const clean = {};
+  // 被拒绝的非数值（回报给前端，让用户当场知道哪一格没存进去）
+  const rejected = [];
+  // 温湿度只接受数值：空串，或「可选负号 + 数字 + 可选小数」。
+  // 为什么要在这里卡：以前只做 String().slice(0,8)，于是「记录员姓名」也能存进湿度框
+  // （2026-09-22 实测 冲击室/2026-09/16_Night 的 humidity 是「张新元」）。
+  // 脏值一旦入库，会一路显示在打印表和 CSV 导出的数字列里；而预警逻辑用
+  // parseFloat + Number.isFinite 判断，遇到非数字只是「静默跳过」——不报错、不提示，
+  // 所以这种污染能长期潜伏。收口必须放在写入侧。
+  const numOrNull = v => {
+    const s = String(v == null ? '' : v).trim();
+    if (s === '') return '';
+    return /^-?\d{1,5}(\.\d{1,5})?$/.test(s) ? s : null;   // null = 非法
+  };
   for (const k of Object.keys(cells)) {
     const m = /^(\d{1,2})_(AM|PM|Night)$/.exec(k);
     if (!m) continue;
@@ -2492,9 +2505,13 @@ async function handleSaveEnvRecord(ctx) {
       return fail(ctx.res, day + ' 日的签名图过大（约 ' + Math.round(sigRaw.length / 1024) +
         'KB，上限 ' + Math.round(SIG_IMG_MAX / 1024) + 'KB）。请重新上传更小的签名图', 413);
     }
+    const tv = numOrNull(c.temp);
+    const hv = numOrNull(c.humidity);
+    if (tv === null) rejected.push({ cell: k, field: 'temp', value: String(c.temp == null ? '' : c.temp).slice(0, 20) });
+    if (hv === null) rejected.push({ cell: k, field: 'humidity', value: String(c.humidity == null ? '' : c.humidity).slice(0, 20) });
     clean[k] = {
-      temp: String(c.temp != null ? c.temp : '').slice(0, 8),
-      humidity: String(c.humidity != null ? c.humidity : '').slice(0, 8),
+      temp: tv === null ? '' : tv,
+      humidity: hv === null ? '' : hv,
       recorder: String(c.recorder || '').slice(0, 64),
       signature_image: sigRaw,
       strike: c.strike ? 1 : 0   // 该日无需记录：整行划线（温度/湿度/记录员三格都带此标记）
@@ -2506,7 +2523,7 @@ async function handleSaveEnvRecord(ctx) {
   // 否则用户在空表上随手点一次「保存」就会生成 0 格空记录 —— 管理员删掉后下次保存又「复活」，
   // 表现就是后台「温湿度记录删除不了」。
   if (!rec && Object.keys(clean).length === 0) {
-    return sendJson(ctx.res, { ok: true, id: null, created: false, empty: true, updated_at: null });
+    return sendJson(ctx.res, { ok: true, id: null, created: false, empty: true, updated_at: null, rejected });
   }
   if (rec) {
     rec.cells = clean;
@@ -2516,9 +2533,11 @@ async function handleSaveEnvRecord(ctx) {
     list.push(rec);
   }
   kvset('envRecords', list);
-  logI('ENV', '保存温湿记录 ' + room + '@' + ym + ' 格数=' + Object.keys(clean).length);
+  logI('ENV', '保存温湿记录 ' + room + '@' + ym + ' 格数=' + Object.keys(clean).length +
+    (rejected.length ? ' —— 拒绝非数值 ' + rejected.length + ' 个：' +
+      rejected.map(x => x.cell + '.' + x.field + '=' + JSON.stringify(x.value)).join(', ') : ''));
   evalEnvAlerts(room, ym, clean, '手动保存');
-  return sendJson(ctx.res, { ok: true, id: rec.id, updated_at: rec.updated_at });
+  return sendJson(ctx.res, { ok: true, id: rec.id, updated_at: rec.updated_at, rejected });
 }
 
 // GET /api/admin/logs —— 运行日志（内存环形缓冲最近 N 条，可按级别/关键字过滤）
@@ -3077,6 +3096,24 @@ function limsParseTime(s) {
 const limsPeriodOf = h => (h < 12 ? 'AM' : (h < 18 ? 'PM' : 'Night'));
 
 // 按策略从候选点里挑一个「落在表格里的读数」
+/* 温湿度数值规范化：统一保留一位小数（2026-09-22）
+   背景：LIMS 抓回来的温/湿度可能带长小数（如 58.333333），也可能是不带小数的整数（如 58）。
+   填充时若原样写入，前者会让表格里出现一长串小数、后者与已填格子的「58.0」格式不统一。
+   这里统一四舍五入到一位小数后转字符串：
+     · 58        → "58"   （整数不补 .0，保持与人工输入一致的简洁）
+     · 58.3333   → "58.3"
+     · 58.05     → "58.1"
+   前端 env.html 的 fmtTemp() 负责显示层再兜一次（那里会把整数补成 "58.0"）。 */
+function round1(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  const s = String(v).trim();
+  if (s === '') return '';
+  const n = Number(s);
+  if (!Number.isFinite(n)) return s;          // 非数字（异常值）原样保留，交给上层报警
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
+
 function limsPickPoint(pts, strategy, refTm) {
   if (!pts || !pts.length) return null;
   const sorted = pts.slice().sort((a, b) => a.tm - b.tm);
@@ -3390,14 +3427,14 @@ async function limsSyncRoomUnlocked(opts) {
     if (sameSrc) {
       const pick = limsPickPoint(tPts.length ? tPts : hPts, strategy);
       if (!pick) { noData.push(k); continue; }
-      humVal = String(pick.humidity == null ? '' : pick.humidity);
-      useTemp = (pick.temp != null && pick.temp !== '') ? String(pick.temp) : '';
+      humVal = round1(pick.humidity);          // 统一保留一位小数（见 round1 注释）
+      useTemp = round1(pick.temp);
       pickTime = pick.time;
     } else {
       const hPick = hPts.length ? limsPickPoint(hPts, strategy) : null;
       const tPick = tPts.length ? limsPickPoint(tPts, strategy) : null;
-      humVal = hPick ? String(hPick.humidity == null ? '' : hPick.humidity) : '';
-      useTemp = (tPick && tPick.temp != null && tPick.temp !== '') ? String(tPick.temp) : '';
+      humVal = hPick ? round1(hPick.humidity) : '';
+      useTemp = tPick ? round1(tPick.temp) : '';   // ⚠️ tPick 可能为 null，必须先判空再取属性
       pickTime = (tPick && tPick.time) || (hPick && hPick.time) || '';
     }
     if (humVal === '' && useTemp === '') { noData.push(k); continue; }

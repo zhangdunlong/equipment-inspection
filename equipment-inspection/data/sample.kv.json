@@ -485,106 +485,106 @@
       "ym": "2026-09",
       "cells": {
         "1_AM": {
-          "temp": "23.0",
-          "humidity": "47.0",
+          "temp": "23",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "1_PM": {
           "temp": "23.3",
-          "humidity": "47.0",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "1_Night": {
-          "temp": "23.0",
-          "humidity": "47.0",
+          "temp": "23",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_AM": {
-          "temp": "24.0",
-          "humidity": "49.0",
+          "temp": "24",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_PM": {
           "temp": "24.3",
-          "humidity": "49.0",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_Night": {
-          "temp": "24.0",
-          "humidity": "49.0",
+          "temp": "24",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_AM": {
-          "temp": "22.0",
-          "humidity": "51.0",
+          "temp": "22",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_PM": {
           "temp": "22.3",
-          "humidity": "51.0",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_Night": {
-          "temp": "22.0",
-          "humidity": "51.0",
+          "temp": "22",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_AM": {
-          "temp": "23.0",
-          "humidity": "45.0",
+          "temp": "23",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_PM": {
           "temp": "23.3",
-          "humidity": "45.0",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_Night": {
-          "temp": "23.0",
-          "humidity": "45.0",
+          "temp": "23",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_AM": {
-          "temp": "24.0",
-          "humidity": "47.0",
+          "temp": "24",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_PM": {
           "temp": "24.3",
-          "humidity": "47.0",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_Night": {
-          "temp": "24.0",
-          "humidity": "47.0",
+          "temp": "24",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
@@ -598,7 +598,7 @@
         },
         "9_AM": {
           "temp": "25.8",
-          "humidity": "52.0",
+          "humidity": "52",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
@@ -611,106 +611,106 @@
       "ym": "2026-09",
       "cells": {
         "1_AM": {
-          "temp": "23.0",
-          "humidity": "47.0",
+          "temp": "23",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "1_PM": {
           "temp": "23.3",
-          "humidity": "47.0",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "1_Night": {
-          "temp": "23.0",
-          "humidity": "47.0",
+          "temp": "23",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_AM": {
-          "temp": "24.0",
-          "humidity": "49.0",
+          "temp": "24",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_PM": {
           "temp": "24.3",
-          "humidity": "49.0",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_Night": {
-          "temp": "24.0",
-          "humidity": "49.0",
+          "temp": "24",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_AM": {
-          "temp": "22.0",
-          "humidity": "51.0",
+          "temp": "22",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_PM": {
           "temp": "22.3",
-          "humidity": "51.0",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_Night": {
-          "temp": "22.0",
-          "humidity": "51.0",
+          "temp": "22",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_AM": {
-          "temp": "23.0",
-          "humidity": "45.0",
+          "temp": "23",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_PM": {
           "temp": "23.3",
-          "humidity": "45.0",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_Night": {
-          "temp": "23.0",
-          "humidity": "45.0",
+          "temp": "23",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_AM": {
-          "temp": "24.0",
-          "humidity": "47.0",
+          "temp": "24",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_PM": {
           "temp": "24.3",
-          "humidity": "47.0",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_Night": {
-          "temp": "24.0",
-          "humidity": "47.0",
+          "temp": "24",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
@@ -723,106 +723,106 @@
       "ym": "2026-09",
       "cells": {
         "1_AM": {
-          "temp": "23.0",
-          "humidity": "47.0",
+          "temp": "23",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "1_PM": {
           "temp": "23.3",
-          "humidity": "47.0",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "1_Night": {
-          "temp": "23.0",
-          "humidity": "47.0",
+          "temp": "23",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_AM": {
-          "temp": "24.0",
-          "humidity": "49.0",
+          "temp": "24",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_PM": {
           "temp": "24.3",
-          "humidity": "49.0",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "2_Night": {
-          "temp": "24.0",
-          "humidity": "49.0",
+          "temp": "24",
+          "humidity": "49",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_AM": {
-          "temp": "22.0",
-          "humidity": "51.0",
+          "temp": "22",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_PM": {
           "temp": "22.3",
-          "humidity": "51.0",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "3_Night": {
-          "temp": "22.0",
-          "humidity": "51.0",
+          "temp": "22",
+          "humidity": "51",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_AM": {
-          "temp": "23.0",
-          "humidity": "45.0",
+          "temp": "23",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_PM": {
           "temp": "23.3",
-          "humidity": "45.0",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "4_Night": {
-          "temp": "23.0",
-          "humidity": "45.0",
+          "temp": "23",
+          "humidity": "45",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_AM": {
-          "temp": "24.0",
-          "humidity": "47.0",
+          "temp": "24",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_PM": {
           "temp": "24.3",
-          "humidity": "47.0",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
         },
         "5_Night": {
-          "temp": "24.0",
-          "humidity": "47.0",
+          "temp": "24",
+          "humidity": "47",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
@@ -836,7 +836,7 @@
       "cells": {
         "15_AM": {
           "temp": "36.4",
-          "humidity": "58.0",
+          "humidity": "58",
           "recorder": "系统自动记录",
           "signature_image": "",
           "strike": 0
@@ -986,6 +986,24 @@
         "确认设备处于待机状态",
         "目视检查镜头与载物台",
         "记录本次维护内容"
+      ],
+      "criteria": [
+        {
+          "std": "范例标准 A",
+          "vals": [
+            "镜身与载物台清洁无残留（演示文案，非真实规程）",
+            "光源亮度正常",
+            "物镜转换顺畅"
+          ]
+        },
+        {
+          "std": "范例标准 B",
+          "vals": [
+            "对焦机构灵活",
+            "/",
+            ""
+          ]
+        }
       ]
     }
   ],
@@ -1199,6 +1217,28 @@
     ],
     "manual": {
       "enabled": true
+    }
+  },
+  "formHeads": {
+    "env": {
+      "code": "DEMO-QR-008",
+      "rev": "Rev.A0",
+      "text": ""
+    },
+    "device": {
+      "code": "DEMO-QR-032",
+      "rev": "Rev.A1",
+      "text": ""
+    },
+    "program": {
+      "code": "",
+      "rev": "",
+      "text": ""
+    },
+    "checkall": {
+      "code": "DEMO-QR-032",
+      "rev": "Rev.A1",
+      "text": ""
     }
   }
 }

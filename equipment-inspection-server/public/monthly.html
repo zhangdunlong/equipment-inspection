@@ -87,7 +87,9 @@
     .print-code{display:block; text-align:right; font-size:8pt; color:#333; font-weight:600; letter-spacing:.5px; margin-bottom:1pt; padding-right:1mm}
     .f-head .fh-code{display:none !important}
     #forms{gap:0; padding:0; margin:0}
-    .form{box-shadow:none; border:2px solid #000; max-width:none; width:100%;
+    /* 外框：`.form` 是**外层 div**，其边框不与 table 参与 border-collapse，
+       会和表格首列单元格的边框直接叠加。内线 2.5pt（实测 1.70pt）时取 2.5pt → 叠加后约 3.4pt。 */
+    .form{box-shadow:none; border:2.5pt solid #000; max-width:none; width:100%;
       page-break-inside:avoid; break-inside:avoid; page-break-after:always; border-radius:0; display:block}
     .form:last-child{page-break-after:auto}
     .f-title{padding:3pt 6pt 0 !important; font-size:12pt !important}
@@ -95,6 +97,15 @@
     .f-head{padding:2pt 10pt !important; font-size:8.5pt !important; line-height:1.25 !important}
     .f-head .yr, .f-head .mo{font-weight:700}
     table.grid{ border-collapse:collapse; table-layout:fixed; font-size:7.5pt !important; page-break-inside:avoid; break-inside:avoid; }
+    /* 内线：屏幕态 1px（沿用 var(--line)）实测只有 0.48~0.61pt（≈0.2mm）。
+       1.5pt（实测 1.16pt）在纸上够清晰，但在 Chrome **打印预览**里会被缩放（A4 横向缩到约 690px）
+       压到 1 屏幕像素以下而发灰，看起来像「没渲染」。
+       实测只有 2.5pt（1.70pt）在预览尺度下才明显变黑。 */
+    table.grid th, table.grid td{ border:2.5pt solid #000 !important; }
+    /* 填写横线：打印块里原来**没有**这条规则，于是沿用屏幕态的 `1px solid #999`
+       —— 既细（≈0.75pt，比内线 2.5pt 细 3.3 倍）又是灰色，与黑色格线并排时最扎眼。
+       全站三档线宽统一：外框 4.5pt ／ 表格内线 2.5pt ／ 填写横线 1.5pt。 */
+    .f-meta b{ border-bottom:1.5pt solid #000 !important; }
     table.grid thead th{ background:#eee !important; padding:.8pt 1pt !important; font-size:6.5pt !important; }
     table.grid tbody td{ padding:.3pt 1pt !important; vertical-align:middle !important; height:18pt; box-sizing:border-box; }
     table.grid .c-sn{ width:14pt !important; font-size:6.5pt; }

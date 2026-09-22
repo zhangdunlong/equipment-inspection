@@ -84,12 +84,20 @@ body{ color:#1a1a2e; font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
   .dh-title .en{ font-size:7pt!important; color:#333!important; }
   .dev-header .dh-code{ display:none!important; }   /* 打印时用 .print-code 固定在纸张右上角 */
   .dh-meta{ border-top:1.5px solid #000!important; border-bottom:1.5px solid #000!important; font-size:8pt!important; padding:1pt 0!important; margin-top:2pt!important; line-height:1.25!important; }
-  .dh-meta b{ border-bottom:1px solid #000!important; color:#000!important; }
+  /* 填写横线 1px → 1.5pt（v1.37.6 全站线宽统一，与 inspect.html 同）。
+     全站三档：外框 4.5pt ／ 表格内线 2.5pt ／ 填写横线 1.5pt。 */
+  .dh-meta b{ border-bottom:1.5pt solid #000!important; color:#000!important; }
 
   /* 表格区撑满剩余空间，行高自动均分 */
-  .grid-wrap{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; margin-top:2pt!important; page-break-inside:avoid; break-inside:avoid; }
+  /* 外框：在**外层 div** 上，不与 table 参与 border-collapse，会和首/末单元格边框**直接叠加**
+     （总宽 = div + td）。内线 2.5pt（实测 1.70pt）时 div 取 2.5pt → 叠加后约 3.4pt，约 2:1。 */
+  .grid-wrap{ border:2.5pt solid #000!important; border-radius:0!important; box-shadow:none!important; margin-top:2pt!important; page-break-inside:avoid; break-inside:avoid; }
   .mtable{ min-width:0!important; font-size:7pt!important; width:100%!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
-  .mtable th,.mtable td{ border:1px solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
+  /* 内线 2.5pt：1.5pt（实测 1.16pt）在纸上够清晰，但在 Chrome **打印预览**里表格被缩到约 690px 宽，
+     折算后不足 1 个屏幕像素 → 抗锯齿成浅灰，看起来像「没渲染」。
+     实测缩到预览尺度后只有 2.5pt（实测 1.70pt）才明显变黑。
+     Chrome 对表格边框做宽度量化：0.6~1.4pt 渲染完全相同，1.5~2pt 是 1.16pt，2.5pt 才是 1.70pt。 */
+  .mtable th,.mtable td{ border:2.5pt solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
   .mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:6.5pt; }
   .mtable tbody td{ vertical-align:middle!important; box-sizing:border-box; }
   .mtable .c-sn{ width:16pt!important; font-size:7pt; }

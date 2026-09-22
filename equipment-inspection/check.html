@@ -133,9 +133,20 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
   .sheet .ttl{ font-size:13pt; letter-spacing:2.5pt; margin:0 0 1pt; }
   .sheet .ttl-en{ font-size:6.8pt; color:#000; margin-bottom:3pt; }
   .meta-line{ font-size:8.5pt; margin-bottom:2pt; padding:0; }
-  .meta-line b{ border-bottom:1px solid #000; min-width:60pt; }
+  /* 填写横线 1px → 1.5pt（v1.37.6 全站线宽统一）。
+     原来这里既细（1px ≈ 0.75pt，比内线 2.5pt 细 3.3 倍）又短（min-width 60pt），
+     同一张表上两种线宽差太多，正是「不和谐感」的来源。全站三档：外框 4.5pt ／ 内线 2.5pt ／ 填写线 1.5pt。 */
+  .meta-line b{ border-bottom:1.5pt solid #000; min-width:60pt; }
+  /* 专项表原来在打印态把 .sheet 的边框整个去掉了 → 表格**没有外框**，
+     与其它三个打印页（都有外框）风格不一致。这里给 .ctab 本体补上外框：
+     collapse 模式下外框取「表格自身 border」与「首/末单元格 border」的较大者，
+     所以写 4.5pt 即可稳定得到约 4.5pt，与 env.html 的温湿度表同一档。 */
+  .ctab{ border:4.5pt solid #000 !important; }
   .ctab{ font-size:6.6pt !important; }
-  .ctab td{ border:1px solid #000 !important; padding:.3pt 1pt !important; }
+  /* 内线 2.5pt：1px 实测只有 0.48~0.61pt（≈0.2mm）；而 1.5pt（实测 1.16pt）在 Chrome 打印预览里
+     仍会因缩放（A4 横向缩到约 690px）落到 1 屏幕像素以下而发灰。
+     实测只有 2.5pt（1.70pt）在预览尺度下才明显变黑。详见 env.html 同处注释。 */
+  .ctab td{ border:2.5pt solid #000 !important; padding:.3pt 1pt !important; }
   .ctab .lb{ font-size:6pt; }
   .ctab .lb i{ font-size:5.2pt; color:#333; }
   .ctab tr.hdr td{ height:11pt; font-size:6pt; }

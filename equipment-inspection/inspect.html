@@ -182,11 +182,24 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
 .dh-title .en{ font-size:7pt!important; color:#333!important; }
 .dev-header .dh-code{ display:none!important; }
 .dh-meta{ border-top:1.5px solid #000!important; border-bottom:1.5px solid #000!important; font-size:8pt!important; padding:1pt 0!important; margin-top:2pt!important; line-height:1.25!important; }
-.dh-meta b{ border-bottom:1px solid #000!important; color:#000!important; }
-.grid-wrap{ border:1.5px solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; break-inside:avoid; color:#000!important;
+/* 填写横线 1px → 1.5pt（v1.37.6 全站线宽统一）：
+   原来打印态是 1px ≈ 0.75pt，而表格内线是 2.5pt（≈3.3px）—— 同一张表上差 3.3 倍，
+   正是用户说的「粗细不一致造成的不和谐感」。现在全站只有三档线宽，层次清晰：
+     外框 4.5pt ／ 表格内线 2.5pt ／ 填写横线 1.5pt（= 2px 整数）
+   1.5pt 而不是 2.5pt：这是「待填写的下划线」，比格线略细才不喧宾夺主，但必须明显粗于 1px。 */
+.dh-meta b{ border-bottom:1.5pt solid #000!important; color:#000!important; }
+/* 外框：这里的外框在**外层 div** 上，与 table 自身不参与 border-collapse，
+   所以它和首/末单元格的边框是**直接叠加**的（总宽 = div + td）。
+   内线 2.5pt（实测 1.70pt）时，div 取 2.5pt → 叠加后约 3.4pt，与内线约 2:1。
+   注意对比 env.html：那张表的外框在 <table> 自身，会被 collapse 合并，所以那边要写 5pt。 */
+.grid-wrap{ border:2.5pt solid #000!important; border-radius:0!important; box-shadow:none!important; page-break-inside:avoid; break-inside:avoid; color:#000!important;
   font-family:"SimSun","宋体","Microsoft YaHei",serif!important; margin-top:2pt!important; display:block; overflow:visible!important; }
 .mtable{ min-width:0!important; font-size:7pt!important; width:100%!important; height:auto!important; border-collapse:collapse!important; table-layout:fixed!important; page-break-inside:avoid; break-inside:avoid; }
-.mtable th,.mtable td{ border:1px solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
+/* 内线 2.5pt：1.5pt（实测 1.16pt）在纸上够清晰，但在 Chrome **打印预览**里被缩到约 690px 宽，
+   折算后不足 1 个屏幕像素 → 抗锯齿成浅灰，用户会觉得「空白格没渲染」。
+   实测缩到预览尺度后，只有 2.5pt（实测 1.70pt）才明显变黑。
+   Chrome 对表格边框做宽度量化：0.6~1.4pt 渲染结果完全相同，1.5~2pt 是 1.16pt，2.5pt 才是 1.70pt。 */
+.mtable th,.mtable td{ border:2.5pt solid #000!important; color:#000!important; padding:.3pt 1pt!important; }
 .mtable thead th{ background:#eee!important; padding:.8pt 1pt!important; font-size:7pt; }
 .mtable tbody td{ vertical-align:middle!important; box-sizing:border-box; }
 .mtable .c-sn{ width:16pt!important; font-size:7pt; }

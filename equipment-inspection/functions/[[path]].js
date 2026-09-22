@@ -969,6 +969,20 @@ async function handleSaveEnvRecord(ctx) {
   if (!/^\d{4}-\d{2}$/.test(ym)) return json({ error: '月份格式应为 YYYY-MM' });
   const cells = (b.cells && typeof b.cells === 'object') ? b.cells : {};
   const clean = {};
+  // 被拒绝的非数值（回报给前端，让用户当场知道哪一格没存进去）
+  const rejected = [];
+  // 温湿度只接受数值：空串，或「可选负号 + 数字 + 可选小数」。
+  // 开工源 v1.37.6：以前只做 String().slice(0,8)，于是「记录员姓名」也能存进湿度框。
+  // 脏值一旦入库，会一路显示在打印表和 CSV 导出的数字列里；而预警逻辑用
+  // parseFloat + Number.isFinite 判断，遇到非数字只是「静默跳过」——不报错、不提示，
+  // 所以这种污染能长期潜伏。收口必须放在写入侧。
+  // ⚠️ 演示站本身只读（POST 早在入口被 403），这里保留是为了与上游形状一致，
+  //    也防止将来放开演示站写入时又丢掉这道校验。
+  const numOrNull = v => {
+    const s = String(v == null ? '' : v).trim();
+    if (s === '') return '';
+    return /^-?\d{1,5}(\.\d{1,5})?$/.test(s) ? s : null;   // null = 非法
+  };
   for (const k of Object.keys(cells)) {
     const m = /^(\d{1,2})_(AM|PM|Night)$/.exec(k);
     if (!m) continue;
@@ -980,9 +994,13 @@ async function handleSaveEnvRecord(ctx) {
       return json({ error: day + ' 日的签名图过大（约 ' + Math.round(sigRaw.length / 1024) +
         'KB，上限 ' + Math.round(SIG_IMG_MAX / 1024) + 'KB）。请重新上传更小的签名图' }, 413);
     }
+    const tv = numOrNull(c.temp);
+    const hv = numOrNull(c.humidity);
+    if (tv === null) rejected.push({ cell: k, field: 'temp', value: String(c.temp == null ? '' : c.temp).slice(0, 20) });
+    if (hv === null) rejected.push({ cell: k, field: 'humidity', value: String(c.humidity == null ? '' : c.humidity).slice(0, 20) });
     clean[k] = {
-      temp: String(c.temp != null ? c.temp : '').slice(0, 8),
-      humidity: String(c.humidity != null ? c.humidity : '').slice(0, 8),
+      temp: tv === null ? '' : tv,
+      humidity: hv === null ? '' : hv,
       recorder: String(c.recorder || '').slice(0, 64),
       signature_image: sigRaw,
       strike: c.strike ? 1 : 0
@@ -993,7 +1011,24 @@ async function handleSaveEnvRecord(ctx) {
   if (rec) { rec.cells = clean; rec.updated_at = new Date().toISOString(); }
   else { rec = { id: 'env_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), room, ym, cells: clean, updated_at: new Date().toISOString() }; list.push(rec); }
   ctx.kvset('envRecords', list);
-  return json({ ok: true, id: rec.id, updated_at: rec.updated_at });
+  return json({ ok: true, id: rec.id, updated_at: rec.updated_at, rejected });
+}
+
+// 数值统一保留一位小数（与工厂 server.js 的 round1 同形）。
+// 背景：LIMS 抓回的温/湿度可能带长小数（如 58.333333），也可能是不带小数的整数（如 58）。
+// 填充时若原样写入，前者会让表格里出现一长串小数、后者与已填格子的「58.0」格式不统一。
+//   · 58        → "58"   （整数不补 .0，保持与人工输入一致的简洁）
+//   · 58.3333   → "58.3"
+//   · 58.05     → "58.1"
+// 前端 env.html 的 fmtTemp() 负责显示层再兜一次（那里会把整数补成 "58.0"）。 */
+function round1(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  const s = String(v).trim();
+  if (s === '') return '';
+  const n = Number(s);
+  if (!Number.isFinite(n)) return s;          // 非数字（异常值）原样保留，交给上层报警
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
 }
 
 // 限值解析必须与 public/env.html 的 parseLimits 保持一致（改一边就要同步另一边），
@@ -1399,7 +1434,7 @@ async function limsSyncRoom(ctx, opts) {
     const pt = limsPickPoint(buckets[k], cfg.strategy, new Date());
     if (!pt) continue;
     if (!envCellHasData(rec.cells[k])) {
-      rec.cells[k] = { temp: pt.temp != null ? Number(pt.temp).toFixed(1) : '', humidity: pt.humidity != null ? Number(pt.humidity).toFixed(1) : '', recorder: opts.recorder || cfg.recorder || '', signature_image: '', strike: 0 };
+      rec.cells[k] = { temp: round1(pt.temp), humidity: round1(pt.humidity), recorder: opts.recorder || cfg.recorder || '', signature_image: '', strike: 0 };
       filled++;
     } else skipped++;
   }
@@ -1413,7 +1448,7 @@ async function limsSyncRoom(ctx, opts) {
         const k = dd + '_' + curPeriod;
         if (!rec.cells[k]) continue;
         const pt = limsPickPoint(byDay[dd], cfg.strategy, new Date());
-        if (pt && pt.temp != null) { rec.cells[k].temp = Number(pt.temp).toFixed(1); filled++; }
+        if (pt && pt.temp != null) { rec.cells[k].temp = round1(pt.temp); filled++; }
       }
     } catch (e) { /* 温度补抓失败不阻塞湿度结果 */ }
   }
@@ -1924,8 +1959,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（与本地 server.js 保持一致）
-const APP_VERSION = 'v1.37.1';
-const APP_VERSION_DATE = '2026-09-21';
+const APP_VERSION = 'v1.38.0';
+const APP_VERSION_DATE = '2026-09-22';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

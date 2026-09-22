@@ -1,0 +1,7 @@
+# 不要让 wrangler.toml 作为静态资源对外暴露。
+# 它本地为了部署必须写入真实 KV 命名空间 ID，一旦被 Pages 当静态文件发布，
+# 任何人都能 GET /wrangler.toml 拿到真实 ID（2026-09-22 实测确实泄露过）。
+wrangler.toml
+# 本地临时状态与调试产物
+.wrangler/
+*.log
