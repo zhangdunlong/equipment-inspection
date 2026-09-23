@@ -455,16 +455,40 @@ document.addEventListener('click', e=>{
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
+    // 命中规则：按钮文字 **或** title 属性里出现写动词。title 也要看 —— 表格行内的
+    // 「✕」删除按钮文字只有一个符号（如数据备份页签的目标行、局域网清单行），
+    // 只能靠 title（"删掉这个目标" / "从清单移除"）识别出来。
+    var verbs = ['新增','添加','删除','删','移除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成','测试'];
     document.querySelectorAll('button,a,.btn,.big').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');
-      if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';
+      var ti = (el.getAttribute('title') || '').replace(/\s+/g, '');
+      if (verbs.some(function (v) { return t.indexOf(v) >= 0 || ti.indexOf(v) >= 0; })) el.style.display = 'none';
     });
   }
   if (document.readyState !== 'loading') { banner(); hideWrites(); }
   document.addEventListener('DOMContentLoaded', function () { banner(); hideWrites(); });
   setTimeout(hideWrites, 400); setTimeout(hideWrites, 1200); setTimeout(hideWrites, 2500);
+
+  /* ⚠️ 只靠上面几个固定时刻调用**不够**：后台绝大部分按钮是「拿到接口数据后动态渲染」的
+     （设备/房间/科室/模板/检查记录/用户… 每一行都有「编辑」「删除」，表单页签有成排的「保存」）。
+     实测登录后逐个页签检查，固定时刻跑完之后页面上仍残留近百个可见写入口 —— 只能靠
+     MutationObserver 监听后续渲染再补一次。观察 childList/subtree 而**不**观察 attributes：
+     本函数自己会改 el.style.display，若观察 attributes 会自我触发形成循环。 */
+  var _roPending = false;
+  function scheduleHide() {
+    if (_roPending) return; _roPending = true;
+    setTimeout(function () { _roPending = false; hideWrites(); }, 150);
+  }
+  function observeDom() {
+    if (!window.MutationObserver || !document.body) return;
+    if (window.__RO_MO__) return; window.__RO_MO__ = true;
+    new MutationObserver(scheduleHide).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.body) observeDom();
+  document.addEventListener('DOMContentLoaded', observeDom);
+  setTimeout(observeDom, 500);
+
   var _fetch = window.fetch ? window.fetch.bind(window) : null;
   if (_fetch) {
     window.fetch = function (u, o) {

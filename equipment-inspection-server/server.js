@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.37.6';
-const APP_VERSION_DATE = '2026-09-22';
+const APP_VERSION = 'v1.40.0';
+const APP_VERSION_DATE = '2026-09-23';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -3017,11 +3017,15 @@ async function limsLogin(cfg) {
 }
 
 // 取某 LIMS 房间整月湿度时序（升序）。返回 [{humidity, time, tm}]
-async function limsFetchHumidity(cfg, token, limsRoom, ym) {
-  const [yy, mm] = ym.split('-').map(Number);
-  const dim = new Date(yy, mm, 0).getDate();
-  const pad = n => String(n).padStart(2, '0');
-  const body = { interfaceId: cfg.interfaceId, roomName: limsRoom, startDate: ym + '-01', endDate: ym + '-' + pad(dim), startTime: '', endTime: '' };
+// LIMS humidityChart 单次允许的最大查询跨度（天）。
+// 实测（2026-09-23，现场 LIMS 服务）：23 天可行、**24 天报 `code=5004 时间间隔过长`**。
+// 取 20 留 3 天余量，避免贴边走 —— LIMS 侧若再收紧一天也不会立刻炸。
+// 背景：原来这里一次拉整月（28~31 天），LIMS 直接拒绝；表现像"抓取超时/失败"，
+// 实际是业务错误码，网络与登录都是正常的（同次 /api/lims/test 里 login_ok=true）。
+const LIMS_SPAN_MAX = 20;
+
+// 单个窗口的湿度查询（含重试）
+async function limsFetchHumidityWindow(cfg, token, limsRoom, body) {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {          // LIMS 单次 7~8 秒且偶发断连，重试兜底
     try {
@@ -3032,20 +3036,46 @@ async function limsFetchHumidity(cfg, token, limsRoom, ym) {
       if (!arr.length && r.json && r.json.code != null && r.json.code !== 1 && !r.json.data) {
         // LIMS 明确报错（如 5000「未查询到房间设备关联」）：不再默默当「无数据」，直接把原因带给界面和日志
         const msg = 'humidityChart code=' + r.json.code + ' ' + (r.json.message || r.json.msg || '');
-        logW('LIMS', '[' + limsRoom + '] ' + msg);
+        logW('LIMS', '[' + limsRoom + '] ' + body.startDate + '~' + body.endDate + ' ' + msg);
         const err = new Error('LIMS ' + msg);
-        err.noRetry = true;   // 房间没关联设备是配置问题，重试也没用
+        // 5004「时间间隔过长」是**参数问题**，重试同一跨度永远不会成功 —— 必须让它冒泡到调用方，
+        // 由分段逻辑去缩短窗口；当成可重试错误会白等 2 次退避（约 3.6 秒）再报同样的错。
+        err.noRetry = true;
         throw err;
       }
-      logI('LIMS', 'humidityChart[' + limsRoom + '] ' + ym + ' 点数=' + arr.length);
       return arr.map(x => ({ humidity: x.humidity, time: x.time, tm: limsParseTime(x.time) })).filter(x => x.humidity != null && x.tm);
     } catch (e) {
-      if (e && e.noRetry) throw e;   // 配置类错误（如房间未关联设备）重试无意义
+      if (e && e.noRetry) throw e;   // 配置/参数类错误重试无意义
       lastErr = e;
       if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
     }
   }
   throw lastErr || new Error('LIMS 湿度接口失败');
+}
+
+// 整月湿度：拆成 ≤LIMS_SPAN_MAX 天的窗口串行拉取后合并。
+// ⚠️ 不能一次拉整月（LIMS 限制 23 天），见上方 LIMS_SPAN_MAX 注释。
+async function limsFetchHumidity(cfg, token, limsRoom, ym) {
+  const [yy, mm] = ym.split('-').map(Number);
+  const dim = new Date(yy, mm, 0).getDate();
+  const pad = n => String(n).padStart(2, '0');
+  const merged = [];
+  const seen = new Set();
+  for (let d0 = 1; d0 <= dim; d0 += LIMS_SPAN_MAX) {
+    const d1 = Math.min(dim, d0 + LIMS_SPAN_MAX - 1);
+    const body = { interfaceId: cfg.interfaceId, roomName: limsRoom,
+      startDate: ym + '-' + pad(d0), endDate: ym + '-' + pad(d1), startTime: '', endTime: '' };
+    const arr = await limsFetchHumidityWindow(cfg, token, limsRoom, body);
+    for (const p of arr) {
+      const k = p.tm + '|' + p.humidity;      // 分段用闭区间，边界不应重复；去重只是兜底
+      if (seen.has(k)) continue;
+      seen.add(k);
+      merged.push(p);
+    }
+  }
+  logI('LIMS', 'humidityChart[' + limsRoom + '] ' + ym + ' 点数=' + merged.length +
+    '（分 ' + Math.ceil(dim / LIMS_SPAN_MAX) + ' 段，每段≤' + LIMS_SPAN_MAX + ' 天）');
+  return merged;
 }
 
 // 取某 LIMS 房间「同一天 + 起止时刻窗口」的温湿度点（温湿同点配对，返回按时间倒序，≤20 点）。
@@ -3248,7 +3278,10 @@ function limsMappedRooms() {
 // ⚠ 另一个坑：humidityChart 的 startDate == endDate 时**恒返回 0 点**（所有房间都一样），
 //   所以校验必须给 ≥2 天的区间，否则会把每个房间都误判成"没数据"。
 async function limsProbeRoomName(cfg, token, room, days) {
-  const n = Math.max(2, Math.min(31, +days || LIMS_DEFAULTS.verifyDays));
+  // clamp 到 LIMS_SPAN_MAX（20 天）而不是 31：LIMS 的 humidityChart 最多支持 23 天跨度，
+  // 超过会返回 5004「时间间隔过长」，而探针把非 1 的 code 一律判成 no_room
+  // → 用户选「回看 30 天」会把「房间名完全正确」误报成「LIMS 中不存在」。
+  const n = Math.max(2, Math.min(LIMS_SPAN_MAX, +days || LIMS_DEFAULTS.verifyDays));
   const pad = x => String(x).padStart(2, '0');
   const end = new Date();
   const start = new Date(end.getTime() - (n - 1) * 86400000);
@@ -3831,7 +3864,9 @@ async function handleLimsVerifyRooms(ctx) {
     ? [...new Set(b.rooms.map(s => String(s).trim()).filter(Boolean))]
     : limsVerifyCandidates(cfg);
   if (!list.length) return fail(ctx.res, '没有需要校验的房间名', 400);
-  const days = Math.max(2, Math.min(31, +(b.days || cfg.verifyDays) || LIMS_DEFAULTS.verifyDays));
+  // 上限用 LIMS_SPAN_MAX：LIMS humidityChart 单次跨度上限 23 天（实测 24 天报 5004），
+  // 选更长的窗口只会让所有房间都误报「LIMS 中不存在」，不如直接钳住。
+  const days = Math.max(2, Math.min(LIMS_SPAN_MAX, +(b.days || cfg.verifyDays) || LIMS_DEFAULTS.verifyDays));
   const job = limsJobNew('房间名实测校验（' + list.length + ' 个 · 回看 ' + days + ' 天）');
   limsJobRun(job, async (jb) => {
     jb.progress = '登录 LIMS…';
@@ -3929,6 +3964,870 @@ async function limsAutoTick() {
     const okN = results.filter(r => !r.error && r.filled > 0).length;
     console.log('[LIMS自动] 完成：成功 ' + okN + '/' + results.length + ' 房间');
   }
+}
+
+// ===================== 数据定时备份（v1.38.0 新增） =====================
+// 需求：把数据定时自动落一份到「本机文件夹」，按时间分层，用于灾备。
+// 设计要点：
+//   1) 由服务自己起 tick（与 limsAutoTick 同一套路），不依赖外部计划任务/网络 —— 只要服务在跑就会备份。
+//   2) 备份内容取内存里的 store（而不是直接拷贝 data/kv.json）—— scheduleSave() 有防抖，
+//      直接拷盘可能拿到「上一次」的旧数据；内存里的才是当下最新。
+//   3) 落盘用「先写 .tmp 再 rename」—— 断电或磁盘写满时不会留下半截文件被误当成可用备份。
+//   4) 失败重试（默认 3 次，间隔 3s/6s/9s）+ 运行日志 + 后台状态卡，三重可见。
+//   5) 连服务器配置 data/config.json（内含 PEPPER 密钥）一并备份 ——
+//      只还原业务数据而没有这份密钥，用户密码校验会对不上，等于白还原。
+// ⚠️ 两个层次的配置，别混：
+//   【逐目标策略】何时留一份、留几份 —— enabled / freq / weekday / day / hours / time / keep。
+//       每个目标文件夹各有一套：本机盘可以「每 6 小时、留 30 份」，网络盘可以「每天 23:55、全留」。
+//   【全局写入方式】怎么写这一份 —— retry / compress。
+//       必须全局，因为多目标**共用同一份序列化字节**（既省 CPU，也保证各副本逐字节一致）；
+//       若各目标压缩方式不同，就得为每个目标单独生成一份字节，"逐字节一致"这个性质就没了。
+const BACKUP_DEFAULTS = {
+  enabled: true,          // 总开关（关掉后谁都不自动备份；「立即备份一次」仍可用）
+  targets: [{ dir: '' }], // 目标文件夹列表（每项 = 一个目录 + 一套逐目标策略）；dir 空串 = 默认 <程序目录>/backups
+  dirs: [''],             // 兼容字段：v1.38/1.39 的老结构（只有目录、共享一套频率）仍能读
+  freq: 'weekly',     // 全局默认策略：新建目标继承它；老配置迁移时也用它
+  weekday: 0,         // freq=weekly 时生效：0=周日 1=周一 … 6=周六
+  day: 1,             // freq=monthly 时生效：每月第几号
+  hours: 6,           // freq=hourly 时生效：每几小时（1~23）
+  time: '19:00',      // 本地时间 HH:MM（daily/weekly/monthly 是执行时刻；hourly 是每个间隔内的第几分钟）
+  keep: 0,            // 0 = 全部保留；>0 = 只保留最近 N 份
+  retry: 3,           // 全局：最多尝试次数（含首次）
+  compress: false,    // 全局：true = gzip 后再落盘
+};
+const BACKUP_WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+// 频率档位（下发给后台渲染下拉；label/hint 直接显示给管理员看）
+const BACKUP_FREQS = [
+  { key: 'weekly',  label: '每周一次',   hint: '每周固定一天、固定时刻备份一次' },
+  { key: 'daily',   label: '每天一次',   hint: '每天固定时刻备份一次' },
+  { key: 'hourly',  label: '每隔几小时', hint: '每隔 N 小时备份一次（按 0 点起算的整点间隔）' },
+  { key: 'monthly', label: '每月一次',   hint: '每月固定一天、固定时刻备份一次（当月没有该日号时用当月最后一天）' },
+];
+const BACKUP_FREQ_KEYS = BACKUP_FREQS.map(f => f.key);
+
+function backupRaw() {
+  const c = kvget('backup', {});
+  return (c && typeof c === 'object' && !Array.isArray(c)) ? c : {};
+}
+// 全局默认策略（顶层同名老字段）—— 逐目标策略缺字段时的兜底值。
+// 保留它的意义：老配置（v1.39.0 及以前只有一套全局频率）能平滑迁移，
+// 且管理员在后台新增目标时，新目标自动继承当前默认，不必重新填一遍。
+function backupGlobalPolicy(c) {
+  const clamp = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const t = String(c.time == null ? '' : c.time).trim();
+  return {
+    freq: BACKUP_FREQ_KEYS.indexOf(String(c.freq || '')) >= 0 ? String(c.freq) : BACKUP_DEFAULTS.freq,
+    weekday: clamp(c.weekday, BACKUP_DEFAULTS.weekday, 0, 6),
+    day: clamp(c.day, BACKUP_DEFAULTS.day, 1, 31),
+    hours: clamp(c.hours, BACKUP_DEFAULTS.hours, 1, 23),
+    time: /^([01]?\d|2[0-3]):[0-5]\d$/.test(t) ? (t.length === 4 ? '0' + t : t) : BACKUP_DEFAULTS.time,
+    keep: clamp(c.keep, BACKUP_DEFAULTS.keep, 0, 3650),
+  };
+}
+function backupCfg() {
+  const c = backupRaw();
+  const clamp = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const g = backupGlobalPolicy(c);
+  const dirs = backupTargets().map(x => x.raw);
+  return Object.assign({
+    enabled: c.enabled === undefined ? BACKUP_DEFAULTS.enabled : !!c.enabled,
+    dirs: dirs.length ? dirs : [''],     // 兼容字段：所有目标目录（按顺序）
+    dir: dirs[0] || '',                  // 兼容字段：恒等于第一个目标
+    retry: clamp(c.retry, BACKUP_DEFAULTS.retry, 1, 10),
+    compress: !!c.compress,
+  }, g);
+}
+const BACKUP_MAX_DIRS = 8;                          // 目标文件夹数量上限（够用且防止一次写太多盘）
+function backupDefaultDir() { return path.join(ROOT, 'backups'); }
+// 单个目标文件夹 → 绝对路径；空串代表「用程序目录下的 backups」
+function backupDirAbs(raw) {
+  const d = String(raw == null ? '' : raw).trim();
+  return d ? path.resolve(d) : backupDefaultDir();
+}
+// 解析全部目标文件夹。每项 = 一个目录 + 它自己的一套策略：
+//   { key, raw, abs, error, enabled, freq, weekday, day, hours, time, keep }
+// key 用「绝对路径小写」——它是逐目标判重台账（lastAuto）的键，必须与目录一一对应。
+// 兼容 v1.38/1.39 的老结构：老配置只有 dirs[]（多个目录共享一套全局频率）→
+// 虚拟迁移成「每个目标各自继承那套频率」，行为与升级前完全一致（不写回 kv，读操作无副作用）。
+function backupTargets() {
+  const c = backupRaw();
+  const g = backupGlobalPolicy(c);
+  const clamp = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const T = s => String(s == null ? '' : s).trim();
+
+  const rawList = [];
+  if (Array.isArray(c.targets)) {
+    for (const o of c.targets) {
+      if (o && typeof o === 'object' && !Array.isArray(o)) rawList.push(o);
+      else if (typeof o === 'string') rawList.push({ dir: o });   // 容错：被直接塞了字符串
+    }
+  } else {
+    const arr = Array.isArray(c.dirs) ? c.dirs : [String(c.dir == null ? '' : c.dir)];
+    for (const d of arr) rawList.push({ dir: T(d) });
+  }
+  if (!rawList.length) rawList.push({ dir: '' });
+
+  const out = [], seen = new Set();
+  for (const o of rawList.slice(0, BACKUP_MAX_DIRS)) {
+    const dir = T(o.dir);
+    let abs = null, error = null;
+    try { abs = backupDirAbs(dir); }
+    catch (e) { error = '路径无效：' + (e && e.message || e); }
+    let key = null;
+    if (!error) {
+      key = process.platform === 'win32' ? abs.toLowerCase() : abs;
+      if (seen.has(key)) continue;                  // 同一个目录填两遍没有意义，写两遍只是浪费一次 IO
+      seen.add(key);
+    }
+    const tt = T(o.time);
+    out.push({
+      key: key, raw: dir, abs: abs, error: error,
+      // 逐目标策略：这一项自己配了的用它的，没配的回落到全局默认
+      enabled: o.enabled === undefined ? true : !!o.enabled,
+      freq: BACKUP_FREQ_KEYS.indexOf(T(o.freq)) >= 0 ? T(o.freq) : g.freq,
+      weekday: o.weekday === undefined ? g.weekday : clamp(o.weekday, g.weekday, 0, 6),
+      day: o.day === undefined ? g.day : clamp(o.day, g.day, 1, 31),
+      hours: o.hours === undefined ? g.hours : clamp(o.hours, g.hours, 1, 23),
+      time: /^([01]?\d|2[0-3]):[0-5]\d$/.test(tt) ? (tt.length === 4 ? '0' + tt : tt) : g.time,
+      keep: o.keep === undefined ? g.keep : clamp(o.keep, g.keep, 0, 3650),
+    });
+  }
+  if (out.length) return out;
+  return [Object.assign({ key: backupDefaultDir(), raw: '', abs: backupDefaultDir(), error: null, enabled: true }, g)];
+}
+// 兼容别名：既有调用点只用到 raw/abs/error 三个字段，现在多带策略字段不影响它们
+function backupDirList() { return backupTargets(); }
+// 标签：后台与日志里怎么称呼一个目标
+function backupTargetLabel(t) { return (t && (t.raw || '')) || '(默认目录)'; }
+// 本地时间戳：不能用 toISOString()（UTC 偏移会把「晚上 19:00」记成次日），与项目既有约定一致
+function backupStamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+    '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+// ISO 周键（周一为一周之始）—— 用于「这一周是否已经备份过」的判重，进程重启后依然有效
+function isoWeekKey(d) {
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  t.setDate(t.getDate() - ((t.getDay() + 6) % 7) + 3);          // 移到本周四
+  const f = new Date(t.getFullYear(), 0, 4);
+  f.setDate(f.getDate() - ((f.getDay() + 6) % 7) + 3);          // 当年的第一个周四
+  const wk = 1 + Math.round((t - f) / (7 * 86400000));
+  return t.getFullYear() + '-W' + String(wk).padStart(2, '0');
+}
+// 周期键：判重用的「现在属于哪个备份周期」。**必须落盘** —— 进程重启（升级/断电）后
+// 不能把同一个周期再跑一遍。weekly→2026-W39；daily→2026-09-23；
+// hourly→2026-09-23H18（按 N 小时分桶）；monthly→2026-09。
+function backupPeriodKey(cfg, d) {
+  const p = n => String(n).padStart(2, '0');
+  const ymd = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  if (cfg.freq === 'daily') return ymd;
+  if (cfg.freq === 'monthly') return d.getFullYear() + '-' + p(d.getMonth() + 1);
+  if (cfg.freq === 'hourly') {
+    const step = Math.max(1, cfg.hours);
+    return ymd + 'H' + p(Math.floor(d.getHours() / step) * step);
+  }
+  return isoWeekKey(d);
+}
+// 现在该不该触发（只看「是否落在触发窗口里」，不判重）。窗口 5 分钟，tick 每 30 秒一次足够命中。
+function backupShouldFire(cfg, now) {
+  const [h, m] = cfg.time.split(':').map(Number);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const tgt = h * 60 + m;
+  if (nowMin < tgt || nowMin >= tgt + 5) return false;
+  if (cfg.freq === 'hourly') {
+    const step = Math.max(1, cfg.hours);
+    return now.getHours() % step === 0;                 // 只在「整间隔那一小时」触发
+  }
+  if (cfg.freq === 'daily') return true;
+  if (cfg.freq === 'monthly') {
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return now.getDate() === Math.min(cfg.day, last);   // 当月没有该日号 → 用当月最后一天
+  }
+  return now.getDay() === cfg.weekday;                  // weekly
+}
+// 人话描述当前频率（日志与后台提示共用）
+function backupFreqDesc(cfg) {
+  if (cfg.freq === 'daily') return '每天 ' + cfg.time;
+  if (cfg.freq === 'hourly') return '每 ' + cfg.hours + ' 小时（每个间隔的第 ' + Number(cfg.time.split(':')[1]) + ' 分）';
+  if (cfg.freq === 'monthly') return '每月 ' + cfg.day + ' 日 ' + cfg.time;
+  return '每' + BACKUP_WEEKDAYS[cfg.weekday] + ' ' + cfg.time;
+}
+// 周期长度的人话（后台显示「下次执行」时带上）
+function backupFreqLabel(cfg) {
+  const f = BACKUP_FREQS.find(x => x.key === cfg.freq);
+  return f ? f.label : cfg.freq;
+}
+function backupCounts() {
+  const n = k => (Array.isArray(store[k]) ? store[k].length : 0);
+  return {
+    devices: n('devices'), rooms: n('rooms'), users: n('users'), templates: n('templates'),
+    signers: n('signers'), inspections: n('inspections'), abnormalRecords: n('abnormalRecords'),
+    envRecords: n('envRecords'), depts: n('depts'),
+  };
+}
+const gzipAsync = buf => new Promise((res, rej) => zlib.gzip(buf, (e, out) => (e ? rej(e) : res(out))));
+async function diskFreeBytes(p) {
+  try {
+    if (typeof fs.promises.statfs !== 'function') return null;
+    const st = await fs.promises.statfs(p);
+    return st.bavail * st.bsize;
+  } catch (e) { return null; }
+}
+function humanSize(n) {
+  if (n == null) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+
+let backupRunning = false;
+let backupNextAt = null;     // 供后台显示「下次执行」
+const backupAutoTries = {};  // weekKey → 本轮进程内已尝试次数（防 tick 每 30 秒无限重试）
+
+// 往「一个」目标文件夹实写一份备份（不含重试与记账，编排由 backupRun 负责）。
+// buf 由调用方一次性生成后传入 —— 多目标共用同一份字节：既省掉重复的序列化+压缩，
+// 也保证各处副本的内容**逐字节一致**（不会因为序列化时机不同而有差异）。
+// e.fatal = true 表示「重试也没意义」（路径建不出来 / 磁盘不够）。
+async function backupWriteDir(dirAbs, now, buf) {
+  const cfg = backupCfg();
+  // 目标文件夹下再按「年/月」自动分层 —— 一年下来根目录不会堆几百个文件
+  const sub = path.join(dirAbs, String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
+  try {
+    await fs.promises.mkdir(sub, { recursive: true });
+  } catch (e) {
+    const er = new Error('无法创建目标文件夹「' + sub + '」：' + (e && e.message || e) +
+      '（常见原因：路径写错、盘符不存在、没有写入权限、移动硬盘或 U 盘未插好）');
+    er.fatal = true;
+    throw er;
+  }
+
+  const base = '点检数据备份_' + backupStamp(now);
+  const main = path.join(sub, base + (cfg.compress ? '.json.gz' : '.json'));
+  const conf = backupConfOf(main);
+
+  // 磁盘余量：不够就早点报错，别写到一半把盘撑爆（多留 1MB 给配套配置与文件系统开销）
+  const free = await diskFreeBytes(sub);
+  if (free != null && free < buf.length * 2 + 1048576) {
+    const er = new Error('目标磁盘剩余空间不足（剩 ' + humanSize(free) + '，预计需要 ' + humanSize(buf.length * 2) + '）');
+    er.fatal = true;
+    throw er;
+  }
+
+  const tmp = main + '.tmp';
+  await fs.promises.writeFile(tmp, buf);
+  await fs.promises.rename(tmp, main);          // 原子替换：要么是完整文件，要么什么都没有
+
+  // 服务器配置（含 PEPPER 密钥）单独落一份明文小文件 —— 还原时必须配套，否则密码全对不上
+  let confSaved = false;
+  try {
+    await fs.promises.writeFile(conf, fs.readFileSync(CONFIG_FILE, 'utf8'), 'utf8');
+    confSaved = true;
+  } catch (e) { logW('BACKUP', '服务器配置未能一并备份（不影响业务数据）：' + (e && e.message || e)); }
+
+  return {
+    dir: sub, rel: path.relative(dirAbs, main),
+    size: buf.length, size_text: humanSize(buf.length), conf: confSaved,
+  };
+}
+
+// keep>0 时删掉超出保留份数的旧备份（连同它的 .config.json 一起清）
+// ⚠️ 配套配置文件名是「点检数据备份_x.config.json」，不是主文件名后面直接接后缀 ——
+//    早先写成 p + '.config.json' 会拼出 x.json.config.json，导致配置文件永远清不掉。
+function backupConfOf(mainPath) {
+  return mainPath.replace(/\.json(\.gz)?$/, '.config.json');
+}
+async function backupPrune(dirAbs, keep) {
+  if (!keep) return { removed: 0 };
+  const files = [];
+  async function walk(d, depth) {
+    if (depth > 4) return;
+    let list;
+    try { list = await fs.promises.readdir(d, { withFileTypes: true }); } catch (e) { return; }
+    for (const it of list) {
+      const p = path.join(d, it.name);
+      if (it.isDirectory()) { await walk(p, depth + 1); continue; }
+      if (!/^点检数据备份_[\d_-]+\.json(\.gz)?$/.test(it.name)) continue;
+      try { const st = await fs.promises.stat(p); files.push({ p, mtime: st.mtimeMs }); } catch (e) { }
+    }
+  }
+  await walk(dirAbs, 1);
+  files.sort((a, b) => b.mtime - a.mtime);
+  let removed = 0;
+  for (const f of files.slice(keep)) {
+    try {
+      await fs.promises.unlink(f.p);
+      try { await fs.promises.unlink(backupConfOf(f.p)); } catch (e) { }
+      const alt = f.p.endsWith('.gz') ? f.p.slice(0, -3) : f.p + '.gz';
+      try { await fs.promises.unlink(alt); } catch (e) { }
+      try { await fs.promises.unlink(backupConfOf(alt)); } catch (e) { }
+      removed++;
+    } catch (e) { }
+  }
+  return { removed };
+}
+
+// 某个目标策略的下一次执行时刻（纯函数，不写全局状态）—— 后台逐目标显示「下次执行」用。
+// 传入的 cfg 只要含 freq/weekday/day/hours/time 即可，所以既能吃目标对象也能吃全局配置。
+function backupNextFor(cfg, now) {
+  const t0 = now || new Date();
+  const [h, m] = cfg.time.split(':').map(Number);
+  const at = (y, mo, dd) => new Date(y, mo, dd, h, m, 0, 0);
+  let d = null;
+  if (cfg.freq === 'hourly') {
+    // 从「当前小时的第 m 分」起逐小时向前找，第一个「小时数能被 hours 整除」且晚于现在的点
+    const step = Math.max(1, cfg.hours);
+    d = new Date(t0.getFullYear(), t0.getMonth(), t0.getDate(), t0.getHours(), m, 0, 0);
+    for (let i = 0; i < 48 && !(d.getHours() % step === 0 && d.getTime() > t0.getTime()); i++) {
+      d.setHours(d.getHours() + 1);
+    }
+  } else if (cfg.freq === 'monthly') {
+    for (let i = 0; i < 14; i++) {
+      const y = t0.getFullYear(), mo = t0.getMonth() + i;
+      const last = new Date(y, mo + 1, 0).getDate();
+      const cand = at(y, mo, Math.min(cfg.day, last));         // 当月没有该日号 → 用当月最后一天
+      if (cand.getTime() > t0.getTime()) { d = cand; break; }
+    }
+  } else if (cfg.freq === 'daily') {
+    d = at(t0.getFullYear(), t0.getMonth(), t0.getDate());
+    if (d.getTime() <= t0.getTime()) d.setDate(d.getDate() + 1);
+  } else {
+    d = at(t0.getFullYear(), t0.getMonth(), t0.getDate());
+    let add = (cfg.weekday - d.getDay() + 7) % 7;
+    if (add === 0 && d.getTime() <= t0.getTime()) add = 7;    // 今天这个点已过 → 顺延到下周
+    d.setDate(d.getDate() + add);
+  }
+  return d || null;
+}
+// 全局「最近的下一次」= 所有已启用目标里最早的那个（主状态卡显示用）
+function backupComputeNext() {
+  const cfg = backupCfg();
+  if (!cfg.enabled) { backupNextAt = null; return null; }
+  const now = new Date();
+  let best = null;
+  for (const t of backupTargets()) {
+    if (!t.enabled) continue;
+    const d = backupNextFor(t, now);
+    if (d && (!best || d.getTime() < best.getTime())) best = d;
+  }
+  backupNextAt = best;
+  return best;
+}
+
+// 执行一次备份。**多目标文件夹**：逐个写、各自重试、各自记账。
+// 语义：只要**有一个目标写成**就算本次备份成功（已有一份可用副本），全部失败才算失败；
+//       部分成功会在运行日志与后台状态卡里明确列出是哪个目标没写成、为什么。
+// trigger: 'auto' | 'manual'
+// due: 可选，定时触发时本次「到点该写」的目标列表 [{t, pk}] —— 每个目标各按自己的频率判断，
+//      所以同一时刻可能只有一部分目标到点。不传 = 手动执行 → 写全部已启用的目标（忽略各自频率）。
+async function backupRun(trigger, due) {
+  if (backupRunning) return { ok: false, busy: true, error: '已有一个备份任务正在执行，请稍后再试' };
+  const cfg = backupCfg();
+  backupRunning = true;
+  const t0 = Date.now();
+  const now = new Date();
+  try {
+    // 本次要写哪些目标：定时触发只写「到点的」，手动触发写「全部启用的」
+    const jobs = (Array.isArray(due) && due.length)
+      ? due
+      : backupTargets().filter(t => t.enabled).map(t => ({ t: t, pk: null }));
+    if (!jobs.length) {
+      const why = cfg.enabled === false
+        ? '定时备份已停用，且没有启用的目标文件夹'
+        : '没有启用的目标文件夹（每个目标的「参与定时备份」都关掉了）';
+      logW('BACKUP', '本次备份未执行：' + why);
+      return { ok: false, empty: true, error: why };
+    }
+
+    // 序列化 + 压缩只做一次，多目标共用同一份字节（省 CPU，且保证各副本逐字节一致）
+    const raw = Buffer.from(JSON.stringify(store), 'utf8');
+    const buf = cfg.compress ? await gzipAsync(raw) : raw;
+
+    const targets = [];
+    for (const job of jobs) {
+      const t = job.t;
+      const item = {
+        key: t.key, raw_dir: t.raw, dir: t.abs, ok: false, file: null,
+        size: null, size_text: null, conf: false, pruned: 0, tries: 0, error: t.error,
+        period_key: job.pk || null, freq_desc: backupFreqDesc(t),
+      };
+      if (t.error) {
+        logW('BACKUP', '目标「' + backupTargetLabel(t) + '」配置无效：' + t.error);
+        targets.push(item);
+        continue;
+      }
+      // 每个目标独立重试 —— 某个盘暂时不可用（U 盘刚插上/网络盘刚挂载）不会连累其他盘
+      let lastErr = null;
+      for (let attempt = 1; attempt <= cfg.retry; attempt++) {
+        item.tries = attempt;
+        try {
+          const res = await backupWriteDir(t.abs, now, buf);
+          item.ok = true; item.dir = res.dir; item.file = res.rel;
+          item.size = res.size; item.size_text = res.size_text; item.conf = res.conf;
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (e && e.fatal) break;             // 路径/权限/空间类错误，重试无意义
+          if (attempt < cfg.retry) await new Promise(r => setTimeout(r, 3000 * attempt));
+        }
+      }
+      if (lastErr) {
+        item.error = String(lastErr && lastErr.message || lastErr);
+        logW('BACKUP', '目标「' + t.abs + '」写入失败（尝试 ' + item.tries + ' 次）：' + item.error);
+      }
+      // 保留策略按目录各算各的 —— 每个目标的频率不同，份数需求本来就不一样
+      // （每小时备的目标留 30 份只够 1 天多；每天备的留 30 份够 1 个月）
+      if (item.ok && t.keep) {
+        try { item.pruned = (await backupPrune(t.abs, t.keep)).removed; } catch (e) { }
+      }
+      targets.push(item);
+    }
+
+    const okN = targets.filter(x => x.ok).length;
+    const firstOk = targets.find(x => x.ok) || null;
+    const rec = {
+      at: new Date().toISOString(),
+      at_local: fmtLogTs(now),
+      ok: okN > 0,                                   // 至少一处写成 = 本次备份可用
+      all_ok: okN === targets.length,
+      ok_count: okN,
+      target_count: targets.length,
+      trigger: trigger || 'manual',
+      period_keys: Array.from(new Set(targets.map(x => x.period_key).filter(Boolean))),
+      // 兼容字段：仍按「单周期」的读法给一个值（多目标可能各有各的周期）
+      periodKey: (targets[0] && targets[0].period_key) || backupPeriodKey(cfg, now),
+      weekKey: isoWeekKey(now),                      // 兼容字段：仍保留 ISO 周键
+      targets: targets,                              // 每个目标的明细（后台逐条显示）
+      // 以下为兼容字段（按单目标格式读历史记录的地方仍在用），取第一个成功的目标
+      dir: firstOk ? firstOk.dir : null,
+      file: firstOk ? firstOk.file : null,
+      size: buf.length,
+      size_text: humanSize(buf.length),
+      cost_ms: Date.now() - t0,
+      counts: backupCounts(),
+      conf: targets.some(x => x.ok && x.conf),
+      compress: cfg.compress,
+      pruned: targets.reduce((s, x) => s + (x.pruned || 0), 0),
+      error: okN ? null : (targets.map(x => backupTargetLabel(x) + '：' + (x.error || '未知错误')).join('；') || '没有可用的目标文件夹'),
+    };
+
+    // 落账：后台状态卡与「本周期是否已备份」的判重都读这里
+    const rawCfg = backupRaw();
+    const hist = Array.isArray(rawCfg.history) ? rawCfg.history.slice(0, 49) : [];
+    hist.unshift(rec);
+    const patch = { history: hist, lastRun: rec };
+    if (trigger === 'auto') {
+      // **逐目标**判重台账：每个目标记自己的周期键，跟别的目标的频率互不干扰。
+      // 只有成功的才封周期；失败不封，好让 5 分钟窗口内的下一轮 tick 再试。
+      const prev = (rawCfg.lastAuto && typeof rawCfg.lastAuto === 'object' && !Array.isArray(rawCfg.lastAuto)) ? rawCfg.lastAuto : {};
+      const auto = Object.assign({}, prev);
+      for (const x of targets) {
+        if (!x.key || !x.period_key) continue;
+        auto[x.key] = { periodKey: x.period_key, at: rec.at, at_local: rec.at_local, ok: x.ok };
+      }
+      patch.lastAuto = auto;
+    }
+    kvset('backup', Object.assign({}, rawCfg, patch));
+
+    if (rec.ok) {
+      if (rec.all_ok) {
+        logI('BACKUP', '备份完成（' + rec.trigger + '）：' + okN + ' 个目标各 ' + rec.size_text +
+          '，用时 ' + rec.cost_ms + 'ms' + (rec.pruned ? '，清理旧备份 ' + rec.pruned + ' 份' : '') +
+          (rec.trigger === 'auto' ? '　[' + targets.map(x => backupTargetLabel(x) + ' ' + x.freq_desc).join('；') + ']' : ''));
+      } else {
+        logW('BACKUP', '备份部分成功（' + rec.trigger + '）：' + okN + '/' + targets.length +
+          ' 个目标写成（各 ' + rec.size_text + '），用时 ' + rec.cost_ms + 'ms；未写成：' +
+          targets.filter(x => !x.ok).map(x => backupTargetLabel(x) + '（' + (x.error || '') + '）').join('；'));
+      }
+    } else {
+      logE('BACKUP', '备份失败（' + rec.trigger + '，' + targets.length + ' 个目标全部失败）：' + rec.error);
+    }
+    return rec;
+  } finally {
+    backupRunning = false;
+    backupComputeNext();
+  }
+}
+
+// 每 30 秒看一次：**逐个目标**按它自己的频率判断是否到点（窗口 5 分钟）。
+// 同一时刻若有多个目标都到点，合并成一次 backupRun 一起写 —— 共用同一份序列化字节，
+// 既省 CPU，也保证各副本逐字节一致。
+async function backupAutoTick() {
+  if (backupRunning) return;
+  const cfg = backupCfg();
+  if (!cfg.enabled) return;                       // 总开关关掉：谁都不自动备份
+  const now = new Date();
+  const rawCfg = backupRaw();
+  const auto = (rawCfg.lastAuto && typeof rawCfg.lastAuto === 'object' && !Array.isArray(rawCfg.lastAuto)) ? rawCfg.lastAuto : {};
+  const due = [];
+  for (const t of backupTargets()) {
+    if (!t.enabled) continue;                     // 该目标被单独暂停
+    if (!backupShouldFire(t, now)) continue;      // 不在它自己的触发窗口里
+    const pk = backupPeriodKey(t, now);
+    const last = t.key ? auto[t.key] : null;
+    // 只有「自动备份成功」才封这个目标的周期；手动备份不参与判重 ——
+    // 否则随手手动备过一次，紧接着的自动周期就被跳过了，与「定时备份」的承诺不符。
+    if (last && last.ok && last.periodKey === pk) continue;
+    const tk = (t.key || t.abs) + '|' + pk;
+    if ((backupAutoTries[tk] || 0) >= 2) continue;  // 窗口内最多跑两轮（每轮内含 retry 次）
+    backupAutoTries[tk] = (backupAutoTries[tk] || 0) + 1;
+    due.push({ t: t, pk: pk });
+  }
+  // 防抖计数只是内存态，键会随周期增长（每目标每周期一个）；攒多了清一次，
+  // 最坏后果是某目标多跑一轮 —— 有 lastAuto 的成功台账兜着，不会造成重复备份文件堆积。
+  const kk = Object.keys(backupAutoTries);
+  if (kk.length > 200) for (const k of kk) delete backupAutoTries[k];
+  if (!due.length) return;
+  console.log('[备份] ' + fmtLogTs(now) + ' 触发自动备份：' +
+    due.map(d => backupTargetLabel(d.t) + '（' + backupFreqDesc(d.t) + '）').join('、'));
+  await backupRun('auto', due);
+}
+
+// GET /api/backup/config —— 备份配置 + 每个目标的实时状态（可写性 / 磁盘余量）+ 历史
+async function handleGetBackup(ctx) {
+  const cfg = backupCfg();
+  const rawCfg = backupRaw();
+  const autoLedger = (rawCfg.lastAuto && typeof rawCfg.lastAuto === 'object' && !Array.isArray(rawCfg.lastAuto)) ? rawCfg.lastAuto : {};
+  const nowRef = new Date();
+  const targets = [];
+  for (const t of backupDirList()) {
+    const nextD = (cfg.enabled && t.enabled && !t.error) ? backupNextFor(t, nowRef) : null;
+    const item = {
+      raw: t.raw, dir: t.abs, error: t.error, key: t.key,
+      // 逐目标策略（回显给表单，管理员改哪一项都看得见）
+      enabled: t.enabled, freq: t.freq, weekday: t.weekday, day: t.day, hours: t.hours, time: t.time, keep: t.keep,
+      freq_desc: backupFreqDesc(t),                       // 人话：如「每 6 小时（每个间隔的第 0 分）」
+      next_run_local: nextD ? fmtLogTs(nextD) : null,     // 该目标自己下次执行的时刻
+      last_auto: (t.key && autoLedger[t.key]) || null,    // 该目标最近一次「自动备份」的结果（判重台账）
+      // 本目标当前周期的键 + 台账里那条是否就属于当前周期（用来区分「本周已备」与「上一周期备过」）
+      period_key_now: backupPeriodKey(t, nowRef),
+      last_auto_current: !!(t.key && autoLedger[t.key] && autoLedger[t.key].periodKey === backupPeriodKey(t, nowRef)),
+      writable: false, write_error: null, disk_free: null, disk_free_text: '—',
+    };
+    if (!t.error) {
+      try {
+        await fs.promises.mkdir(t.abs, { recursive: true });
+        const probe = path.join(t.abs, '.write-test-' + Date.now());
+        await fs.promises.writeFile(probe, 'ok');
+        await fs.promises.unlink(probe);
+        item.writable = true;
+        item.disk_free = await diskFreeBytes(t.abs);
+        item.disk_free_text = humanSize(item.disk_free);
+      } catch (e) { item.write_error = String(e && e.message || e); }
+    }
+    targets.push(item);
+  }
+  const next = backupComputeNext();
+  const first = targets[0] || {
+    raw: '', dir: backupDefaultDir(), error: null,
+    writable: false, write_error: null, disk_free: null, disk_free_text: '—',
+  };
+  return sendJson(ctx.res, {
+    cfg: cfg,                                   // cfg.targets 是逐目标配置；cfg.dirs 为兼容目录列表
+    targets: targets,                           // 每个目标：自己的策略 + 实时状态 + 下次执行
+    default_policy: backupGlobalPolicy(rawCfg),  // 新建目标时继承的默认策略（前端「＋添加」用它初始化）
+    default_dir: backupDefaultDir(),
+    max_dirs: BACKUP_MAX_DIRS,
+    summary: {
+      total: targets.length,
+      enabled: targets.filter(t => t.enabled).length,
+      will_run: cfg.enabled ? targets.filter(t => t.enabled && !t.error).length : 0,
+    },
+    // 以下为兼容字段（单目标语义，取第一个目标）
+    effective_dir: first.dir,
+    dir_error: first.error,
+    writable: first.writable,
+    write_error: first.write_error,
+    disk_free: first.disk_free,
+    disk_free_text: first.disk_free_text,
+    history: Array.isArray(rawCfg.history) ? rawCfg.history : [],
+    last_run: rawCfg.lastRun || null,
+    next_run_local: next ? fmtLogTs(next) : null,       // 所有启用目标里最早的那个
+    weekdays: BACKUP_WEEKDAYS,
+    freqs: BACKUP_FREQS,                        // 频率档位（后台渲染下拉用）
+    freq_desc: (cfg.enabled ? backupFreqDesc(cfg) : '已停用'),   // 全局默认策略的人话描述
+    running: backupRunning,
+    app_version: APP_VERSION,
+    counts: backupCounts(),
+  });
+}
+
+// PUT /api/backup/config —— 保存配置（逐字段独立分支：只传一半字段时另一半保持原样）
+async function handlePutBackup(ctx) {
+  const b = ctx.body || {};
+  const rawCfg = backupRaw();
+  const next = Object.assign({}, rawCfg);
+  const touched = [];
+  if (b.enabled !== undefined) { next.enabled = !!b.enabled; touched.push('启用开关'); }
+  // 【逐目标配置】targets: [{dir, enabled, freq, weekday, day, hours, time, keep}, ...]
+  // 每个目标各带一套策略。**整表替换语义**：提交的数组 = 保存后应有的目标集合，
+  // 没出现在数组里的目标会被移除（后台是整表提交的，所以编辑哪一行都不会误删别的行）。
+  // 数组内部逐字段独立分支：某个目标只传 dir + freq，它的 weekday/time/keep 保持原样。
+  if (b.targets !== undefined) {
+    if (!Array.isArray(b.targets)) return fail(ctx.res, 'targets 必须是数组', 400);
+    if (b.targets.length > BACKUP_MAX_DIRS) return fail(ctx.res, '最多支持 ' + BACKUP_MAX_DIRS + ' 个目标文件夹（当前 ' + b.targets.length + ' 个）', 400);
+    const inRange = (n, lo, hi) => Number.isFinite(n) && n >= lo && n <= hi;
+    const list = [];
+    for (let i = 0; i < b.targets.length; i++) {
+      const src = b.targets[i];
+      const o = (src && typeof src === 'object' && !Array.isArray(src)) ? src : { dir: src };   // 容错：被塞了字符串
+      const dir = String(o.dir == null ? '' : o.dir).trim();
+      const where = '第 ' + (i + 1) + ' 个目标' + (dir ? '（' + dir + '）' : '（默认目录）');
+      if (dir.length > 200) return fail(ctx.res, where + '的路径过长（最多 200 字符）', 400);
+      const item = { dir: dir };
+      if (o.enabled !== undefined) item.enabled = !!o.enabled;
+      if (o.freq !== undefined) {
+        const f = String(o.freq || '').trim();
+        if (BACKUP_FREQ_KEYS.indexOf(f) < 0) return fail(ctx.res, where + '的频率取值必须是 ' + BACKUP_FREQ_KEYS.join(' / '), 400);
+        item.freq = f;
+      }
+      if (o.weekday !== undefined) {
+        const n = Number(o.weekday);
+        if (!inRange(n, 0, 6)) return fail(ctx.res, where + '的执行星期取值必须是 0~6（0=周日）', 400);
+        item.weekday = Math.round(n);
+      }
+      if (o.day !== undefined) {
+        const n = Number(o.day);
+        if (!inRange(n, 1, 31)) return fail(ctx.res, where + '的每月日期应为 1~31', 400);
+        item.day = Math.round(n);
+      }
+      if (o.hours !== undefined) {
+        const n = Number(o.hours);
+        if (!inRange(n, 1, 23)) return fail(ctx.res, where + '的间隔小时数应为 1~23', 400);
+        item.hours = Math.round(n);
+      }
+      if (o.time !== undefined) {
+        const t = String(o.time || '').trim();
+        if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(t)) return fail(ctx.res, where + '的时间格式应为 HH:MM（如 19:00）', 400);
+        item.time = t.length === 4 ? '0' + t : t;
+      }
+      if (o.keep !== undefined) {
+        const n = Number(o.keep);
+        if (!inRange(n, 0, 3650)) return fail(ctx.res, where + '的保留份数应为 0~3650（0 = 全部保留）', 400);
+        item.keep = Math.round(n);
+      }
+      list.push(item);
+    }
+    // 去重 + 路径合法性（口径与 backupDirAbs 一致）
+    const seen = new Set(), uniq = [];
+    for (const it of list) {
+      let abs;
+      try { abs = backupDirAbs(it.dir); }
+      catch (e) { return fail(ctx.res, '路径「' + it.dir + '」无效：' + (e && e.message || e), 400); }
+      const key = process.platform === 'win32' ? abs.toLowerCase() : abs;
+      if (seen.has(key)) continue;                  // 同一个目录填两遍没有意义
+      seen.add(key);
+      uniq.push(it);
+    }
+    // 这里**刻意不因为「某个目录当前不可写」而拒绝保存** ——
+    // 逐目标的典型用法是「本机盘 + 移动硬盘 / 网络盘」，后者平时可能不在线；
+    // 保存后由 GET /api/backup/config 逐个探测并把 ❌ 显示在状态卡上，
+    // 管理员点一下保存就知道哪个目录不对，不必非得先把硬盘插上才能存配置。
+    // （定时任务本来就容忍部分目标离线：离线那个跳过，其余照写。）
+    next.targets = uniq.length ? uniq : [{ dir: '' }];
+    // 老结构退场：否则 backupTargets() 里 targets 优先，dirs 变成看不见的残留，容易误导后来人
+    delete next.dirs;
+    delete next.dir;
+    touched.push('目标文件夹与各自的频率（' + next.targets.length + ' 个）');
+  }
+  // 【兼容】老的 dirs / dir 调用：整个列表共用一套策略（顶层 freq/...）。
+  // 走这条路会退回「所有目标共享一个频率」的语义，逐目标设置随之作废 —— 老调用方本来也不懂逐目标。
+  if (b.targets === undefined && (b.dirs !== undefined || b.dir !== undefined)) {
+    // 两种调用都接受：dirs: ['D:\\点检备份','E:\\备份']（批量）与 dir: 'D:\\点检备份'（单值）
+    let list;
+    if (b.dirs !== undefined) {
+      if (!Array.isArray(b.dirs)) return fail(ctx.res, 'dirs 必须是数组', 400);
+      list = b.dirs.map(x => String(x == null ? '' : x).trim());
+    } else {
+      list = [String(b.dir == null ? '' : b.dir).trim()];
+    }
+    if (list.length > BACKUP_MAX_DIRS) return fail(ctx.res, '最多支持 ' + BACKUP_MAX_DIRS + ' 个目标文件夹（当前 ' + list.length + ' 个）', 400);
+    for (const d of list) {
+      if (d.length > 200) return fail(ctx.res, '目标文件夹路径过长（最多 200 字符）：' + d.slice(0, 40) + '…', 400);
+    }
+    const seen = new Set(), uniq = [];
+    for (const d of list) {
+      let abs;
+      try { abs = backupDirAbs(d); }
+      catch (e) { return fail(ctx.res, '路径「' + d + '」无效：' + (e && e.message || e), 400); }
+      const key = process.platform === 'win32' ? abs.toLowerCase() : abs;
+      if (seen.has(key)) continue;                  // 同一个目录填两遍没有意义
+      seen.add(key);
+      uniq.push(d);
+    }
+    next.dirs = uniq.length ? uniq : [''];
+    next.dir = next.dirs[0];                        // 兼容字段：恒等于第一个目标
+    delete next.targets;                            // 回到老结构（去掉逐目标配置）
+    touched.push('目标文件夹（' + next.dirs.length + ' 个，共用一套频率）');
+  }
+  // 【全局默认策略】顶层 freq / weekday / day / hours / time / keep 有两条语义，都要照顾：
+  //   ① 作为「新建目标的初始值」存下来（后台「＋ 添加目标文件夹」时继承它）；
+  //   ② 本次没传 targets 时，**同时批量应用到所有已有目标** —— 否则老调用方
+  //      PUT {freq:'daily'} 只改了一个看不见的默认值，对已有目标毫无影响，就是「静默无效」。
+  //   本次传了 targets 时只做 ①：targets 是针对每个目标的具体设置，比顶层值更具体，不该被它覆盖。
+  const batchApply = (b.targets === undefined) && Array.isArray(next.targets);
+  const applyAll = (k, v) => {
+    if (!batchApply) return;
+    next.targets = next.targets.map(o => Object.assign({}, o, { [k]: v }));
+  };
+  if (b.freq !== undefined) {
+    const f = String(b.freq || '').trim();
+    if (BACKUP_FREQ_KEYS.indexOf(f) < 0) return fail(ctx.res, '频率取值必须是 ' + BACKUP_FREQ_KEYS.join(' / '), 400);
+    next.freq = f; applyAll('freq', f);
+    touched.push('频率' + (batchApply ? '（应用到全部 ' + next.targets.length + ' 个目标）' : '（默认值）'));
+  }
+  if (b.weekday !== undefined) {
+    const n = Number(b.weekday);
+    if (!Number.isFinite(n) || n < 0 || n > 6) return fail(ctx.res, '星期取值必须是 0~6（0=周日）', 400);
+    next.weekday = Math.round(n); applyAll('weekday', next.weekday);
+    touched.push('执行星期' + (batchApply ? '（全部目标）' : '（默认值）'));
+  }
+  if (b.day !== undefined) {
+    const n = Number(b.day);
+    if (!Number.isFinite(n) || n < 1 || n > 31) return fail(ctx.res, '每月日期应为 1~31', 400);
+    next.day = Math.round(n); applyAll('day', next.day);
+    touched.push('每月日期' + (batchApply ? '（全部目标）' : '（默认值）'));
+  }
+  if (b.hours !== undefined) {
+    const n = Number(b.hours);
+    if (!Number.isFinite(n) || n < 1 || n > 23) return fail(ctx.res, '间隔小时数应为 1~23', 400);
+    next.hours = Math.round(n); applyAll('hours', next.hours);
+    touched.push('间隔小时' + (batchApply ? '（全部目标）' : '（默认值）'));
+  }
+  if (b.time !== undefined) {
+    const t = String(b.time || '').trim();
+    if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(t)) return fail(ctx.res, '时间格式应为 HH:MM（如 19:00）', 400);
+    next.time = t.length === 4 ? '0' + t : t; applyAll('time', next.time);
+    touched.push('执行时刻' + (batchApply ? '（全部目标）' : '（默认值）'));
+  }
+  if (b.keep !== undefined) {
+    const n = Number(b.keep);
+    if (!Number.isFinite(n) || n < 0 || n > 3650) return fail(ctx.res, '保留份数应为 0~3650（0 = 全部保留）', 400);
+    next.keep = Math.round(n); applyAll('keep', next.keep);
+    touched.push('保留份数' + (batchApply ? '（全部目标）' : '（默认值）'));
+  }
+  if (b.compress !== undefined) { next.compress = !!b.compress; touched.push('压缩'); }
+  if (b.retry !== undefined) {
+    const n = Number(b.retry);
+    if (!Number.isFinite(n) || n < 1 || n > 10) return fail(ctx.res, '重试次数应为 1~10', 400);
+    next.retry = Math.round(n); touched.push('重试次数');
+  }
+  if (!touched.length) return fail(ctx.res, '没有需要更新的字段', 400);
+  kvset('backup', next);
+  backupComputeNext();
+  const eff = backupCfg();
+  logI('BACKUP', '备份配置已更新：' + touched.join('、') + ' → ' +
+    backupDirList().map(t => (t.raw || '(默认目录)') + (t.error ? ' [无效]' : '')).join(' ＋ ') +
+    '，' + backupFreqDesc(eff) + (eff.enabled ? '' : '（当前为停用）'));
+  return handleGetBackup(ctx);     // 直接回最新全量状态，前端一次刷新到位
+}
+
+// POST /api/backup/run —— 立即备份一次
+async function handleRunBackup(ctx) {
+  const rec = await backupRun('manual');
+  if (rec.busy) return fail(ctx.res, rec.error, 409);
+  return sendJson(ctx.res, Object.assign({ ok: rec.ok }, rec));
+}
+
+// POST /api/backup/test —— 测试目标文件夹可写。可带 dirs:[...] 试测一批未保存的路径；
+// 不带则测当前配置的全部目标。**始终返回 200 + 逐目标结果**（「3 个里成了 2 个」用 4xx 表达不了）；
+// 全部失败时额外给 error 摘要，兼容只看 error 字段的调用方。
+async function handleTestBackup(ctx) {
+  const b = ctx.body || {};
+  let list = null;
+  if (Array.isArray(b.dirs)) list = b.dirs.map(x => String(x == null ? '' : x).trim());
+  else if (b.dir !== undefined) list = [String(b.dir == null ? '' : b.dir).trim()];
+  if (!list) list = backupCfg().dirs;
+
+  const now = new Date();
+  const out = [];
+  const seen = new Set();
+  for (const raw of list) {
+    const r = { raw: raw, dir: null, ok: false, error: null, sub_dir: null, cost_ms: 0, disk_free: null, disk_free_text: '—' };
+    let abs;
+    try { abs = backupDirAbs(raw); }
+    catch (e) { r.error = '路径无效：' + (e && e.message || e); out.push(r); continue; }
+    const key = process.platform === 'win32' ? abs.toLowerCase() : abs;
+    if (seen.has(key)) continue;                   // 同一条目重复填，测一遍就够
+    seen.add(key);
+    r.dir = abs;
+    const probeDir = path.join(abs, String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
+    try {
+      await fs.promises.mkdir(probeDir, { recursive: true });
+      const p = path.join(probeDir, '.write-test-' + Date.now());
+      const t0 = Date.now();
+      await fs.promises.writeFile(p, 'ok');
+      await fs.promises.unlink(p);
+      r.ok = true; r.sub_dir = probeDir; r.cost_ms = Date.now() - t0;
+      r.disk_free = await diskFreeBytes(probeDir);
+      r.disk_free_text = humanSize(r.disk_free);
+    } catch (e) {
+      r.error = (e && e.message || e) + '。请确认盘符存在、路径正确、有写入权限（移动硬盘或 U 盘要插好）。';
+    }
+    out.push(r);
+  }
+
+  const okN = out.filter(x => x.ok).length;
+  const body = {
+    ok: out.length > 0 && okN === out.length,
+    ok_count: okN, total: out.length,
+    targets: out,
+    // 兼容字段（单目标语义，取第一个目标）
+    dir: out[0] ? out[0].dir : null,
+    sub_dir: out[0] ? out[0].sub_dir : null,
+    cost_ms: out.reduce((s, x) => s + x.cost_ms, 0),
+    disk_free: out[0] ? out[0].disk_free : null,
+    disk_free_text: out[0] ? out[0].disk_free_text : '—',
+  };
+  if (okN < out.length) {
+    body.error = '有 ' + (out.length - okN) + ' 个目标写入失败：' +
+      out.filter(x => !x.ok).map(x => (x.raw || '(默认目录)') + '（' + (x.error || '') + '）').join('；');
+  }
+  return sendJson(ctx.res, body);
+}
+
+// GET /api/backup/files —— 扫盘列出**所有目标**上真实存在的备份文件（与 kv 里的历史记录相互印证）
+async function handleListBackupFiles(ctx) {
+  const out = [];
+  const dirs = backupDirList();
+  async function walk(baseAbs, d, depth) {
+    if (depth > 4) return;
+    let list;
+    try { list = await fs.promises.readdir(d, { withFileTypes: true }); } catch (e) { return; }
+    for (const it of list) {
+      const p = path.join(d, it.name);
+      if (it.isDirectory()) { await walk(baseAbs, p, depth + 1); continue; }
+      if (!/^点检数据备份_[\d_-]+\.json(\.gz)?$/.test(it.name)) continue;
+      try {
+        const st = await fs.promises.stat(p);
+        out.push({
+          rel: path.relative(baseAbs, p), size: st.size, size_text: humanSize(st.size),
+          mtime_local: fmtLogTs(st.mtime), mtime: st.mtime.toISOString(),
+          dir_abs: baseAbs, dir_key: baseAbs,
+        });
+      } catch (e) { }
+    }
+  }
+  const scanned = [];
+  for (const t of dirs) {
+    const label = t.raw || '(默认目录)';
+    if (t.error) { scanned.push({ label: label, dir: t.abs, error: t.error, count: 0 }); continue; }
+    const before = out.length;
+    await walk(t.abs, t.abs, 1);
+    for (let i = before; i < out.length; i++) out[i].dir_key = label;
+    scanned.push({ label: label, dir: t.abs, error: null, count: out.length - before });
+  }
+  out.sort((a, b) => (a.mtime < b.mtime ? 1 : -1));
+  const first = dirs[0] || { raw: '', abs: backupDefaultDir(), error: null };
+  return sendJson(ctx.res, {
+    ok: true,
+    targets: scanned,                              // 每个目标各扫到几份
+    // 兼容字段（单目标语义）
+    dir: first.abs, dir_error: first.error,
+    total: out.length, total_size_text: humanSize(out.reduce((s, f) => s + f.size, 0)),
+    files: out.slice(0, 300),
+  });
 }
 
 // ===================== 数据备份 / 导出（管理员） =====================
@@ -5059,6 +5958,12 @@ const routes = [
   { method: 'POST',   path: '/api/lan-upgrade/apply',      handler: handleLanApply, raw: true },
   { method: 'GET', path: '/api/admin/backup', handler: handleBackup, adminOnly: true },
   { method: 'POST', path: '/api/admin/restore', handler: handleRestore, adminOnly: true },
+  // ---- 数据定时备份（v1.38.0）----
+  { method: 'GET',  path: '/api/backup/config', handler: handleGetBackup, adminOnly: true, perm: 'export' },
+  { method: 'PUT',  path: '/api/backup/config', handler: handlePutBackup, adminOnly: true, perm: 'export' },
+  { method: 'POST', path: '/api/backup/run',    handler: handleRunBackup, adminOnly: true, perm: 'export' },
+  { method: 'POST', path: '/api/backup/test',   handler: handleTestBackup, adminOnly: true, perm: 'export' },
+  { method: 'GET',  path: '/api/backup/files',  handler: handleListBackupFiles, adminOnly: true, perm: 'export' },
   { method: 'GET', path: '/api/admin/logs', handler: handleLogsGet, adminOnly: true },
   { method: 'GET', path: '/api/admin/export-inspections-csv', handler: handleExportCsv, adminOnly: true },
 ];
@@ -5237,3 +6142,7 @@ process.on('SIGTERM', () => { scheduleSave(); setTimeout(() => process.exit(0), 
 
 // LIMS 定时自动填充：每 30 秒看一次配置的时刻表（到点后 5 分钟窗口内触发一次）
 setInterval(() => { limsAutoTick().catch(e => console.error('[LIMS自动]', e && e.message)); }, 30 * 1000);
+
+// 数据定时备份：同一套 tick 思路（每周 X HH:MM，到点后 5 分钟窗口内触发一次）
+setInterval(() => { backupAutoTick().catch(e => console.error('[备份]', e && e.message)); }, 30 * 1000);
+backupComputeNext();

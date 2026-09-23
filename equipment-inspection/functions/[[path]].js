@@ -1352,20 +1352,42 @@ function limsParseTime(s) {
 }
 const limsPeriodOf = h => (h < 12 ? 'AM' : (h < 18 ? 'PM' : 'Night'));
 const LIMS_PERIOD_WINDOW = { AM: ['00:00:00', '11:59:59'], PM: ['12:00:00', '17:59:59'], Night: ['18:00:00', '23:59:59'] };
+// LIMS humidityChart 单次查询的**跨度上限**。上游 v1.37.7 逐档实测：
+// 24 / 25 / 31 天 → code=5004「时间间隔过长」；23 天 → ok；20 / 15 / 10 天 → ok。
+// 取 20 天留 3 天余量（LIMS 再收紧一天也不会立刻炸），并把 5004 标为不可重试
+// —— 同一跨度重试永远不会成功，白等退避没意义。
+const LIMS_SPAN_MAX = 20;
+function limsFetchHumidityWindow(cfg, token, limsRoom, body) {
+  return limsHttp(cfg.base.replace(/\/$/, '') + '/hanson-lcdp/oapi/dataAcquisition/environment/humidityChart',
+    { method: 'POST', headers: { 'X-Access-Token': token }, body }).then(r => {
+      const arr = r.json && r.json.data && Array.isArray(r.json.data.result) ? r.json.data.result : [];
+      return arr.map(x => ({ humidity: x.humidity, time: x.time, tm: limsParseTime(x.time) })).filter(x => x.humidity != null && x.tm);
+    });
+}
+// 整月湿度：拆成 ≤LIMS_SPAN_MAX 天的窗口串行拉取后合并去重（按 time 去重）。
+// ⚠️ 不能一次拉整月 —— LIMS 限制 23 天跨度，整月 28~31 天必然被拒。
 async function limsFetchHumidity(cfg, token, limsRoom, ym) {
   const [yy, mm] = ym.split('-').map(Number);
   const dim = new Date(yy, mm, 0).getDate();
   const pad = n => String(n).padStart(2, '0');
-  const body = { interfaceId: cfg.interfaceId, roomName: limsRoom, startDate: ym + '-01', endDate: ym + '-' + pad(dim), startTime: '', endTime: '' };
-  let lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const r = await limsHttp(cfg.base.replace(/\/$/, '') + '/hanson-lcdp/oapi/dataAcquisition/environment/humidityChart', { method: 'POST', headers: { 'X-Access-Token': token }, body });
-      const arr = r.json && r.json.data && Array.isArray(r.json.data.result) ? r.json.data.result : [];
-      return arr.map(x => ({ humidity: x.humidity, time: x.time, tm: limsParseTime(x.time) })).filter(x => x.humidity != null && x.tm);
-    } catch (e) { lastErr = e; if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1))); }
+  const all = [], seen = new Set();
+  for (let d0 = 1; d0 <= dim; d0 += LIMS_SPAN_MAX) {
+    const d1 = Math.min(dim, d0 + LIMS_SPAN_MAX - 1);
+    const body = { interfaceId: cfg.interfaceId, roomName: limsRoom, startDate: ym + '-' + pad(d0), endDate: ym + '-' + pad(d1), startTime: '', endTime: '' };
+    let lastErr = null, arr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { arr = await limsFetchHumidityWindow(cfg, token, limsRoom, body); break; }
+      catch (e) {
+        lastErr = e;
+        // 5004 = 跨度太长，重试没有意义
+        if (/5004|时间间隔过长/.test(String(e && e.message || e))) throw e;
+        if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
+      }
+    }
+    if (arr === null) throw lastErr || new Error('LIMS 湿度接口失败');
+    for (const p of arr) { if (p.time && seen.has(p.time)) continue; if (p.time) seen.add(p.time); all.push(p); }
   }
-  throw lastErr || new Error('LIMS 湿度接口失败');
+  return all;
 }
 async function limsFetchEnvWindow(cfg, token, limsRoom, date, startHM, endHM) {
   const body = { interfaceId: cfg.interfaceIdTh || LIMS_DEFAULTS.interfaceIdTh, roomName: limsRoom, startDate: date, endDate: date, startTime: startHM, endTime: endHM };
@@ -1556,6 +1578,247 @@ async function handleLimsSyncAll(ctx) {
     await new Promise(res => setTimeout(res, 300));
   }
   return json({ ok: true, ym, rooms: rooms.length, filled_total: filledTotal, results });
+}
+
+// ===================== 数据定时备份（v1.41.0 只读演示实现） =====================
+// 上游 v1.38.0 → v1.40.0 新增「把数据定时备份到本机文件夹」：多目标互为副本、逐目标频率、
+// 周期键判重、保留份数、重试与运行日志。Workerd 里**没有文件系统**，所以本只读版只做两件事：
+//   ① 忠实复刻 GET 响应的**形状**（cfg / targets / default_policy / summary / history / counts…），
+//      让后台「💾 数据备份」页签能原样渲染 —— 漏掉的话前端 catch 掉异常，页签会**静默空白**；
+//   ② 凡与「本机磁盘」有关的事实（可写状态 / 磁盘余量 / 扫盘结果）一律**如实标记为不可用**，
+//      绝不假装可写；「已生成的备份文件」则由演示数据里的 history 推导（两者本就互为印证）。
+const BACKUP_WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const BACKUP_FREQS = [
+  { key: 'weekly', label: '每周一次', hint: '每周固定一天、固定时刻备份一次' },
+  { key: 'daily', label: '每天一次', hint: '每天固定时刻备份一次' },
+  { key: 'hourly', label: '每隔几小时', hint: '每隔 N 小时备份一次（按 0 点起算的整点间隔）' },
+  { key: 'monthly', label: '每月一次', hint: '每月固定一天、固定时刻备份一次（当月没有该日号时用当月最后一天）' },
+];
+const BACKUP_MAX_DIRS = 8;
+const BACKUP_DEFAULT_DIR = '<程序目录>/backups';
+const BACKUP_DEMO_RW_ERROR = '演示站为只读展示模式：不访问任何文件系统（自托管版本可正常读写目标文件夹）';
+const BACKUP_FREQ_KEYS = BACKUP_FREQS.map(f => f.key);
+const BACKUP_DEFAULTS = { enabled: true, freq: 'weekly', weekday: 0, day: 1, hours: 6, time: '19:00', keep: 0, retry: 3, compress: false };
+
+const bkClamp = (v, d, lo, hi) => (Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : d);
+const bkStr = s => String(s == null ? '' : s).trim();
+// 目标目录 → 展示用绝对路径。演示站不碰文件系统，空串统一显示为默认目录占位。
+function bkDirAbs(raw) { const d = bkStr(raw); return d || BACKUP_DEFAULT_DIR; }
+// 判重台账的键：与上游一致（win32 取小写绝对路径）。演示站里空串目标用「(默认目录)」作键，
+// 以便和演示数据 lastAuto 里的键对得上。
+function bkTargetKey(raw) { const d = bkStr(raw); return d ? d.toLowerCase() : '(默认目录)'; }
+function bkGlobalPolicy(c) {
+  const t = bkStr(c.time);
+  return {
+    freq: BACKUP_FREQ_KEYS.indexOf(bkStr(c.freq)) >= 0 ? bkStr(c.freq) : BACKUP_DEFAULTS.freq,
+    weekday: bkClamp(c.weekday, BACKUP_DEFAULTS.weekday, 0, 6),
+    day: bkClamp(c.day, BACKUP_DEFAULTS.day, 1, 31),
+    hours: bkClamp(c.hours, BACKUP_DEFAULTS.hours, 1, 23),
+    time: /^([01]?\d|2[0-3]):[0-5]\d$/.test(t) ? (t.length === 4 ? '0' + t : t) : BACKUP_DEFAULTS.time,
+    keep: bkClamp(c.keep, BACKUP_DEFAULTS.keep, 0, 3650),
+  };
+}
+function bkTargets(c) {
+  const g = bkGlobalPolicy(c);
+  const rawList = [];
+  if (Array.isArray(c.targets)) {
+    for (const o of c.targets) {
+      if (o && typeof o === 'object' && !Array.isArray(o)) rawList.push(o);
+      else if (typeof o === 'string') rawList.push({ dir: o });
+    }
+  } else {
+    const arr = Array.isArray(c.dirs) ? c.dirs : [bkStr(c.dir)];
+    for (const d of arr) rawList.push({ dir: bkStr(d) });
+  }
+  if (!rawList.length) rawList.push({ dir: '' });
+  const out = [], seen = new Set();
+  for (const o of rawList.slice(0, BACKUP_MAX_DIRS)) {
+    const dir = bkStr(o.dir);
+    const key = bkTargetKey(dir);
+    if (seen.has(key)) continue;                    // 同一目录填两遍没有意义
+    seen.add(key);
+    const tt = bkStr(o.time);
+    out.push({
+      key, raw: dir, abs: bkDirAbs(dir), error: null,
+      enabled: o.enabled === undefined ? true : !!o.enabled,
+      freq: BACKUP_FREQ_KEYS.indexOf(bkStr(o.freq)) >= 0 ? bkStr(o.freq) : g.freq,
+      weekday: o.weekday === undefined ? g.weekday : bkClamp(o.weekday, g.weekday, 0, 6),
+      day: o.day === undefined ? g.day : bkClamp(o.day, g.day, 1, 31),
+      hours: o.hours === undefined ? g.hours : bkClamp(o.hours, g.hours, 1, 23),
+      time: /^([01]?\d|2[0-3]):[0-5]\d$/.test(tt) ? (tt.length === 4 ? '0' + tt : tt) : g.time,
+      keep: o.keep === undefined ? g.keep : bkClamp(o.keep, g.keep, 0, 3650),
+    });
+  }
+  if (out.length) return out;
+  return [Object.assign({ key: '(默认目录)', raw: '', abs: BACKUP_DEFAULT_DIR, error: null, enabled: true }, g)];
+}
+function bkP2(n) { return String(n).padStart(2, '0'); }
+function bkIsoWeekKey(d) {
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  t.setDate(t.getDate() - ((t.getDay() + 6) % 7) + 3);
+  const f = new Date(t.getFullYear(), 0, 4);
+  f.setDate(f.getDate() - ((f.getDay() + 6) % 7) + 3);
+  const wk = 1 + Math.round((t - f) / (7 * 86400000));
+  return t.getFullYear() + '-W' + String(wk).padStart(2, '0');
+}
+function bkPeriodKey(cfg, d) {
+  const ymd = d.getFullYear() + '-' + bkP2(d.getMonth() + 1) + '-' + bkP2(d.getDate());
+  if (cfg.freq === 'daily') return ymd;
+  if (cfg.freq === 'monthly') return d.getFullYear() + '-' + bkP2(d.getMonth() + 1);
+  if (cfg.freq === 'hourly') { const step = Math.max(1, cfg.hours); return ymd + 'H' + bkP2(Math.floor(d.getHours() / step) * step); }
+  return bkIsoWeekKey(d);
+}
+// 逐目标的下一次执行时刻（纯函数，与上游 backupNextFor 同口径）
+function bkNextFor(cfg, now) {
+  const [h, m] = cfg.time.split(':').map(Number);
+  const at = (y, mo, dd) => new Date(y, mo, dd, h, m, 0, 0);
+  let d = null;
+  if (cfg.freq === 'hourly') {
+    const step = Math.max(1, cfg.hours);
+    d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), m, 0, 0);
+    for (let i = 0; i < 48 && !(d.getHours() % step === 0 && d.getTime() > now.getTime()); i++) d.setHours(d.getHours() + 1);
+  } else if (cfg.freq === 'monthly') {
+    for (let i = 0; i < 14; i++) {
+      const y = now.getFullYear(), mo = now.getMonth() + i;
+      const last = new Date(y, mo + 1, 0).getDate();
+      const cand = at(y, mo, Math.min(cfg.day, last));
+      if (cand.getTime() > now.getTime()) { d = cand; break; }
+    }
+  } else if (cfg.freq === 'daily') {
+    d = at(now.getFullYear(), now.getMonth(), now.getDate());
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+  } else {
+    d = at(now.getFullYear(), now.getMonth(), now.getDate());
+    let add = (cfg.weekday - d.getDay() + 7) % 7;
+    if (add === 0 && d.getTime() <= now.getTime()) add = 7;
+    d.setDate(d.getDate() + add);
+  }
+  return d || null;
+}
+function bkFreqDesc(cfg) {
+  if (cfg.freq === 'daily') return '每天 ' + cfg.time;
+  if (cfg.freq === 'hourly') return '每 ' + cfg.hours + ' 小时（每个间隔的第 ' + Number(cfg.time.split(':')[1]) + ' 分）';
+  if (cfg.freq === 'monthly') return '每月 ' + cfg.day + ' 日 ' + cfg.time;
+  return '每' + BACKUP_WEEKDAYS[cfg.weekday] + ' ' + cfg.time;
+}
+function bkFmtLocal(d) {
+  if (!d) return null;
+  const x = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(x.getTime())) return null;
+  return x.getFullYear() + '-' + bkP2(x.getMonth() + 1) + '-' + bkP2(x.getDate()) + ' ' + bkP2(x.getHours()) + ':' + bkP2(x.getMinutes()) + ':' + bkP2(x.getSeconds());
+}
+// "21.7 KB" → 字节数（演示数据只存了人类可读文本，这里换算回来，避免凭空编造数值）
+function bkParseSize(t) {
+  const m = /^([\d.]+)\s*(B|KB|MB|GB)$/.exec(bkStr(t));
+  if (!m) return 0;
+  const v = Number(m[1]);
+  const mul = { B: 1, KB: 1024, MB: 1048576, GB: 1073741824 }[m[2]];
+  return Math.round(v * mul);
+}
+function bkHumanSize(n) {
+  if (n == null) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+function bkCounts(ctx) {
+  const n = k => (Array.isArray(ctx.store[k]) ? ctx.store[k].length : 0);
+  return {
+    devices: n('devices'), rooms: n('rooms'), users: n('users'), templates: n('templates'),
+    signers: n('signers'), inspections: n('inspections'), abnormalRecords: n('abnormalRecords'),
+    envRecords: n('envRecords'), depts: n('depts'),
+  };
+}
+
+// GET /api/backup/config —— 只读演示版：形状与上游一致，磁盘相关事实如实置为不可用
+function handleGetBackupDemo(ctx) {
+  const rawCfg = ctx.kvget('backup', {});
+  const c = (rawCfg && typeof rawCfg === 'object' && !Array.isArray(rawCfg)) ? rawCfg : {};
+  const g = bkGlobalPolicy(c);
+  const dirs = bkTargets(c);
+  const cfg = Object.assign({
+    enabled: c.enabled === undefined ? BACKUP_DEFAULTS.enabled : !!c.enabled,
+    dirs: dirs.map(x => x.raw),
+    dir: dirs[0] ? dirs[0].raw : '',
+    retry: bkClamp(c.retry, BACKUP_DEFAULTS.retry, 1, 10),
+    compress: !!c.compress,
+  }, g);
+  const autoLedger = (c.lastAuto && typeof c.lastAuto === 'object' && !Array.isArray(c.lastAuto)) ? c.lastAuto : {};
+  const now = new Date();
+  const targets = dirs.map(t => {
+    const nextD = (cfg.enabled && t.enabled) ? bkNextFor(t, now) : null;
+    return {
+      raw: t.raw, dir: t.abs, error: null, key: t.key,
+      enabled: t.enabled, freq: t.freq, weekday: t.weekday, day: t.day, hours: t.hours, time: t.time, keep: t.keep,
+      freq_desc: bkFreqDesc(t),
+      next_run_local: bkFmtLocal(nextD),
+      last_auto: (autoLedger[t.key] || null),
+      period_key_now: bkPeriodKey(t, now),
+      last_auto_current: !!(autoLedger[t.key] && autoLedger[t.key].periodKey === bkPeriodKey(t, now)),
+      // 只读演示站不碰文件系统：可写状态与磁盘余量必须如实报「不可用」，不能假装可写
+      writable: false, write_error: BACKUP_DEMO_RW_ERROR, disk_free: null, disk_free_text: '—',
+    };
+  });
+  let next = null;
+  if (cfg.enabled) for (const t of targets) { if (!t.enabled) continue; const d = bkNextFor(t, now); if (d && (!next || d.getTime() < next.getTime())) next = d; }
+  const first = targets[0] || { raw: '', dir: BACKUP_DEFAULT_DIR, error: null, writable: false, write_error: BACKUP_DEMO_RW_ERROR, disk_free: null, disk_free_text: '—' };
+  return json({
+    cfg, targets,
+    default_policy: g,
+    default_dir: BACKUP_DEFAULT_DIR,
+    max_dirs: BACKUP_MAX_DIRS,
+    summary: { total: targets.length, enabled: targets.filter(t => t.enabled).length, will_run: cfg.enabled ? targets.filter(t => t.enabled).length : 0 },
+    effective_dir: first.dir, dir_error: first.error, writable: first.writable,
+    write_error: first.write_error, disk_free: first.disk_free, disk_free_text: first.disk_free_text,
+    history: Array.isArray(c.history) ? c.history : [],
+    last_run: c.lastRun || null,
+    next_run_local: bkFmtLocal(next),
+    weekdays: BACKUP_WEEKDAYS,
+    freqs: BACKUP_FREQS,
+    freq_desc: (cfg.enabled ? bkFreqDesc(cfg) : '已停用'),
+    running: false,
+    app_version: APP_VERSION,
+    counts: bkCounts(ctx),
+    readonly: true,
+    demo_note: '只读演示站：配置与历史为演示数据；目标文件夹的可写状态与磁盘余量在无文件系统的运行环境中不可用。',
+  });
+}
+
+// GET /api/backup/files —— 只读演示版：由演示 history 推出文件清单（上游该接口本就用于印证历史记录）
+function handleListBackupFilesDemo(ctx) {
+  const rawCfg = ctx.kvget('backup', {});
+  const c = (rawCfg && typeof rawCfg === 'object' && !Array.isArray(rawCfg)) ? rawCfg : {};
+  const dirs = bkTargets(c);
+  const history = Array.isArray(c.history) ? c.history : [];
+  const files = [];
+  for (const h of history) {
+    if (!h || !h.ok) continue;
+    for (const t of (h.targets || [])) {
+      if (!t || !t.ok || !t.file) continue;
+      const size = bkParseSize(h.size_text);
+      files.push({
+        rel: t.file, size, size_text: bkHumanSize(size),
+        mtime_local: h.at_local || '', mtime: h.at,
+        dir_abs: bkDirAbs(t.raw_dir === '(默认目录)' ? '' : t.raw_dir),
+        dir_key: t.raw_dir || '(默认目录)',
+      });
+    }
+  }
+  files.sort((a, b) => (a.mtime < b.mtime ? 1 : -1));
+  const targets = dirs.map(t => ({
+    label: t.raw || '(默认目录)', dir: t.abs, error: t.error || null,
+    count: files.filter(f => f.dir_key === (t.raw || '(默认目录)')).length,
+  }));
+  return json({
+    ok: true, targets,
+    dir: dirs[0] ? dirs[0].abs : BACKUP_DEFAULT_DIR, dir_error: null,
+    total: files.length,
+    total_size_text: bkHumanSize(files.reduce((s, f) => s + f.size, 0)),
+    files: files.slice(0, 300),
+    readonly: true,
+    demo_note: '只读演示站：文件清单由演示备份历史推导，非真实扫盘结果。',
+  });
 }
 
 // ===================== 数据备份 / 导出（管理员） =====================
@@ -1919,6 +2182,11 @@ const routes = [
   { method: 'GET', path: '/api/admin/backup', handler: handleBackup, adminOnly: true },
   { method: 'GET', path: '/api/admin/export-inspections-csv', handler: handleExportCsv, adminOnly: true },
 
+  // ---- v1.41.0 只读演示新增（上游 v1.38.0~v1.40.0 的数据定时备份）----
+  // 上游这两个接口是 adminOnly；只读站把浏览类 GET 对访客公开（写方法仍一律 403）。
+  { method: 'GET', path: '/api/backup/config', handler: handleGetBackupDemo },
+  { method: 'GET', path: '/api/backup/files', handler: handleListBackupFilesDemo },
+
   // ---- v1.29.0 只读演示新增 ----
   { method: 'GET', path: '/api/programs', handler: handleListPrograms },
   { method: 'GET', path: '/api/check-records', handler: handleListCheckRecords },
@@ -1958,9 +2226,9 @@ function matchRoute(method, p) {
   return null;
 }
 
-// 系统版本号（与本地 server.js 保持一致）
-const APP_VERSION = 'v1.38.0';
-const APP_VERSION_DATE = '2026-09-22';
+// 系统版本号（与上游 server.js 的能力对齐；开源脱敏版自身版本号见仓库 version.json）
+const APP_VERSION = 'v1.41.0';
+const APP_VERSION_DATE = '2026-09-23';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

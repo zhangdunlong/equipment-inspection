@@ -167,6 +167,7 @@ select option:disabled{color:var(--muted)}
     <div class="tg-row"><span class="gl">系统</span><span class="ts">
       <button data-t="user" data-page-node-id="yvGHzG1cgMHBOgFfK5sGF2">👥 用户管理</button>
       <button data-t="sys" data-page-node-id="2UmR7JEXmVL4svbpwnPS5N">⚙️ 系统</button>
+      <button data-t="backup">💾 数据备份</button>
       <button data-t="logs">🧾 运行日志</button>
     </span></div>
   </div>
@@ -665,6 +666,86 @@ select option:disabled{color:var(--muted)}
   </div>
 
   <!-- 运行日志 -->
+  <!-- 数据定时备份（v1.38.0 起；v1.40.0 支持每个目标各带一套频率） -->
+  <div class="panel glass" id="p_backup">
+    <h3 style="margin:0 0 8px;font-size:15px">💾 数据定时备份</h3>
+    <p class="muted tiny" style="margin:0 0 10px;line-height:1.85">
+      服务会按各自的周期把<b>全部业务数据</b>自动写成备份文件，存到指定文件夹，再按<b>年 / 月</b>自动建子文件夹归档。
+      不需要装外部计划任务、也不需要联网 —— <b>只要点检服务在运行，到点就会自动备份</b>。<br>
+      <b>目标文件夹可以设多个、每个各自设频率</b>：同一份数据会同时写到每一处、互为副本 ——
+      建议放两个地方（例如本机硬盘 + 移动硬盘或网络盘），这样任何一处损坏都还有一份可用。
+      典型搭配：本机盘「每 6 小时、留 48 份」抓近几天，网络盘「每天 23:55、全部保留」留长期。
+    </p>
+
+    <div id="bk_status" class="glass" style="padding:12px;margin-bottom:14px;border-left:3px solid var(--cyan,#22c1dc)"></div>
+
+    <div class="row">
+      <div class="field"><label>启用定时备份</label>
+        <label class="flex" style="align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="bk_enabled" style="width:auto">
+          <span class="muted tiny">总开关。关掉后所有目标都不再自动备份（「⚡ 立即备份一次」仍可用）</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="field"><label>目标文件夹与各自的备份频率</label>
+      <div class="muted tiny" style="margin:0 0 8px;line-height:1.75">
+        每一行是<b>一个目标文件夹</b>，各自设自己的频率、时刻与保留份数 ——
+        例如本机盘「每 6 小时、留 48 份」，网络盘「每天 23:55、全部保留」。
+        同一份数据会同时写到每一处、互为副本。
+      </div>
+      <div id="bk_dirs"></div>
+      <div class="flex" style="gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm" onclick="bkAddDir('')">＋ 添加目标文件夹</button>
+        <button class="btn sm" onclick="bkTest()">测试全部写入</button>
+        <span class="muted tiny" id="bk_dir_hint"></span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>失败重试次数（对所有目标生效）</label>
+        <input type="number" id="bk_retry" min="1" max="10" style="max-width:150px">
+        <div class="muted tiny" style="margin-top:3px">第 1 次失败后按 3s / 6s / 9s 依次重试</div></div>
+      <div class="field"><label>压缩存储（对所有目标生效）</label>
+        <label class="flex" style="align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="bk_compress" style="width:auto">
+          <span class="muted tiny">压成 .gz（省空间，但要解压才能查看或导入）</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex" style="gap:8px;margin:4px 0 18px">
+      <span class="sp"></span>
+      <button class="btn" onclick="loadBackup()">↻ 刷新状态</button>
+      <button class="btn cyan" onclick="bkRunNow()">⚡ 立即备份一次</button>
+      <button class="btn primary" onclick="bkSave()">保存配置</button>
+    </div>
+
+    <h4 style="margin:18px 0 6px;font-size:13px">📜 已生成的备份文件</h4>
+    <div class="scroll glass" style="max-height:320px">
+      <table><thead><tr>
+        <th style="width:170px">目标文件夹</th><th style="width:150px">生成时间</th>
+        <th style="width:80px">大小</th><th>文件（相对该目标文件夹）</th>
+      </tr></thead><tbody id="bk_files"></tbody></table>
+    </div>
+
+    <h4 style="margin:18px 0 6px;font-size:13px">📋 执行历史（最近 50 次）</h4>
+    <div class="scroll glass" style="max-height:260px">
+      <table><thead><tr>
+        <th style="width:165px">时间</th><th style="width:70px">触发</th><th style="width:70px">结果</th>
+        <th style="width:85px">耗时</th><th>说明</th>
+      </tr></thead><tbody id="bk_hist"></tbody></table>
+    </div>
+
+    <p class="muted tiny" style="margin:12px 0 0;line-height:1.95">
+      <b>怎么还原？</b>备份文件夹里每个时间点会生成两个文件：<b>点检数据备份_*.json</b>（业务数据）和
+      <b>点检数据备份_*.config.json</b>（服务器配置）。两者<b>必须配套</b> —— 配置文件里有密码校验用的密钥，缺了它用户密码会对不上。
+      还原步骤：① 停掉点检服务；② 用备份文件的内容覆盖 <b>data/kv.json</b>；③ 用配套的 config 文件覆盖 <b>data/config.json</b>；④ 重新启动服务。
+      若只想恢复业务数据，也可以走后台「⚙️ 系统」页签里的<b>导入数据备份</b>，直接选 <b>点检数据备份_*.json</b>；
+      但请注意：点检服务每次启动时自身也会把上一份数据留成 <b>data/kv-restore-backup-*.json</b>，那也是可回退的保险。
+    </p>
+  </div>
+
   <div class="panel glass" id="p_logs">
     <div class="flex mb" style="flex-wrap:wrap;gap:8px;align-items:center">
       <select id="log_level" style="max-width:130px">
@@ -699,7 +780,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');$('#p_'+b.dataset.t).classList.add('active');
-  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='head')loadFormHeads();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month'){loadMonthInspect();loadCheckMonth();}if(b.dataset.t==='env'){loadEnvFill();loadLims();}if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}if(b.dataset.t==='logs')loadLogs();if(b.dataset.t==='alert')loadAlertTab();
+  if(b.dataset.t==='dev')loadDev();if(b.dataset.t==='room')loadRooms();if(b.dataset.t==='tpl')loadTpl();if(b.dataset.t==='head')loadFormHeads();if(b.dataset.t==='sig')loadSig();if(b.dataset.t==='rec')loadRec();if(b.dataset.t==='month'){loadMonthInspect();loadCheckMonth();}if(b.dataset.t==='env'){loadEnvFill();loadLims();}if(b.dataset.t==='user')loadUsers();if(b.dataset.t==='dept')loadDepts();if(b.dataset.t==='sys'){loadSysStat();lanLoad();}if(b.dataset.t==='logs')loadLogs();if(b.dataset.t==='backup')loadBackup();if(b.dataset.t==='alert')loadAlertTab();
 });
 
 // ===================== 温湿度预警配置（v1.21.0，顶层作用域——tab 钩子与内联 onclick 都要能调到）=====================
@@ -807,6 +888,272 @@ $('#al_filter').onchange=()=>loadAlertList();
 $('#al_reload').onclick=()=>loadAlertList();
 
 // ===== 运行日志 =====
+/* ---------- 数据定时备份（v1.38.0） ---------- */
+let BK_STATE=null;
+async function loadBackup(){
+  const st=$('#bk_status');
+  let j=null;
+  try{ j=await api('/api/backup/config'); }catch(e){ j=null; }
+  if(!j||j.error){ st.innerHTML='<span class="muted tiny">读不到备份配置，请刷新页面重试。</span>'; return; }
+  BK_STATE=j;
+  const c=j.cfg||{};
+  $('#bk_enabled').checked=!!c.enabled;
+  $('#bk_retry').value=(c.retry==null?3:c.retry);
+  $('#bk_compress').checked=!!c.compress;
+  // 目标列表直接用服务端下发的 targets —— 每项已带它自己的策略 + 实时状态 + 下次执行
+  bkRenderTargets(j.targets);
+
+  const lr=j.last_run;
+  const okTag = !lr ? '<span class="muted">尚未执行过</span>'
+    : (lr.ok ? '<b style="color:var(--ok,#35d07f)">✅ 成功</b>' : '<b style="color:var(--danger,#ff5c6c)">❌ 失败</b>');
+  let h='<div class="flex" style="flex-wrap:wrap;gap:18px;align-items:center">'
+    + '<span>上次执行：<b>'+(lr?esc(lr.at_local||lr.at):'—')+'</b></span>'
+    + '<span>结果：'+okTag+'</span>'
+    + (lr?'<span class="muted tiny">'+(lr.trigger==='auto'?'定时自动':'手动触发')+'</span>':'')
+    // 顶部的频率是「新建目标时继承的默认值」，不是各目标的实际频率 ——
+    // 两者都叫「频率」并列会让人以为改这里就能改所有目标，所以标签写全。
+    + (c.enabled?('<span class="muted" title="新增目标文件夹时会继承这个频率；各目标自己的频率见下方逐条">默认频率：'+esc(j.freq_desc||'')+'</span>'
+                  +'<span>下次执行<span class="muted tiny">（所有目标里最早的一个）</span>：<b>'+esc(j.next_run_local||'—')+'</b></span>')
+                :'<span class="muted">定时备份已停用</span>')
+    + '</div>';
+  if(lr&&lr.ok){
+    const okc=(lr.ok_count==null?1:lr.ok_count), tot=(lr.target_count==null?1:lr.target_count);
+    h+='<div class="muted tiny" style="margin-top:6px">'
+      + (tot>1?('目标：<b>'+okc+'/'+tot+'</b>'+(lr.all_ok?' 全部成功':' <span style="color:var(--warn)">部分成功</span>')+'　'):'')
+      + '各 '+esc(lr.size_text||'—')+'　耗时：'+(lr.cost_ms||0)+' ms　压缩：'+(lr.compress?'是':'否')
+      + (lr.pruned?'　清理旧备份 '+lr.pruned+' 份':'')+'</div>';
+    (lr.targets||[]).forEach(t=>{
+      h+='<div class="muted tiny" style="margin:2px 0 0 14px">'
+        + (t.ok?'<span style="color:var(--ok,#35d07f)">✅</span>':'<span style="color:var(--danger,#ff5c6c)">❌</span>')
+        + ' '+esc(t.raw_dir||'(默认目录)')+'　'+esc(t.ok?(t.file||''):(t.error||''))
+        + (t.ok&&t.tries>1?('　<span style="color:var(--warn)">重试 '+(t.tries-1)+' 次后成功</span>'):'')+'</div>';
+    });
+  }
+  if(lr&&!lr.ok){ h+='<div style="margin-top:6px;color:var(--danger,#ff5c6c)">失败原因：'+esc(lr.error||'')+'</div>'; }
+  const tg=(j.targets||[]);
+  const sm=j.summary||{};
+  h+='<div class="muted tiny" style="margin-top:8px">目标文件夹（<b>'+tg.length+'</b> 个'
+    + (tg.length>1
+        ? ((sm.enabled!=null&&sm.enabled<tg.length)?('，其中 <b>'+sm.enabled+'</b> 个参与定时'):'，全部参与定时')
+        : '')
+    + '，同一份数据同时写到每一处、互为副本）：</div>';
+  tg.forEach(t=>{
+    const st = t.error ? '<span style="color:var(--danger,#ff5c6c)">⚠️ '+esc(t.error)+'</span>'
+      : (t.writable?'<span style="color:var(--ok,#35d07f)">✅ 可写入</span>'
+                   :'<span style="color:var(--danger,#ff5c6c)">❌ 不可写入：'+esc(t.write_error||'')+'</span>');
+    const la=t.last_auto;
+    // 「上次自动备份」要区分是不是本周期：频率改过或跨周期后，旧记录还留着，不能当成「本周已备」
+    const laTxt = !la ? '<span class="muted">尚未自动备份</span>'
+      : ((la.ok?'<span style="color:var(--ok,#35d07f)">✅</span>':'<span style="color:var(--danger,#ff5c6c)">❌</span>')
+         + ' '+esc(la.at_local||'')+(t.last_auto_current?'':' <span class="muted">（上一周期，本周期未备）</span>'));
+    h+='<div class="muted tiny bk-stt" style="margin:4px 0 0 12px;padding-left:9px;border-left:2px solid rgba(120,140,170,.35)">'
+      + '📁 <b>'+esc(t.raw||'(默认目录)')+'</b>'+(t.raw?'':' <span style="opacity:.55">'+esc(t.dir||'')+'</span>')
+      + (t.enabled?'':' <span style="color:var(--warn,#ffb547)">（不参与定时）</span>')
+      + '<br>频率：<b>'+esc(t.freq_desc||'')+'</b>　保留：'+(t.keep?esc(String(t.keep))+' 份':'全部保留')
+      + '　下次：'+(t.enabled?esc(t.next_run_local||'—'):'<span class="muted">—</span>')
+      + '<br>'+st+(t.disk_free!=null?'　剩余 '+esc(t.disk_free_text):'')+'　上次自动备份：'+laTxt
+      + '</div>';
+  });
+  const cnt=j.counts||{};
+  h+='<div class="muted tiny" style="margin-top:4px">每次备份的内容：设备 '+cnt.devices+' · 房间 '+cnt.rooms+' · 用户 '+cnt.users
+    + ' · 模板 '+cnt.templates+' · 点检记录 '+cnt.inspections+' · 温湿度记录 '+cnt.envRecords+' · 异常记录 '+cnt.abnormalRecords+'</div>';
+  st.innerHTML=h;
+
+  const hist=(j.history||[]);
+  $('#bk_hist').innerHTML = hist.length ? hist.map(r=>
+    '<tr><td class="muted tiny">'+esc(r.at_local||r.at||'')+'</td>'
+    + '<td class="muted tiny">'+(r.trigger==='auto'?'定时':'手动')+'</td>'
+    + '<td>'+(r.ok?'<span style="color:var(--ok,#35d07f)">✅</span>':'<span style="color:var(--danger,#ff5c6c)">❌</span>')+'</td>'
+    + '<td class="muted tiny">'+(r.cost_ms||0)+' ms</td>'
+    + '<td class="muted tiny">'+esc(r.ok?(((r.target_count>1)?('目标 '+(r.ok_count||1)+'/'+r.target_count+'　'):'')+(r.size_text||'')):(r.error||''))+'</td></tr>'
+  ).join('') : '<tr><td colspan="5" class="muted tiny">还没有执行记录。到点自动执行或点「立即备份一次」之后，这里会有内容。</td></tr>';
+
+  let fj=null;
+  try{ fj=await api('/api/backup/files'); }catch(e){ fj=null; }
+  const files=(fj&&fj.files)||[];
+  const fts=(fj&&fj.targets)||[];
+  let fh='';
+  if(fj&&fj.total) fh+='<tr><td colspan="4" class="muted tiny">共 '+fj.total+' 份，合计 '+esc(fj.total_size_text||'')+'</td></tr>';
+  fts.forEach(t=>{
+    fh+='<tr><td class="muted tiny" colspan="4">📁 '+esc(t.label)+'　'
+      + (t.error?('<span style="color:var(--danger,#ff5c6c)">⚠️ '+esc(t.error)+'</span>')
+                :('<span style="color:var(--ok,#35d07f)">'+t.count+' 份</span>　<span style="opacity:.55">'+esc(t.dir)+'</span>'))
+      + '</td></tr>';
+  });
+  fh += files.length ? files.map(f=>
+    '<tr><td class="muted tiny">'+esc(f.dir_key||'')+'</td>'
+    + '<td class="muted tiny">'+esc(f.mtime_local)+'</td>'
+    + '<td class="muted tiny">'+esc(f.size_text)+'</td>'
+    + '<td class="muted tiny" style="word-break:break-all">'+esc(f.rel)+'</td></tr>'
+  ).join('') : '<tr><td colspan="4" class="muted tiny">目标文件夹里还没有备份文件。</td></tr>';
+  $('#bk_files').innerHTML=fh;
+}
+/* 目标文件夹编辑器：**一行 = 一个目标文件夹 + 它自己的一套策略**（频率/时刻/保留份数）。
+   ⚠️ 行内控件一律用 class 而不是 id —— 多行会重名，id 只会命中第一个，采集时必然张冠李戴。 */
+function bkWdOpts(sel){
+  return ((BK_STATE&&BK_STATE.weekdays)||[]).map((n,i)=>'<option value="'+i+'"'+(i===sel?' selected':'')+'>'+esc(n)+'</option>').join('');
+}
+function bkFreqOpts(sel){
+  // 兜底：万一接口没下发档位，也保证下拉有内容（否则 select 空着会读出空字符串）
+  const fs=((BK_STATE&&BK_STATE.freqs)||[]).length?BK_STATE.freqs
+    :[{key:'weekly',label:'每周一次'},{key:'daily',label:'每天一次'},{key:'hourly',label:'每隔几小时'},{key:'monthly',label:'每月一次'}];
+  return fs.map(f=>'<option value="'+esc(f.key)+'"'+(f.key===sel?' selected':'')+'>'+esc(f.label)+'</option>').join('');
+}
+function bkTargetRow(t){
+  t=t||{};
+  const on=(t.enabled===false)?'':' checked';
+  const hrs=(t.hours==null?6:t.hours);
+  return '<div data-bkt style="padding:9px 11px;margin-bottom:8px;border-radius:8px;'
+    + 'background:rgba(120,140,170,.07);border:1px solid rgba(120,140,170,.18)">'
+    + '<div class="flex" style="gap:6px;align-items:center">'
+    +   '<input class="bk-dir-in" value="'+esc(t.raw||'')+'" maxlength="200" style="flex:1" autocomplete="off"'
+    +   ' placeholder="例如 D:\\点检备份（留空 = 用程序目录下的 backups）">'
+    +   '<button class="btn sm" title="删掉这个目标" onclick="this.closest(\'[data-bkt]\').remove();bkDirHint()">✕</button>'
+    + '</div>'
+    + '<div class="flex" style="gap:9px;align-items:center;flex-wrap:wrap;margin-top:7px">'
+    +   '<label class="flex" style="align-items:center;gap:5px;cursor:pointer" title="关掉后定时任务不写这个目标，「立即备份一次」也不写它">'
+    +     '<input type="checkbox" class="bk-tg-on" style="width:auto"'+on+'><span class="muted tiny">参与定时</span></label>'
+    +   '<span class="muted tiny">频率</span>'
+    +   '<select class="bk-tg-freq" style="max-width:116px" onchange="bkRowFreqUi(this)">'+bkFreqOpts(t.freq)+'</select>'
+    +   '<select class="bk-tg-weekday" style="max-width:102px">'+bkWdOpts(t.weekday==null?0:t.weekday)+'</select>'
+    +   '<span class="bk-tg-day-wrap flex" style="gap:4px;align-items:center;display:none">每月第 '
+    +     '<input type="number" class="bk-tg-day" min="1" max="31" value="'+(t.day==null?1:t.day)+'" style="width:60px"> 日</span>'
+    +   '<span class="bk-tg-hours-wrap flex" style="gap:4px;align-items:center;display:none">每 '
+    +     '<select class="bk-tg-hours" style="max-width:72px">'+[1,2,3,4,6,8,12].map(n=>'<option value="'+n+'"'+(n===hrs?' selected':'')+'>'+n+'</option>').join('')+'</select> 小时</span>'
+    +   '<span class="flex" style="gap:4px;align-items:center">'
+    +     '<span class="muted tiny bk-tg-time-label">执行时刻</span>'
+    +     '<input type="time" class="bk-tg-time" style="max-width:116px" value="'+esc(t.time||'19:00')+'"></span>'
+    +   '<span class="flex" style="gap:4px;align-items:center" title="该目标自己的保留份数：0 = 全部保留">'
+    +     '<span class="muted tiny">保留</span>'
+    +     '<input type="number" class="bk-tg-keep" min="0" max="3650" style="width:76px" value="'+(t.keep==null?0:t.keep)+'">'
+    +     '<span class="muted tiny">份</span></span>'
+    + '</div>'
+    + '<div class="muted tiny bk-tg-state" style="margin-top:6px"></div>'
+    + '</div>';
+}
+/* 行内频率联动（作用域限定在这一行内，不能去查全局 id） */
+function bkRowFreqUi(el){
+  const row=(el&&el.closest)?el.closest('[data-bkt]'):null; if(!row) return;
+  const f=row.querySelector('.bk-tg-freq').value;
+  row.querySelector('.bk-tg-weekday').style.display=(f==='weekly')?'':'none';
+  row.querySelector('.bk-tg-day-wrap').style.display=(f==='monthly')?'flex':'none';
+  row.querySelector('.bk-tg-hours-wrap').style.display=(f==='hourly')?'flex':'none';
+  row.querySelector('.bk-tg-time-label').textContent=(f==='hourly')?'每个间隔第':'执行时刻';
+}
+/* 把服务端下发的实时状态（可写入/剩余空间/下次执行）填回每一行。
+   ⚠️ 按**目录路径**匹配，不按行下标 —— 下标对不上的典型场景：删掉中间某一行后，
+      后面每行的状态都会整体错位一格（看到别人的剩余空间和下次执行时刻）。 */
+function bkFillRowState(){
+  const tg=(BK_STATE&&BK_STATE.targets)||[];
+  const byDir={};
+  tg.forEach(t=>{ byDir[String(t.raw||'').toLowerCase()]=t; });
+  [...document.querySelectorAll('#bk_dirs [data-bkt]')].forEach(row=>{
+    const el=row.querySelector('.bk-tg-state');
+    const dir=(row.querySelector('.bk-dir-in').value||'').trim().toLowerCase();
+    const t=byDir[dir];
+    if(!t){ el.innerHTML='<span class="muted">（未保存的新目标）</span>'; return; }
+    const st = t.error ? '<span style="color:var(--danger,#ff5c6c)">⚠️ '+esc(t.error)+'</span>'
+      : (t.writable?'<span style="color:var(--ok,#35d07f)">✅ 可写入</span>'
+                   :'<span style="color:var(--danger,#ff5c6c)">❌ 不可写入：'+esc(t.write_error||'')+'</span>');
+    el.innerHTML = (t.error?'':'📁 <span style="opacity:.6">'+esc(t.dir||'')+'</span>　')
+      + st + (t.disk_free!=null?'　剩余 '+esc(t.disk_free_text):'')
+      + '　下次：'+(t.enabled?esc(t.next_run_local||'—'):'<span class="muted">不参与定时</span>');
+  });
+}
+function bkRenderTargets(list){
+  const arr=(Array.isArray(list)&&list.length)?list:[{}];
+  $('#bk_dirs').innerHTML=arr.map(t=>bkTargetRow(t)).join('');
+  document.querySelectorAll('#bk_dirs .bk-tg-freq').forEach(s=>bkRowFreqUi(s));
+  bkFillRowState();
+  bkDirHint();
+}
+function bkAddDir(v){
+  const box=$('#bk_dirs');
+  const rows=[...box.querySelectorAll('[data-bkt]')];
+  const max=(BK_STATE&&BK_STATE.max_dirs)||8;
+  if(rows.length>=max){ toast('最多 '+max+' 个目标文件夹','err'); return; }
+  // 已有行就复制最后一行的策略（改改路径就能再加一个同频的目标）；
+  // 一行都没有时用服务端下发的默认策略 —— 新目标不必从头填一遍频率
+  const cur=bkTargets();
+  const seed=cur.length?cur[cur.length-1]:Object.assign({}, (BK_STATE&&BK_STATE.default_policy)||{});
+  box.insertAdjacentHTML('beforeend', bkTargetRow(Object.assign({}, seed, {raw:v||''})));
+  const all=box.querySelectorAll('[data-bkt]');
+  const last=all[all.length-1];
+  last.querySelector('.bk-tg-state').innerHTML='<span class="muted">（未保存的新目标）</span>';
+  bkRowFreqUi(last.querySelector('.bk-tg-freq'));
+  bkDirHint();
+}
+/* 采集：逐行读成一个目标对象（顺序与页面一致，服务端按顺序保存） */
+function bkTargets(){
+  return [...document.querySelectorAll('#bk_dirs [data-bkt]')].map(row=>({
+    dir: (row.querySelector('.bk-dir-in').value||'').trim(),
+    enabled: row.querySelector('.bk-tg-on').checked,
+    freq: row.querySelector('.bk-tg-freq').value||'weekly',
+    weekday: +row.querySelector('.bk-tg-weekday').value||0,
+    day: +row.querySelector('.bk-tg-day').value||1,
+    hours: +row.querySelector('.bk-tg-hours').value||6,
+    time: row.querySelector('.bk-tg-time').value||'19:00',
+    keep: Math.max(0, +row.querySelector('.bk-tg-keep').value||0),
+  }));
+}
+function bkDirs(){ return bkTargets().map(t=>t.dir); }
+function bkDirHint(){
+  const ts=bkTargets();
+  const onN=ts.filter(t=>t.enabled).length;
+  const def=(BK_STATE&&BK_STATE.default_dir)||'';
+  // 提示文字只在这里产出（loadBackup 里不要再覆盖它，否则会互相打架）
+  $('#bk_dir_hint').textContent = ts.length>1
+    ? ('共 '+ts.length+' 个目标（'+onN+' 个参与定时）—— 同一份数据同时写到每一处，任何一处损坏都还有副本')
+    : ('建议至少设 2 个（例如本机盘 + 移动硬盘），任何一处损坏都还有副本；留空则用：'+def);
+}
+async function bkSave(){
+  const ts=bkTargets();
+  if(!ts.length){ toast('至少要保留一个目标文件夹','err'); return; }
+  if($('#bk_enabled').checked && ts.filter(t=>t.enabled).length===0){
+    // 提前拦一下：总开关开着、但每个目标都关了「参与定时」——定时备份不会写任何地方
+    if(!confirm('所有目标都关掉了「参与定时」，定时备份不会写任何地方。仍要这样保存吗？')) return;
+  }
+  const head=ts[0];
+  const body={
+    enabled:$('#bk_enabled').checked,
+    targets:ts,
+    retry:+$('#bk_retry').value||3,
+    compress:$('#bk_compress').checked,
+    // 顶层策略取第一个目标的值 —— 服务端会把它存成「新增目标时的默认」，
+    // 这样下次点「＋ 添加目标文件夹」时的初值就是最近用过的设置，而不是一个陈旧的值
+    freq:head.freq, weekday:head.weekday, day:head.day, hours:head.hours, time:head.time, keep:head.keep,
+  };
+  const r=await api('/api/backup/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.error){toast(r.error,'err');return;}
+  const tg=r.targets||[], bad=tg.filter(t=>!t.writable).length;
+  const freqs=[...new Set(tg.map(t=>t.freq_desc||''))];
+  if(bad) toast('已保存 '+tg.length+' 个目标，其中 '+bad+' 个当前不可写入（状态卡里标了 ❌，接好后会自动恢复）','err');
+  else toast('备份配置已保存（'+tg.length+' 个目标，'+(freqs.length>1?(freqs.length+' 种不同频率'):freqs[0]||'')+'）','ok');
+  loadBackup();
+}
+async function bkTest(){
+  const r=await api('/api/backup/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dirs:bkDirs()})});
+  const ts=(r&&r.targets)||[];
+  if(!ts.length){
+    $('#bk_dir_hint').innerHTML='<span style="color:var(--danger,#ff5c6c)">❌ '+esc((r&&r.error)||'测试失败')+'</span>';
+    toast('测试未通过','err');return;
+  }
+  $('#bk_dir_hint').innerHTML=ts.map(t=>
+    (t.ok?'✅ ':'❌ ')+esc(t.raw||'(默认目录)')
+    + (t.ok?('（'+t.cost_ms+' ms，剩余 '+esc(t.disk_free_text||'—')+'）'):('　'+esc(t.error||''))))
+    .join('<br>');
+  if(r.ok) toast('全部 '+ts.length+' 个目标都可正常写入','ok');
+  else toast('有 '+(ts.length-(r.ok_count||0))+' 个目标写不了，请看逐条说明','err');
+}
+async function bkRunNow(){
+  const n=bkTargets().filter(t=>t.enabled).length;
+  toast('正在备份到 '+n+' 个目标，数据较多时请稍候…','');
+  const r=await api('/api/backup/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  if(r.error){toast(r.error,'err');loadBackup();return;}
+  if(r.ok) toast('备份完成：'+(r.target_count>1?((r.ok_count||1)+'/'+r.target_count+' 个目标写成，'):'')+(r.file||'')+'（'+(r.size_text||'')+'，用时 '+(r.cost_ms||0)+' ms）','ok');
+  else toast('备份失败：'+(r.error||''),'err');
+  loadBackup();
+}
 function fmtLogT(ms){const d=new Date(ms);const p=n=>String(n).padStart(2,'0');return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
 async function loadLogs(){
   const qs=new URLSearchParams();
@@ -4278,16 +4625,40 @@ fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[dat
     setTimeout(reserveTop, 1200);
   }
   function hideWrites() {
-    var verbs = ['新增','添加','删除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成'];
+    // 命中规则：按钮文字 **或** title 属性里出现写动词。title 也要看 —— 表格行内的
+    // 「✕」删除按钮文字只有一个符号（如数据备份页签的目标行、局域网清单行），
+    // 只能靠 title（"删掉这个目标" / "从清单移除"）识别出来。
+    var verbs = ['新增','添加','删除','删','移除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成','测试'];
     document.querySelectorAll('button,a,.btn,.big').forEach(function (el) {
       if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
       var t = (el.textContent || '').replace(/\s+/g, '');
-      if (verbs.some(function (v) { return t.indexOf(v) >= 0; })) el.style.display = 'none';
+      var ti = (el.getAttribute('title') || '').replace(/\s+/g, '');
+      if (verbs.some(function (v) { return t.indexOf(v) >= 0 || ti.indexOf(v) >= 0; })) el.style.display = 'none';
     });
   }
   if (document.readyState !== 'loading') { banner(); hideWrites(); }
   document.addEventListener('DOMContentLoaded', function () { banner(); hideWrites(); });
   setTimeout(hideWrites, 400); setTimeout(hideWrites, 1200); setTimeout(hideWrites, 2500);
+
+  /* ⚠️ 只靠上面几个固定时刻调用**不够**：后台绝大部分按钮是「拿到接口数据后动态渲染」的
+     （设备/房间/科室/模板/检查记录/用户… 每一行都有「编辑」「删除」，表单页签有成排的「保存」）。
+     实测登录后逐个页签检查，固定时刻跑完之后页面上仍残留近百个可见写入口 —— 只能靠
+     MutationObserver 监听后续渲染再补一次。观察 childList/subtree 而**不**观察 attributes：
+     本函数自己会改 el.style.display，若观察 attributes 会自我触发形成循环。 */
+  var _roPending = false;
+  function scheduleHide() {
+    if (_roPending) return; _roPending = true;
+    setTimeout(function () { _roPending = false; hideWrites(); }, 150);
+  }
+  function observeDom() {
+    if (!window.MutationObserver || !document.body) return;
+    if (window.__RO_MO__) return; window.__RO_MO__ = true;
+    new MutationObserver(scheduleHide).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.body) observeDom();
+  document.addEventListener('DOMContentLoaded', observeDom);
+  setTimeout(observeDom, 500);
+
   var _fetch = window.fetch ? window.fetch.bind(window) : null;
   if (_fetch) {
     window.fetch = function (u, o) {

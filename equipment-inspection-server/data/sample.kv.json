@@ -1240,5 +1240,156 @@
       "rev": "Rev.A1",
       "text": ""
     }
+  },
+  "backup": {
+    "enabled": false,
+    "targets": [
+      {
+        "dir": "",
+        "enabled": true,
+        "freq": "weekly",
+        "weekday": 0,
+        "time": "19:00",
+        "keep": 12
+      },
+      {
+        "dir": "E:\\设备点检备份",
+        "enabled": true,
+        "freq": "monthly",
+        "day": 1,
+        "time": "20:00",
+        "keep": 0
+      }
+    ],
+    "freq": "weekly",
+    "weekday": 0,
+    "day": 1,
+    "hours": 6,
+    "time": "19:00",
+    "keep": 0,
+    "retry": 3,
+    "compress": false,
+    "history": [
+      {
+        "at": "2026-09-21T19:00:12.431Z",
+        "at_local": "2026-09-21 19:00:12",
+        "trigger": "auto",
+        "ok": true,
+        "ok_count": 2,
+        "target_count": 2,
+        "all_ok": true,
+        "cost_ms": 268,
+        "size_text": "21.7 KB",
+        "compress": false,
+        "pruned": 0,
+        "targets": [
+          {
+            "raw_dir": "(默认目录)",
+            "ok": true,
+            "file": "2026/09/点检数据备份_2026-09-21_190012.json",
+            "tries": 1
+          },
+          {
+            "raw_dir": "E:\\设备点检备份",
+            "ok": true,
+            "file": "2026/09/点检数据备份_2026-09-21_190012.json",
+            "tries": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-09-14T19:00:09.117Z",
+        "at_local": "2026-09-14 19:00:09",
+        "trigger": "auto",
+        "ok": true,
+        "ok_count": 2,
+        "target_count": 2,
+        "all_ok": true,
+        "cost_ms": 301,
+        "size_text": "21.5 KB",
+        "compress": false,
+        "pruned": 0,
+        "targets": [
+          {
+            "raw_dir": "(默认目录)",
+            "ok": true,
+            "file": "2026/09/点检数据备份_2026-09-14_190009.json",
+            "tries": 1
+          },
+          {
+            "raw_dir": "E:\\设备点检备份",
+            "ok": true,
+            "file": "2026/09/点检数据备份_2026-09-14_190009.json",
+            "tries": 2
+          }
+        ]
+      },
+      {
+        "at": "2026-09-07T19:00:15.902Z",
+        "at_local": "2026-09-07 19:00:15",
+        "trigger": "auto",
+        "ok": true,
+        "ok_count": 1,
+        "target_count": 2,
+        "all_ok": false,
+        "cost_ms": 487,
+        "size_text": "21.2 KB",
+        "compress": false,
+        "pruned": 0,
+        "targets": [
+          {
+            "raw_dir": "(默认目录)",
+            "ok": true,
+            "file": "2026/09/点检数据备份_2026-09-07_190015.json",
+            "tries": 1
+          },
+          {
+            "raw_dir": "E:\\设备点检备份",
+            "ok": false,
+            "tries": 3,
+            "error": "无法创建目标文件夹（路径写错、盘符不存在、没有写入权限、移动硬盘或 U 盘未插好）"
+          }
+        ]
+      }
+    ],
+    "lastRun": {
+      "at": "2026-09-21T19:00:12.431Z",
+      "at_local": "2026-09-21 19:00:12",
+      "trigger": "auto",
+      "ok": true,
+      "ok_count": 2,
+      "target_count": 2,
+      "all_ok": true,
+      "cost_ms": 268,
+      "size_text": "21.7 KB",
+      "compress": false,
+      "pruned": 0,
+      "targets": [
+        {
+          "raw_dir": "(默认目录)",
+          "ok": true,
+          "file": "2026/09/点检数据备份_2026-09-21_190012.json",
+          "tries": 1
+        },
+        {
+          "raw_dir": "E:\\设备点检备份",
+          "ok": true,
+          "file": "2026/09/点检数据备份_2026-09-21_190012.json",
+          "tries": 1
+        }
+      ]
+    },
+    "lastAuto": {
+      "(默认目录)": {
+        "periodKey": "2026-W39",
+        "at": "2026-09-21T19:00:12.431Z",
+        "ok": true
+      },
+      "e:\\设备点检备份": {
+        "periodKey": "2026-09",
+        "at": "2026-09-21T19:00:12.431Z",
+        "ok": true
+      }
+    }
   }
 }
