@@ -1,0 +1,22 @@
+# 统一行尾为 LF，禁止 Git 做 CRLF 转换。
+#
+# 为什么必须显式钉住：本仓库的脱敏流水线（_build_vNNN.py）用**多行精确字符串**匹配来给
+# server.js 打补丁（loadStore 示例数据兜底 / ensureUsers 演示账号 / favicon 路由）。
+# Windows 上若 core.autocrlf=true 且无本文件，Git 重新检出时会把工作区文件转成 CRLF，
+# 那些含 \n 的匹配串就会**静默失配** —— 补丁脚本只会打印一行「!! loadStore 未匹配」，
+# 而产物照样生成，等于把未脱敏的代码当成品交付。用 LF 固定下来彻底消除这个风险。
+* text=auto eol=lf
+
+# 二进制资源不做任何转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+*.gz binary
+*.exe binary
+*.node binary
