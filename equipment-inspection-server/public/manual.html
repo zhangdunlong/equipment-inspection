@@ -6,6 +6,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
 <title>操作手册 · 设备点检系统</title>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/nav-mobile.css">
 <style>
   .manual-note{max-width:780px;margin:48px auto;padding:28px 32px;background:#fff;border-radius:14px;
     box-shadow:0 6px 24px rgba(15,27,45,.10);color:#243b53;line-height:1.9}
@@ -21,6 +22,7 @@
 <nav class="nav">
   <div class="brand"><span class="mark"></span><span class="brand-text">设备点检系统</span></div>
   <div class="sp"></div>
+  <button class="nav-toggle" type="button" aria-label="展开菜单" aria-expanded="false">☰</button>
   <a href="/">设备大屏</a>
   <a href="/rooms.html">房间</a>
   <a href="/inspect.html">点检作业</a>
@@ -45,5 +47,7 @@ fetch('/api/version').then(function(r){return r.json();}).then(function(v){
   document.querySelectorAll('[data-appver]').forEach(function(e){e.textContent=v.version;});
 }).catch(function(){});
 </script>
+<script src="/assets/nav-mobile.js"></script>
+<!-- __NAVMOBILE_DONE__ -->
 </body>
 </html>

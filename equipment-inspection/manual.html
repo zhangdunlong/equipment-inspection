@@ -6,6 +6,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%231e3a5f'/%3E%3Cpath%20d='M16%206l2.5%205.2%205.6%200.8-4%204%201%205.6L16%2019l-5.1%202.6%201-5.6-4-4%205.6-0.8z'%20fill='%23ffffff'/%3E%3C/svg%3E">
 <title>操作手册 · 设备点检系统</title>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/nav-mobile.css">
 <style>
   .manual-note{max-width:780px;margin:48px auto;padding:28px 32px;background:#fff;border-radius:14px;
     box-shadow:0 6px 24px rgba(15,27,45,.10);color:#243b53;line-height:1.9}
@@ -21,6 +22,7 @@
 <nav class="nav">
   <div class="brand"><span class="mark"></span><span class="brand-text">设备点检系统</span></div>
   <div class="sp"></div>
+  <button class="nav-toggle" type="button" aria-label="展开菜单" aria-expanded="false">☰</button>
   <a href="/">设备大屏</a>
   <a href="/rooms.html">房间</a>
   <a href="/inspect.html">点检作业</a>
@@ -45,6 +47,8 @@ fetch('/api/version').then(function(r){return r.json();}).then(function(v){
   document.querySelectorAll('[data-appver]').forEach(function(e){e.textContent=v.version;});
 }).catch(function(){});
 </script>
+<script src="/assets/nav-mobile.js"></script>
+<!-- __NAVMOBILE_DONE__ -->
 
 <script>
 /* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
@@ -63,7 +67,12 @@ fetch('/api/version').then(function(r){return r.json();}).then(function(v){
     if (!document.getElementById('ro-banner-style')) {
       var st = document.createElement('style');
       st.id = 'ro-banner-style';
-      st.textContent = '@media print{#ro-banner{display:none!important}body{padding-top:0!important}}';
+      // 粘性顶栏（旧版 .nav 与新版 .app-nav 两套）都要顺延到横幅下方，否则滚动时会被 fixed 横幅盖住。
+      // 打印时横幅不显示，顶栏偏移与 body padding 一并复位。
+      st.textContent = ':root{--ro-banner-h:0px}'
+        + '.nav,.app-nav{top:var(--ro-banner-h,0px)!important}'
+        + '@media print{#ro-banner{display:none!important}body{padding-top:0!important}'
+        + '.nav,.app-nav{top:auto!important}}';
       (document.head || document.documentElement).appendChild(st);
     }
     var host = document.body || document.documentElement;
@@ -72,11 +81,16 @@ fetch('/api/version').then(function(r){return r.json();}).then(function(v){
       var b = document.body; if (!b) return;
       b.style.boxSizing = 'border-box';
       b.style.paddingTop = ((bar.offsetHeight || 30) + 2) + 'px';
+      // 同时把横幅高度写成 CSS 变量：页面的粘性顶栏（.nav / .app-nav）要把 top 顺延到横幅下方，
+      // 否则滚动时顶栏会滑到 fixed 横幅底下被盖住。窄屏横幅可能换行成 2~3 行，高度是变化的，
+      // 所以这里每次 resize 都更新（而不是写死一个值）。
+      document.documentElement.style.setProperty('--ro-banner-h', (bar.offsetHeight || 30) + 'px');
     }
     reserveTop();
     window.addEventListener('resize', reserveTop);
     setTimeout(reserveTop, 300);
     setTimeout(reserveTop, 1200);
+    setTimeout(reserveTop, 2500);
   }
   function hideWrites() {
     // 命中规则：按钮文字 **或** title 属性里出现写动词。title 也要看 —— 表格行内的

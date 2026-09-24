@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>检查记录</title>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/nav-mobile.css">
 <style>
 :root{ --line:#000; }
 *{box-sizing:border-box}
@@ -179,6 +180,7 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
 <nav class="nav">
   <div class="brand"><span class="mark" aria-hidden="true"></span>设备点检系统</div>
   <div class="sp"></div>
+  <button class="nav-toggle" type="button" aria-label="展开菜单" aria-expanded="false">☰</button>
   <a href="/">设备大屏</a>
   <a href="/inspect">点检作业</a>
   <a href="/env.html" id="nav_env">温湿度</a>
@@ -668,5 +670,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{
 
 boot();
 </script>
+<script src="/assets/nav-mobile.js"></script>
+<!-- __NAVMOBILE_DONE__ -->
 </body>
 </html>

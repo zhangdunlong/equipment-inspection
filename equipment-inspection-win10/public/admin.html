@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="aBSuehNjOKioAaYUgX5pv4">
 <title>管理后台</title>
 <link rel="stylesheet" href="/assets/style.css" data-page-node-id="YhFHUAgYDou8mQu26AuGcG">
+<link rel="stylesheet" href="/assets/nav-mobile.css">
 <style>
 /* ===== v1.33.0 · 后台页签分组胶囊（不改 data-t / onclick 逻辑）===== */
 .tabs{ display:flex; flex-direction:column; gap:8px; margin:0 0 16px; padding:10px 12px;
@@ -126,6 +127,7 @@ select option:disabled{color:var(--muted)}
 <nav class="nav" data-page-node-id="gOdJJbobV9gjx1jkn6W9bu">
   <div class="brand" data-page-node-id="5tU0rx3J5t0DIvcwI0C8cR"><span class="mark" aria-hidden="true"></span>设备点检系统</div>
   <div class="sp" data-page-node-id="bKo1bOzVVT3Iz3BohGo9Zj"></div>
+  <button class="nav-toggle" type="button" aria-label="展开菜单" aria-expanded="false">☰</button>
   <a href="/" data-page-node-id="CRY5hQfffadzvorFA0a3By">设备大屏</a>
   <a href="/inspect" data-page-node-id="usI7VVhkcCWLEfDr9KRatu">点检作业</a>
   <a href="/admin" class="active" data-page-node-id="Y2MEUXVPvRNGHIiCnJGEDp">管理后台</a>
@@ -4591,5 +4593,7 @@ me().then(r=>{if(r.ok)enter();}).then(async()=>{
 // 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
 fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
 </script>
+<script src="/assets/nav-mobile.js"></script>
+<!-- __NAVMOBILE_DONE__ -->
 </body>
 </html>

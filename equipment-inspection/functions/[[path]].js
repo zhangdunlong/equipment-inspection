@@ -475,16 +475,29 @@ async function handleDeleteDevice(ctx) {
 async function handleListInspections(ctx) {
   const devId = ctx.query.get('device_id');
   const date = ctx.query.get('date');
+  // ⚠️ 与上游保持一致的三个筛选维度。历史上这里只实现了 device_id / date，
+  //    而前端「点检记录」页签同时会传 name 与 room —— 漏实现时**页面不报错、筛选静默无效**
+  //    （输入任何名字/选任何房间都返回全部记录），是最难发现的一类缺陷。
+  //    name 同时匹配「签名人姓名」与「设备名称」（任一命中即可），signer 为旧参数名保留兼容。
+  const name = (ctx.query.get('name') || ctx.query.get('signer') || '').trim();
+  const room = (ctx.query.get('room') || '').trim();
   const devices = ctx.kvget('devices', []);
   const dmap = {}; devices.forEach(d => dmap[d.id] = d);
   let list = ctx.kvget('inspections', []);
   if (devId) list = list.filter(r => { const d = dmap[r.device_id]; return d && (String(d.no) === devId || String(d.id) === devId); });
   if (date) list = list.filter(r => r.inspect_date === date);
+  if (name) list = list.filter(r => {
+    const d = dmap[r.device_id] || {};
+    const k = name.toLowerCase();
+    return String(r.signed_by || '').toLowerCase().indexOf(k) >= 0 || String(d.name || '').toLowerCase().indexOf(k) >= 0;
+  });
+  if (room) list = list.filter(r => { const d = dmap[r.device_id]; return d && String(d.location || '') === room; });
   list.sort((a, b) => (a.inspect_date < b.inspect_date ? 1 : -1));
   return json(list.map(r => {
     const d = dmap[r.device_id] || {};
+    // room 字段不能漏：前端「房间」列直接读它，缺失时整列显示「—」
     return { id: r.device_id + '_' + r.inspect_date, inspect_date: r.inspect_date, no: d.no || '', name: d.name || '',
-      status: r.status, signed_by: r.signed_by || '', abnormal_note: r.abnormal_note || '' };
+      room: d.location || '', status: r.status, signed_by: r.signed_by || '', abnormal_note: r.abnormal_note || '' };
   }));
 }
 async function handleDeleteInspection(ctx) {
@@ -697,10 +710,58 @@ async function handleMonthly(ctx) {
     // 批量打印页眉（kind=checkall）：批量打印整册的右上角编号，独立于单台设备的模板编号
     form_head_checkall: resolveFormHead(ctx, 'checkall', null).line });
 }
-async function handleDashboard(ctx) {
+// ===== 大屏「检查任务」口径（与上游 server.js 完全一致）=====
+// 一台设备可能同时要跑两张表：① 自身点检模板（device）② 参与的独立检查项目（program，如
+// 冲击机的「摩擦和风阻损耗」、显微镜维护记录）。大屏按**任务**铺卡片而不是按设备 ——
+// 所以冲击机会出现 2 张卡。两边共用这里的状态判定，口径才一致。
+const weekKeyOf = dateStr => {
+  const d = new Date(String(dateStr) + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  const dow = (d.getDay() + 6) % 7;               // 周一 = 0
+  d.setDate(d.getDate() - dow);
+  return String(d.getDate());
+};
+// 取专项检查在 dateStr 这天的行内容（week 型回落到当周周一；跨月自然取不到 = 未检）
+function progRowOf(prog, rec, dateStr) {
+  if (!rec || !rec.rows || !dateStr) return null;
+  if (String(prog.row_unit || 'day') === 'week') return rec.rows[weekKeyOf(dateStr)] || null;
+  return rec.rows[String(parseInt(String(dateStr).slice(8, 10), 10))] || null;
+}
+// 从一行数据判定 完成/异常（select 列不算「已填」，sign 列看有没有签名图）
+function jobStatusFromRow(prog, row) {
+  if (!row) return 'none';
+  let has = false, ng = false;
+  for (const c of (prog.columns || [])) {
+    const v = row[c.key];
+    if (v == null || v === '') continue;
+    if (c.type === 'select') continue;
+    if (c.type === 'sign') { if (v && v.image) has = true; continue; }
+    has = true;
+    if (c.type === 'conclusion' && v === 'abnormal') ng = true;
+    if (c.type === 'choice' && v === '异常') ng = true;
+  }
+  return !has ? 'none' : (ng ? 'ng' : 'ok');
+}
+// 项目行里的电子签名（大屏卡片上显示「谁签的」）
+function progRowSig(row) {
+  const out = { name: '', image: null };
+  for (const k in (row || {})) {
+    const v = row[k];
+    if (v && typeof v === 'object' && v.image) { out.name = v.name || ''; out.image = v.image; break; }
+  }
+  return out;
+}
+
+function handleDashboard(ctx) {
   const date = ctx.query.get('date');
   const loc = ctx.query.get('location') || '';
-  const devices = ctx.kvget('devices', []).filter(d => !loc || d.location === loc);
+  // ⚠️ group 过滤不能漏：房间选择页点「第N组」走的是 ?group=，漏实现时接口会返回**全部设备**
+  //    （前端标题写着「合并视图：测试室01 · 测试室02」、卡片却铺满全厂设备，用户一眼看出不对）。
+  //    过滤维度互斥，group 优先。
+  const grp = (ctx.query.get('group') || '').trim();
+  const grpRooms = grp ? new Set(ctx.kvget('rooms', []).filter(r => String(r.group || '').trim() === grp).map(r => r.name)) : null;
+  const devices = ctx.kvget('devices', []).filter(d =>
+    grpRooms ? grpRooms.has(String(d.location || '').trim()) : (!loc || d.location === loc));
   const dmap = {}; devices.forEach(d => dmap[d.id] = d);
   const insp = ctx.kvget('inspections', []);
   const month = date ? date.slice(0, 7) : '';
@@ -721,13 +782,51 @@ async function handleDashboard(ctx) {
       signature_image: r ? signerSignature(ctx.store, r) : null,
       signed_at: r ? (r.signed_at || '') : '' };
   });
+  // 「检查任务」列表：设备点检任务 + 专项检查任务，大屏的完成率/异常数都按任务数统计
+  const tplmap = {}; ctx.kvget('templates', []).forEach(t => tplmap[t.id] = t);
+  const allProgs = ctx.kvget('programs', []);
+  const recs = ctx.kvget('checkRecords', []);
+  const jobs = []; let jobDone = 0, jobNg = 0;
+  const progRecent = [];
+  devices.forEach(d => {
+    const t = d.template_id ? tplmap[d.template_id] : null;
+    if (t) {
+      const r = todayMap[d.id];
+      const st = r ? r.status : 'none';
+      if (st !== 'none') jobDone++;
+      if (st === 'ng') jobNg++;
+      jobs.push({ device_id: d.id, no: d.no, name: d.name, model: d.model || '', location: d.location || '',
+        job_kind: 'device', job_id: t.id, job_name: '设备点检', tpl_key: t.key || '',
+        status: st, signed_by: r ? (r.signed_by || '') : '', signature_image: r ? signerSignature(ctx.store, r) : null,
+        signed_at: r ? (r.signed_at || '') : '' });
+    }
+    allProgs.filter(p => (p.device_ids || []).indexOf(d.id) >= 0).forEach(p => {
+      const rec = recs.find(x => x.program_id === p.id && x.device_id === d.id && x.ym === month);
+      const row = progRowOf(p, rec, date);
+      const st = jobStatusFromRow(p, row);
+      if (st !== 'none') jobDone++;
+      if (st === 'ng') jobNg++;
+      const sg = progRowSig(row);
+      jobs.push({ device_id: d.id, no: d.no, name: d.name, model: d.model || '', location: d.location || '',
+        job_kind: 'program', job_id: p.id, job_name: p.name || '专项检查', tpl_key: '',
+        row_unit: p.row_unit || 'day', status: st, signed_by: sg.name, signature_image: sg.image,
+        signed_at: (row && rec) ? (rec.updated_at || '') : '' });
+      // 项目行顺带并进「最近点检记录」，否则只做了专项检查的房间看着像没干活
+      if (row) progRecent.push({ no: d.no, name: d.name + ' · ' + (p.name || ''), status: st,
+        signer_name: sg.name, signature_image: sg.image,
+        abnormal_note: '', signed_at: (rec && rec.updated_at) || '' });
+    });
+  });
   const recent = insp.filter(r => date && r.inspect_date === date && dmap[r.device_id])
     .sort((a, b) => (a.signed_at < b.signed_at ? 1 : -1)).slice(0, 12)
     .map(r => { const d = dmap[r.device_id] || {};
       return { no: d.no || '', name: d.name || '', status: r.status, signer_name: r.signed_by || '',
-        signature_image: signerSignature(ctx.store, r), abnormal_note: r.abnormal_note || '', signed_at: r.signed_at }; });
+        signature_image: signerSignature(ctx.store, r), abnormal_note: r.abnormal_note || '', signed_at: r.signed_at }; })
+    .concat(progRecent);
   return json({ total: devices.length, today_inspected: Object.keys(todayMap).length,
-    today_abnormal: todayAbnormal, month_inspected: monthCount, grid, recent });
+    today_abnormal: todayAbnormal, month_inspected: monthCount, grid, recent,
+    // 大屏 KPI 卡读的是这四个字段：漏了它们，页面会显示「完成 0%（共 0 项检查）」且异常恒为 0
+    job_total: jobs.length, job_done: jobDone, job_abnormal: jobNg, jobs });
 }
 async function handleDeviceDetail(ctx) {
   const id = ctx.params.id;
@@ -755,6 +854,9 @@ async function handleListRooms(ctx) {
     group: r.group || '', dept: r.dept || '',
     thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '',
     thermo_requirement: r.thermo_requirement || '',
+    // 每房间专属随机范围（null = 未设置）。后台房间管理会据此显示「🎲 专属范围」提示，
+    // 温湿度预警的「范围来源」也读它 —— 漏返回时那两处会静默退回「全局范围」。
+    env_range: r.env_range || null,
     form_head: r.form_head || ''   // 温湿度表页眉的房间级覆盖（v1.37.0，空 = 用表种默认值）
   })));
 }
@@ -2085,7 +2187,41 @@ async function handleLanPing(ctx) {
     enabled: false, open: false, engine: false, win: true, writable: false, install_dir: '.', port: 0
   });
 }
-async function handleAdminLogs(ctx) { return json({ logs: [] }); }
+// GET /api/admin/logs —— 运行日志。
+// ⚠️ 原实现直接回 `{logs: []}`，而前端读的是 `r.rows / r.total / r.returned / r.files`
+//    → 页面顶部会显示「内存共 undefined 条 · 显示最新 undefined 条」。字段名对不上是**静默降级**：
+//    不报错、控制台干净，只是数字变成 undefined、列表永远空着。
+//    Workerd 里没有可读的日志文件，所以这里回放一小段**演示日志**（形状与上游 logMem 完全一致），
+//    并把 level / q / limit 三个筛选参数补齐，让日志页签看起来是活的、筛选也真的可用。
+const DEMO_LOGS = [
+  { level: 'INFO', tag: '系统', msg: '服务启动完成（演示站）' },
+  { level: 'INFO', tag: 'LIMS', msg: '演示环境未配置 LIMS 地址，自动抓取保持关闭' },
+  { level: 'INFO', tag: '数据', msg: '温湿度定时填充：演示数据已就绪' },
+  { level: 'WARN', tag: '温湿度预警', msg: '测试室06 湿度 68.5%RH 超过上限 65%RH（演示数据）' },
+  { level: 'WARN', tag: '温湿度预警', msg: '测试室06 温度 29.5℃ 超过上限 28℃（演示数据）' },
+  { level: 'INFO', tag: '点检', msg: '本月点检记录已生成（演示数据）' },
+  { level: 'INFO', tag: '备份', msg: '定时备份配置已加载：2 个目标（演示站为只读，不实际写盘）' },
+  { level: 'ERROR', tag: '备份', msg: '目标文件夹不可写：演示站不访问任何文件系统（自托管版本可正常读写）' },
+  { level: 'INFO', tag: '权限', msg: '演示账号 admin / demo-user 可登录浏览' },
+  { level: 'WARN', tag: '只读', msg: '演示站已拦截 3 次写入尝试（新增 / 编辑 / 删除）' },
+];
+function handleAdminLogs(ctx) {
+  const level = (ctx.query.get('level') || '').toUpperCase();
+  const q = (ctx.query.get('q') || '').trim();
+  const limit = Math.min(parseInt(ctx.query.get('limit') || '300', 10) || 300, 500);
+  // 时间：倒序生成，最新的在最后（与上游 logMem「尾插 + slice(-limit)」的顺序一致）
+  const now = Date.now();
+  let rows = DEMO_LOGS.map((x, i) => Object.assign({}, x,
+    { t: new Date(now - (DEMO_LOGS.length - 1 - i) * 7 * 60000).toISOString() }));
+  const total = rows.length;
+  if (['INFO', 'WARN', 'ERROR'].includes(level)) rows = rows.filter(x => x.level === level);
+  if (q) rows = rows.filter(x => ((x.tag || '') + ' ' + (x.msg || '')).toLowerCase().indexOf(q.toLowerCase()) >= 0);
+  rows = rows.slice(-limit);
+  return json({ ok: true, total, returned: rows.length,
+    files: [],            // 演示站无落盘日志文件
+    rows, readonly: true,
+    demo_note: '只读演示站：日志为演示回放数据，非本机真实日志文件。' });
+}
 
 // ===================== 路由表 =====================
 // adminOnly: true 表示该接口需要管理员登录（未登录返回 401）
@@ -2226,9 +2362,9 @@ function matchRoute(method, p) {
   return null;
 }
 
-// 系统版本号（与上游 server.js 的能力对齐；开源脱敏版自身版本号见仓库 version.json）
-const APP_VERSION = 'v1.41.0';
-const APP_VERSION_DATE = '2026-09-23';
+// 系统版本号（跟随上游 server.js 的能力；开源脱敏版自身版本号见仓库 version.json）
+const APP_VERSION = 'v1.42.0';
+const APP_VERSION_DATE = '2026-09-24';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

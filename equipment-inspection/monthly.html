@@ -279,7 +279,12 @@ loadDevices().then(render);
     if (!document.getElementById('ro-banner-style')) {
       var st = document.createElement('style');
       st.id = 'ro-banner-style';
-      st.textContent = '@media print{#ro-banner{display:none!important}body{padding-top:0!important}}';
+      // 粘性顶栏（旧版 .nav 与新版 .app-nav 两套）都要顺延到横幅下方，否则滚动时会被 fixed 横幅盖住。
+      // 打印时横幅不显示，顶栏偏移与 body padding 一并复位。
+      st.textContent = ':root{--ro-banner-h:0px}'
+        + '.nav,.app-nav{top:var(--ro-banner-h,0px)!important}'
+        + '@media print{#ro-banner{display:none!important}body{padding-top:0!important}'
+        + '.nav,.app-nav{top:auto!important}}';
       (document.head || document.documentElement).appendChild(st);
     }
     var host = document.body || document.documentElement;
@@ -288,11 +293,16 @@ loadDevices().then(render);
       var b = document.body; if (!b) return;
       b.style.boxSizing = 'border-box';
       b.style.paddingTop = ((bar.offsetHeight || 30) + 2) + 'px';
+      // 同时把横幅高度写成 CSS 变量：页面的粘性顶栏（.nav / .app-nav）要把 top 顺延到横幅下方，
+      // 否则滚动时顶栏会滑到 fixed 横幅底下被盖住。窄屏横幅可能换行成 2~3 行，高度是变化的，
+      // 所以这里每次 resize 都更新（而不是写死一个值）。
+      document.documentElement.style.setProperty('--ro-banner-h', (bar.offsetHeight || 30) + 'px');
     }
     reserveTop();
     window.addEventListener('resize', reserveTop);
     setTimeout(reserveTop, 300);
     setTimeout(reserveTop, 1200);
+    setTimeout(reserveTop, 2500);
   }
   function hideWrites() {
     // 命中规则：按钮文字 **或** title 属性里出现写动词。title 也要看 —— 表格行内的

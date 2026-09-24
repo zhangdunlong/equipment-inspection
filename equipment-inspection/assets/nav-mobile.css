@@ -1,0 +1,29 @@
+/* 开源补丁（v1.42.0）：旧 `.nav` 体系的移动端折叠菜单。
+   上游 index/rooms/inspect 用的是新版 .app-nav（自带折叠），而 env/check/admin 用的是旧 .nav
+   —— 旧版没有任何媒体查询，在窄屏会把布局视口撑到 417px（顶栏文字竖排 + 整页横向溢出）。
+   这里只做「窄屏折叠」，桌面端完全不受影响（.nav-toggle 默认 display:none）。 */
+.nav .nav-toggle { display: none; }
+
+@media (max-width: 760px) {
+  .nav { flex-wrap: wrap; row-gap: 6px; padding: 10px 14px; }
+  .nav .brand { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav .sp { display: none; }
+  /* 折叠态：只留「品牌 + ☰」，其余全部收起（这一步同时消掉 417px 的最小宽度） */
+  .nav a, .nav button, .nav span.ver { display: none; }
+  .nav .nav-toggle {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 38px; height: 38px; margin-left: auto; padding: 0;
+    border: 1px solid var(--glass-bd, rgba(255, 255, 255, .18)); border-radius: 10px;
+    background: rgba(255, 255, 255, .06); color: inherit; font-size: 17px; line-height: 1; cursor: pointer;
+  }
+  /* 展开态：竖排铺满整行 */
+  .nav.nav-open a, .nav.nav-open button:not(.nav-toggle), .nav.nav-open > span { display: flex; }
+  .nav.nav-open > a, .nav.nav-open > span {
+    flex: 0 0 100%; width: 100%; box-sizing: border-box; padding: 10px 12px; justify-content: flex-start;
+  }
+  .nav.nav-open > span { font-size: 11px; opacity: .65; }
+  /* 只读演示横幅是 position:fixed 贴顶的，粘性顶栏要顺延到它下面，否则展开菜单会被横幅盖住 */
+  .nav { top: var(--ro-banner-h, 0px); }
+}
+
+@media print { .nav { top: auto !important; } .nav .nav-toggle { display: none !important; } }
