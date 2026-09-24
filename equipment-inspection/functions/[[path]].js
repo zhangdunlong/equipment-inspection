@@ -373,7 +373,18 @@ async function handleDeleteSigner(ctx) {
 }
 
 // ---------- 模板 ----------
-async function handleListTemplates(ctx) { return json(ctx.kvget('templates', [])); }
+// GET /api/templates —— 点检模板列表。
+// ⚠️ 必须下发 `use_count`（该模板被多少台设备使用）。漏发的后果特别隐蔽：
+//    前端写的是 `t.use_count || 0`，字段缺失会被**静默兜底成 0** ——
+//    后台「点检模板」页签里所有设备点检模板都显示「被 0 台设备使用」，
+//    看起来就像演示数据根本没把常规点检配到设备上（而紧邻的专项表却正常显示「N 台设备参与」，对比刺眼）。
+//    它还会让两处校验失效：删除模板时「仍被 N 台设备使用，请先换模板」的拦截恒不触发；
+//    编辑模板时「该模板同时被 N 台设备使用，编辑会影响这些设备」的提示恒显示成「只被这一台使用」。
+async function handleListTemplates(ctx) {
+  const cnt = {};
+  ctx.kvget('devices', []).forEach(d => { if (d.template_id) cnt[d.template_id] = (cnt[d.template_id] || 0) + 1; });
+  return json(ctx.kvget('templates', []).map(t => Object.assign({}, t, { use_count: cnt[t.id] || 0 })));
+}
 async function handleCreateTemplate(ctx) {
   const b = ctx.body;
   if (!b.key || !b.equip_name) return json({ error: '模板标识与设备名称必填' }, 400);
@@ -2064,9 +2075,16 @@ async function handleListCheckRecords(ctx) {
 // 演示站差异：匿名访问时按「全部房间」计算，让未登录浏览也能看到预警横幅；已登录则严格按科室。
 async function handleEnvAlerts(ctx) {
   const u = await getLoginUser(ctx.req, ctx.store);
-  const dept = u ? String(u.dept || '').trim() : '';
-  const rooms = dept ? ctx.kvget('rooms', []).filter(r => (r.dept || '').trim() === dept) : ctx.kvget('rooms', []);
-  if (dept && !rooms.length) return json({ ok: true, hasDept: true, dept, alerts: [] });
+  // ⚠️ 与上游 handleEnvAlerts 的语义严格对齐：**只按登录人科室返回**，
+  //    admin 也不例外（上游是 `const dept = u.dept; if (!dept) return ...alerts: []`）。
+  //    原实现把「未登录」当成「不过滤」→ 会返回全厂预警，比上游宽松（越权读取）。
+  if (!u) return json({ ok: false, hasDept: false, dept: '', maxLevel: null,
+    counts: { '注意': 0, '警告': 0, '危险': 0 }, alerts: [] });
+  const dept = String(u.dept || '').trim();
+  if (!dept) return json({ ok: true, hasDept: false, dept: '', maxLevel: null,
+    counts: { '注意': 0, '警告': 0, '危险': 0 }, alerts: [] });
+  const rooms = ctx.kvget('rooms', []).filter(r => (r.dept || '').trim() === dept);
+  if (!rooms.length) return json({ ok: true, hasDept: true, dept, alerts: [] });
   const roomMap = {}; rooms.forEach(r => roomMap[r.name] = r);
   const roomNames = new Set(rooms.map(r => r.name));
   const now = new Date();
@@ -2363,7 +2381,7 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（跟随上游 server.js 的能力；开源脱敏版自身版本号见仓库 version.json）
-const APP_VERSION = 'v1.42.0';
+const APP_VERSION = 'v1.42.1';
 const APP_VERSION_DATE = '2026-09-24';
 
 // ===================== 只读演示站策略 =====================
