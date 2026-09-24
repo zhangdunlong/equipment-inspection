@@ -1,7 +1,7 @@
 {
   "name": "设备点检巡检系统",
   "name_en": "Equipment Inspection & Patrol System",
-  "version": "v1.42.1",
+  "version": "v1.43.0",
   "date": "2026-09-24",
   "edition": "开源脱敏版 / Open-Source Desensitized Edition",
   "repo": "https://github.com/zhangdunlong/equipment-inspection",
@@ -11,12 +11,12 @@
   "manualNote": "操作手册含真实界面截图，无法文本脱敏，未纳入开源版；/manual 为中性说明页",
   "apiVersionEndpoint": "/api/version",
   "demoData": {
-    "devices": 48,
-    "rooms": 12,
-    "templates": 9,
-    "signers": 5,
+    "devices": 124,
+    "rooms": 15,
+    "templates": 17,
+    "signers": 8,
     "programs": 4,
-    "note": "仓库种子锚定 2026-09-24；线上演示 KV 在播种时按「今天」重新生成，保证「今日已点检 / 最近点检记录」始终有内容"
+    "note": "对齐工厂真实结构：持久蠕变组 2 间 101 台 + 13 间独立房间 23 台，含 5 个无设备房间（试样间/分析室）；仓库种子锚定 2026-09-24，线上演示 KV 播种时按「今天」重新生成"
   },
   "features": [
     "设备台账与模板管理",
