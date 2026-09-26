@@ -658,8 +658,8 @@ function gateFailReset(ip) { gateFails.delete(ip); }
 
 // 确保 users 初始化：首次启动 seed 一个 admin 用户（沿用原 admin 密码或默认 admin123）
 // v1.42.0：另外幂等补一个「合规演示」专用账号（只补缺失、不覆盖已有 —— 用户改过密码也不会被打回）
-const DEMO_USERNAME = 'demo';
-const DEMO_PASSWORD_DEFAULT = 'Demo@12345';
+const DEMO_USERNAME = 'demo-user';
+const DEMO_PASSWORD_DEFAULT = 'demo123';
 async function ensureUsers() {
   const users = kvget('users', []);
   if (!users || !users.length) {
@@ -677,7 +677,7 @@ async function ensureDemoUser() {
   users.push({
     id: 'u-demo',
     username: DEMO_USERNAME,
-    name: '合规演示',
+    name: '演示用户',
     password_hash: await sha256(DEMO_PASSWORD_DEFAULT + PEPPER),
     role: 'user',                                  // 故意不是 admin —— 避免绕过权限体系
     active: true,
@@ -686,7 +686,7 @@ async function ensureDemoUser() {
     // 只开 demo_mode 一个键，其余键缺省取 PERM_DEFS.def（env_edit=1，其它=0）
     perms: { demo_mode: 1 },
     created_at: new Date().toISOString(),
-    remark: '合规演示专用账号：仅具备批量点检/整月生成/随机分派/一键填充等演示型功能权限。演示结束请停用或改密。',
+    remark: '演示专用账号：仅具备批量点检/整月生成/随机分派/一键填充等演示型功能权限。演示结束请停用或改密。',
   });
   kvset('users', users);
   logW('INIT', '已创建合规演示账号: ' + DEMO_USERNAME + '（初始密码已生成，请首次登录后修改）');

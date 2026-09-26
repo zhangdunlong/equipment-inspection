@@ -2169,7 +2169,40 @@ function externalLinks(ctx) {
 }
 async function handleSettings(ctx) {
   // links：外部系统跳转 + 操作手册入口开关（公开可读，供前端导航使用）
-  return json({ signNoPw: !!ctx.kvget('signNoPw', false), links: externalLinks(ctx) });
+  // v1.43.3 对齐：signNoPw 最终值 = 库值 AND 合规总开关（与上游 signNoPw() = signNoPwRaw() && demoGateOpen() 一致）。
+  // 演示站 demoGate.enabled=true（展示完整功能界面），故此处等价于读库值。
+  return json({ signNoPw: !!ctx.kvget('signNoPw', false) && demoGateOpen(ctx), links: externalLinks(ctx) });
+}
+// v1.43.0 合规总开关：演示站固定「已开启」，让 admin 登录能看到完整功能界面
+// （批量点检 / 整月生成 / 一键填充 / 免密签名等演示型入口），但**写方法仍被入口统一 403**，
+// 所以只是「界面可见」，实际点任何按钮都会被只读拦截 —— 与工厂「开启演示模式」的观感一致，安全性不变。
+function demoGateOpen(ctx) {
+  const g = ctx.kvget('demoGate', null);
+  return !!(g && g.enabled === true);
+}
+// GET /api/admin/demo-gate/state —— 读合规总开关状态（对所有登录用户开放，与上游一致）。
+// 返回形状与上游 handleDemoGateState 完全对齐，前端 gateCanDemo 据此决定是否放行演示型 UI。
+async function handleDemoGateState(ctx) {
+  const u = await getLoginUser(ctx.req, ctx.store);
+  if (!u) return json({ error: '未登录或登录已失效' }, 401);
+  const g = ctx.kvget('demoGate', null) || {};
+  return json({
+    ok: true,
+    enabled: !!(g && g.enabled === true),
+    hard_off: false,                        // 演示站无 config.json 紧急关闭
+    effective: demoGateOpen(ctx),
+    updated_at: g.updated_at || null,
+    updated_by_name: g.updated_by_name || '',
+    reason: g.reason || '',
+    can_operate: !!(u && u.role === 'admin'),
+  });
+}
+// GET /api/admin/demo-gate/log —— 合规总开关审计（演示站回放演示审计，形状与上游一致）
+async function handleDemoGateLog(ctx) {
+  const limit = Math.min(parseInt(ctx.query.get('limit') || '20', 10) || 20, 200);
+  const g = ctx.kvget('demoGate', null) || {};
+  const items = (ctx.kvget('demoGateLog', []) || []).slice(-limit).reverse();
+  return json({ ok: true, items });
 }
 // GET /api/admin/env-alert-cfg —— 预警配置 + 各房间「生效阈值」及其来源
 async function handleAdminEnvAlertCfg(ctx) {
@@ -2215,8 +2248,8 @@ const DEMO_LOGS = [
   { level: 'INFO', tag: '系统', msg: '服务启动完成（演示站）' },
   { level: 'INFO', tag: 'LIMS', msg: '演示环境未配置 LIMS 地址，自动抓取保持关闭' },
   { level: 'INFO', tag: '数据', msg: '温湿度定时填充：演示数据已就绪' },
-  { level: 'WARN', tag: '温湿度预警', msg: '测试室06 湿度 68.5%RH 超过上限 65%RH（演示数据）' },
-  { level: 'WARN', tag: '温湿度预警', msg: '测试室06 温度 29.5℃ 超过上限 28℃（演示数据）' },
+  { level: 'WARN', tag: '温湿度预警', msg: '蠕变试验室 1 湿度 74.5%RH 超过上限 70%RH（演示数据）' },
+  { level: 'WARN', tag: '温湿度预警', msg: '金相分析室 温度 27.5℃ 超过上限 26℃（演示数据）' },
   { level: 'INFO', tag: '点检', msg: '本月点检记录已生成（演示数据）' },
   { level: 'INFO', tag: '备份', msg: '定时备份配置已加载：2 个目标（演示站为只读，不实际写盘）' },
   { level: 'ERROR', tag: '备份', msg: '目标文件夹不可写：演示站不访问任何文件系统（自托管版本可正常读写）' },
@@ -2347,6 +2380,8 @@ const routes = [
   { method: 'GET', path: '/api/env/alerts', handler: handleEnvAlerts },
   { method: 'GET', path: '/api/notifs', handler: handleNotifs },
   { method: 'GET', path: '/api/settings', handler: handleSettings },
+  { method: 'GET', path: '/api/admin/demo-gate/state', handler: handleDemoGateState },
+  { method: 'GET', path: '/api/admin/demo-gate/log', handler: handleDemoGateLog, adminOnly: true },
   { method: 'GET', path: '/api/admin/env-alert-cfg', handler: handleAdminEnvAlertCfg },
   { method: 'GET', path: '/api/lims/room-status', handler: handleLimsRoomStatus },
   { method: 'GET', path: '/api/lan/clients', handler: handleLanEmpty },
@@ -2381,8 +2416,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（跟随上游 server.js 的能力；开源脱敏版自身版本号见仓库 version.json）
-const APP_VERSION = 'v1.44.0';
-const APP_VERSION_DATE = '2026-09-24';
+const APP_VERSION = 'v1.45.0';
+const APP_VERSION_DATE = '2026-09-26';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，
@@ -2446,6 +2481,10 @@ async function serveStatic(request, env) {
   const url = new URL(request.url);
   let p = decodeURIComponent(url.pathname);
   if (p === '/' || p === '') p = '/';           // 根路径交给 ASSETS 解析 index
+  // v1.43.2 合规总开关暗链接 `/admin/_gate`：文件在 public/ 根目录，与工厂 CLEAN 映射一致
+  // （工厂是 { '/admin/_gate': '_gate.html' }）。演示站不做「非管理员 404 伪装」——
+  // 这是展示站点，让访客能看到「合规总开关」这个入口页面（切换开关仍是写操作，会被 403）。
+  if (p === '/admin/_gate' || p === '/_gate') p = '/_gate.html';
   // 直接按原路径（含干净 URL，如 /monthly）请求；ASSETS 会自动解析 .html
   const safe = p.replace(/\.{2,}/g, '');
   let res = await env.ASSETS.fetch(new Request(new URL(url.origin + safe + url.search), request));
