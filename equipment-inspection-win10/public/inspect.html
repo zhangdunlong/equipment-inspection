@@ -895,12 +895,13 @@ async function init(){
   let me={ok:false};
   try{ me=await CORE.me(); }catch(e){}
   mountNav({ me });
-  // 权限判定必须与 server.js PERM_DEFS 一致：inspect_batch 默认 0（关闭）。
-  // 注意 me.perms 为 null（从未配置过的老账号）或对象里缺该 key 时，都按默认 0 处理。
-  // 同一把钥匙管两件事：批量面板可见性（一键点检=批量电子签名）与批量删除入口。
-  CAN_DELETE = !!(me && me.ok && (me.role==='admin'
-    || (me.perms && Object.prototype.hasOwnProperty.call(me.perms,'inspect_batch') && !!me.perms.inspect_batch)));
-  if(me && me.ok && CAN_DELETE) $('#p_batch').hidden=false;   // 管理员恒可见；普通用户需后台勾选「批量点检操作」
+  // 权限判定统一走 CORE.canDemo（内部叠加三层：总开关 + 紧急强制关闭 + 账号授权，见 core.js）。
+  // v1.42.0 合规演示模式 / v1.43.0 加总开关：这批功能默认对所有人关闭，**管理员也不例外** ——
+  // 只有「总开关开启」且「账号被授权」时才看得到面板与删除入口。判据不在本页硬编码，避免漂移。
+  // 注意：必须先 await 总开关状态；canDemo 在状态未到时返回 false（宁可先隐藏，不闪入口）。
+  try{ await CORE.gateState(); }catch(e){}
+  CAN_DELETE = CORE.canDemo(me);
+  if(CAN_DELETE) $('#p_batch').hidden=false;   // 仅授权且总开关开启时可见
 
   $('#b_date').value = localToday();
   $('#b_date').max   = localToday();

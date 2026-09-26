@@ -101,6 +101,40 @@
   const isGroupTok = n => String(n).indexOf(GRP_TP) === 0;
   const tokGroup   = n => String(n).slice(GRP_TP.length);
 
+  /* ---------- 合规总开关 + 演示模式（v1.42.0 起，v1.43.0 加总开关） ---------- */
+  // 演示型功能（批量点检 / 整月生成 / 随机分派 / 一键填充 / LIMS 抓取）的唯一前端判据。
+  // 三层 AND（任一不允许即不可用），与后端 demoAllowed() 语义严格一致：
+  //   1) 总开关 kv.demoGate.enabled   —— 管理员通过隐藏入口 /admin/_gate 切换
+  //   2) 紧急强制关闭 config.demoHardOff —— 运维级钉死，优先级最高
+  //   3) 账号级授权 user.perms.demo_mode —— 管理员也需显式授权（严格键）
+  // 用法：一律用 CORE.canDemo(me)，不要在各页自己写判断（避免与后端漂移）。
+  //
+  // 安全性：GATE 初值必须是 null（未知），而 canDemo 在未知时返回 false ——
+  //        宁可先隐藏、拿到状态后再显示，也绝不在状态未到时闪出入口。
+  let GATE = null;   // null=未取到 / true=总开关开且无强制关闭 / false=不可用
+
+  function canDemo(me) {
+    if (GATE !== true) return false;              // 总开关未确认开启 → 一律不可用
+    if (!me || !me.ok) return false;
+    // 管理员：总开关开启即放行（与后端 demoGated 分支 `u0.role === 'admin' || userHasPerm(...)` 严格一致）。
+    // 注意：demo_mode 是「严格键」，userHasPerm 里不认 role==='admin'，
+    //       所以这里必须自己判 role —— 否则前端隐藏、后端放行，出现语义漂移（v1.43.0 踩过）。
+    if (me.role === 'admin') return true;
+    const p = me.perms || {};
+    return p.demo_mode === 1 || p.demo_mode === true;
+  }
+  // 拉取总开关状态（幂等、只请求一次）。返回 Promise<boolean>，供页面 await 后再渲染。
+  let _gateP = null;
+  function gateState(force) {
+    if (_gateP && !force) return _gateP;
+    _gateP = api('/api/admin/demo-gate/state')
+      .then(st => { GATE = !!(st && st.ok && st.effective); return GATE; })
+      .catch(() => { GATE = false; return false; });
+    return _gateP;
+  }
+  // 同步读当前已知状态（null = 还没取到）
+  function gateKnown() { return GATE; }
+
   /* ---------- 导航（当前页高亮由脚本统一处理，避免各页硬编码 active 漏改） ---------- */
   function mountNav(opts) {
     const o = opts || {};
@@ -207,6 +241,7 @@
     debounce, session,
     GRP_TP, isGroupTok, tokGroup,
     ICONS, icon,
-    mountNav, skeleton, me
+    mountNav, skeleton, me,
+    canDemo, gateState, gateKnown
   };
 })(window);

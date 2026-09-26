@@ -134,7 +134,29 @@
 <script src="/assets/dept.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const api = (p,opt)=>fetch(p,opt).then(r=>r.json());
+// 统一请求：任何情况下都返回对象，绝不 reject（原实现对网络异常 reject，且 401 不跳登录页）
+const api=async(p,opt)=>{
+  let res;
+  try{ res=await fetch(p,Object.assign({credentials:'same-origin'},opt)); }
+  catch(e){ const m='网络异常：连不上服务，请检查网络或确认服务在运行'; console.warn('[api] '+p,m,e); return { error:m }; }
+  if(res.status===401){
+    try{ location.href='/login?next='+encodeURIComponent(location.pathname+location.search); }catch(e2){}
+    return { error:'登录已失效，正在跳转登录页…' };
+  }
+  let data=null;
+  try{ data=await res.json(); }catch(e){ data=null; }
+  if(!res.ok) return { error:(data&&(data.error||data.message))||('请求失败（HTTP '+res.status+'）') };
+  return data==null?{}:data;
+};
+// 取「数组」的便捷入口：接口出错时 api 返回 { error:'…' }，
+// 直接拿去 .map()/.filter() 会抛「is not a function」把整段渲染打断。
+// 这里统一归一成空数组，并把原因写进控制台便于排查。
+const apiList=async p=>{
+  const r=await api(p);
+  if(Array.isArray(r)) return r;
+  console.warn('[apiList] 未取到数组：'+p, (r&&r.error)||r);
+  return [];
+};
 let DEVICES=[], ROOM_SCOPE=null;  // ROOM_SCOPE：本科室房间名集合（null = 不限，看全部）
 
 function initMonth(){
@@ -146,7 +168,7 @@ function initMonth(){
 async function loadDevices(){
   // 科室过滤：管理员 / 未设科室的老账号看全部；设了科室的普通用户只看本科室房间的设备
   try{ if(window.DEPT) await DEPT.load(); }catch(e){}
-  try{ DEVICES = await api('/api/devices'); }catch(e){ DEVICES=[]; }
+  DEVICES = await apiList('/api/devices');
   if(window.DEPT && !DEPT.canSeeAll()){
     let rooms=[]; try{ rooms=DEPT.filterRooms(await api('/api/rooms')); }catch(e){ rooms=[]; }
     ROOM_SCOPE=new Set(rooms.map(r=>r.name));
@@ -154,7 +176,7 @@ async function loadDevices(){
   }
   const sel=$('#dev');
   sel.innerHTML = '<option value="0">全部设备</option>' +
-    DEVICES.map(d=>`<option value="${d.id}">${d.no} · ${esc(d.name)}</option>`).join('');
+    DEVICES.map(d=>`<option value="${d.id}">${esc(d.no)} · ${esc(d.name)}</option>`).join('');
 }
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }

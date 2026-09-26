@@ -223,7 +223,30 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
 <script src="/assets/dept.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const api = (p, opt) => fetch(p, opt).then(r => r.json());
+// 统一请求：任何情况下都返回对象，绝不 reject（原实现对网络异常 reject，
+// 会让「disabled=true → await → disabled=false」的按钮永久卡死，且 401 不跳登录）。
+const api=async(p,opt)=>{
+  let res;
+  try{ res=await fetch(p,Object.assign({credentials:'same-origin'},opt)); }
+  catch(e){ const m='网络异常：连不上服务，请检查网络或确认服务在运行'; console.warn('[api] '+p,m,e); return { error:m }; }
+  if(res.status===401){
+    try{ location.href='/login?next='+encodeURIComponent(location.pathname+location.search); }catch(e2){}
+    return { error:'登录已失效，正在跳转登录页…' };
+  }
+  let data=null;
+  try{ data=await res.json(); }catch(e){ data=null; }
+  if(!res.ok) return { error:(data&&(data.error||data.message))||('请求失败（HTTP '+res.status+'）') };
+  return data==null?{}:data;
+};
+// 取「数组」的便捷入口：接口出错时 api 返回 { error:'…' }，
+// 直接拿去 .map()/.filter() 会抛「is not a function」把整段渲染打断。
+// 这里统一归一成空数组，并把原因写进控制台便于排查。
+const apiList=async p=>{
+  const r=await api(p);
+  if(Array.isArray(r)) return r;
+  console.warn('[apiList] 未取到数组：'+p, (r&&r.error)||r);
+  return [];
+};
 function toast(m, t){ const e=$('#toast'); e.textContent=m; e.className='toast show '+(t||''); setTimeout(()=>e.className='toast',2600); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function pad2(n){ return String(n).padStart(2,'0'); }
@@ -238,12 +261,27 @@ const CHK_SEQ = ['', '正常', '异常'];
 
 let PROGRAMS = [], CUR_PROG = null, CUR_DEV = null, CUR_YM = curYm();
 let SIGNERS = [], rowsData = {};   // rowsData[dayKey][colKey] = 值
+/* ---------- 未保存改动保护 ----------
+   本页保存也是「整份替换」语义（POST 整月 rows），而切项目 / 设备 / 月份都会整表重载 ——
+   不拦一下，刚填的和刚签的就被静默丢掉了。用内容快照比对，
+   划线、签名、任何途径的改动都漏不掉，也不会因为漏加脏标记而失效。 */
+let SAVED_SIG = '';
+function rowsSig(){ try{ return JSON.stringify(rowsData || {}); }catch(e){ return ''; } }
+function markSaved(){ SAVED_SIG = rowsSig(); }
+function hasUnsaved(){ return rowsSig() !== SAVED_SIG; }
+function guardUnsaved(what){
+  if(!hasUnsaved()) return true;
+  return confirm('当前表格有未保存的修改。\n\n切到 ' + what + ' 要重新载入，这些修改会丢失。\n\n'
+    + '· 点「取消」= 留在本页，先按「💾 保存」再切\n'
+    + '· 点「确定」= 放弃这些修改，直接切过去');
+}
+window.addEventListener('beforeunload', e => { if(!hasUnsaved()) return; e.preventDefault(); e.returnValue = ''; });
 let sigTarget = null;              // 正在选签名人的 {day, key}
 
 async function boot(){
   const qs = new URLSearchParams(location.search);
   let progs = [];
-  try{ progs = await api('/api/programs'); }catch(e){ progs = []; }
+  progs = await apiList('/api/programs');
   PROGRAMS = Array.isArray(progs) ? progs.filter(p => (p.device_ids||[]).length) : [];
   if(!PROGRAMS.length){
     $('#sheet_box').innerHTML = '<div class="sheet"><p style="margin:20px 0;color:#666">还没有配置任何独立检查项目。请先在管理后台把设备加入检查项目。</p></div>';
@@ -263,6 +301,7 @@ function buildProgSelect(){
   $('#p_sel').innerHTML = PROGRAMS.map(p =>
     `<option value="${esc(p.id)}"${p.id===CUR_PROG.id?' selected':''}>${esc(p.name)}（${(p.device_ids||[]).length} 台）</option>`).join('');
   $('#p_sel').onchange = async () => {
+    if(!guardUnsaved('项目「' + (($('#p_sel').selectedOptions[0]||{}).textContent || '') + '」')){ $('#p_sel').value = (CUR_PROG && CUR_PROG.id) || ''; return; }
     CUR_PROG = PROGRAMS.find(p => p.id === $('#p_sel').value) || PROGRAMS[0];
     buildDevSelect('', '');
     await loadSheet();
@@ -278,6 +317,7 @@ function buildDevSelect(wantDev, wantRoom){
   $('#d_sel').innerHTML = devs.map(d =>
     `<option value="${esc(d.no)}"${CUR_DEV&&d.no===CUR_DEV.no?' selected':''}>${esc(d.no)} · ${esc(d.name||'')}${d.model?' ('+esc(d.model)+')':''} · ${esc(d.location||'')}</option>`).join('');
   $('#d_sel').onchange = async () => {
+    if(!guardUnsaved('设备「' + $('#d_sel').value + '」')){ $('#d_sel').value = (CUR_DEV && CUR_DEV.no) || ''; return; }
     CUR_DEV = (CUR_PROG.devices||[]).find(d => String(d.no) === $('#d_sel').value) || null;
     await loadSheet();
   };
@@ -305,10 +345,11 @@ async function loadSheet(){
     });
   }
   // 签名人（按登录人科室过滤：本科室的人只见本科室签名人；管理员 / 未设科室看全部）
-  try{ SIGNERS = await api('/api/signers/public'); }catch(e){ SIGNERS = []; }
+  SIGNERS = await apiList('/api/signers/public');
   const myDept = (window.DEPT && DEPT.dept) ? DEPT.dept : '';
   if(myDept) SIGNERS = SIGNERS.filter(s => (s.dept||'') === myDept);
   render();
+  markSaved();                                  // 刚载入的内容 = 「已保存」基线
   const saved = Object.keys(rowsData).length;
   $('#stat').textContent = CUR_YM + ' · 已填 ' + saved + ' 天';
 }
@@ -615,7 +656,7 @@ $('#save_btn').onclick = async () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ program_id: CUR_PROG.id, device_id: CUR_DEV.id, ym: CUR_YM, rows })
     });
-    if(res && res.ok){ $('#stat').textContent = CUR_YM + ' · 已填 ' + res.days + ' 天'; toast('已保存（' + res.days + ' 行）'); }
+    if(res && res.ok){ markSaved(); $('#stat').textContent = CUR_YM + ' · 已填 ' + res.days + ' 天'; toast('已保存（' + res.days + ' 行）'); }
     else { toast((res && res.error) || '保存失败', 'err'); if(res && /签名/.test(res.error || '')) $('#stat').textContent = '有签名格未通过密码验证，请重新签名'; }
   }catch(e){ toast('保存失败：' + e.message, 'err'); }
   $('#save_btn').disabled = false;
@@ -645,6 +686,7 @@ $('#ym_sel').onchange = async () => {
   const v = $('#ym_sel').value;
   if(!v) return;
   if(v > curYm()){ toast('不能查看未来月份','err'); $('#ym_sel').value = CUR_YM; return; }
+  if(!guardUnsaved('月份「' + v + '」')){ $('#ym_sel').value = CUR_YM; return; }
   CUR_YM = v;
   await loadSheet();
 };

@@ -176,15 +176,6 @@ select option:disabled{color:var(--muted)}
 
   <!-- 设备 -->
   <div class="panel active glass" id="p_dev" data-page-node-id="WIcqRWInFvPICkzUtxBJ9O">
-    <div class="row" data-page-node-id="iDXxaZzzEM4TJFfnrPEUMC">
-      <div class="field" data-page-node-id="awnYgnsccQHfZ5yaJwmrvD"><label data-page-node-id="eG4YG4kfwcUUZOpN6241yD">批量生成编号设备（自动 No.001 起）</label>
-        <div class="flex" data-page-node-id="rDee7iVIeq19khRgANAJxv">
-          <input type="number" id="g_count" value="101" min="1" style="max-width:120px" data-page-node-id="DAGjCvyzN1t6eOO3oNAHEb">
-          <select id="g_tpl" style="max-width:240px" data-page-node-id="GY8erSGAPcBkD4oKtBSoUK"></select>
-          <button class="btn cyan" id="g_go" data-page-node-id="aXr1VoN2xgO6wTVeV9c1RY">生成</button>
-        </div>
-      </div>
-    </div>
     <div class="field" data-page-node-id="h8OharQSqBG6kQPY0qAkiE"><label data-page-node-id="xNsTbFBZSjECYGfwG62aUf">按行导入（格式：编号,模板型号,设备名称）每行一条</label>
       <textarea id="imp_txt" placeholder="001,设备型号-C,电子式高温蠕变持久试验机&#10;002,设备型号-A,高温电子蠕变试验机"></textarea>
       <button class="btn sm mt" id="imp_go" data-page-node-id="Vztw6I3ww3aycyHD4pu57c">导入</button>
@@ -376,16 +367,20 @@ select option:disabled{color:var(--muted)}
   </div>
   <!-- 系统 -->
   <div class="panel glass" id="p_sys" data-page-node-id="ULgKoasiYohJNzlZN78DwV">
-    <h3 style="margin:0 0 8px;font-size:15px">🔐 签名验证</h3>
-    <label class="flex" style="align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
-      <input type="checkbox" id="sys_signnopw" style="width:auto">
-      <span>点检 / 温湿度页<b>免密签名</b>（勾上后选中签名人即可落签，不再要求「签名人密码」）</span>
-    </label>
-    <p class="muted tiny" style="margin:0 0 4px">
-      签名密码是「这个字是谁签的」的凭据（ISO 记录通常要求保留）。若现场认为<b>登录账号已足以区分操作人</b>、
-      每次输密码太繁琐，可在此放开；放开后仍会记下所选签名人与提交时间，只是不再校验密码。改完刷新一次页面生效。
-    </p>
-    <p class="muted tiny" id="sys_signnopw_stat" style="color:var(--warn);margin:0 0 18px"></p>
+    <!-- v1.43.3：「签名验证」整块属演示型功能（降低签名凭据门槛），纳入合规总开关管控。
+         总开关关闭时本块（含标题）整体隐藏，且服务端 signNoPw() 同步强制回退为「要密码」。 -->
+    <div id="p_signver">
+      <h3 style="margin:0 0 8px;font-size:15px">🔐 签名验证</h3>
+      <label class="flex" style="align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
+        <input type="checkbox" id="sys_signnopw" style="width:auto">
+        <span>点检 / 温湿度页<b>免密签名</b>（勾上后选中签名人即可落签，不再要求「签名人密码」）</span>
+      </label>
+      <p class="muted tiny" style="margin:0 0 4px">
+        签名密码是「这个字是谁签的」的凭据（ISO 记录通常要求保留）。若现场认为<b>登录账号已足以区分操作人</b>、
+        每次输密码太繁琐，可在此放开；放开后仍会记下所选签名人与提交时间，只是不再校验密码。改完刷新一次页面生效。
+      </p>
+      <p class="muted tiny" id="sys_signnopw_stat" style="color:var(--warn);margin:0 0 18px"></p>
+    </div>
 
     <!-- v1.34.0：外部系统跳转（顶栏快捷入口，可配「谁看得到」） -->
     <h3 style="margin:18px 0 8px;font-size:15px">🔗 外部系统跳转</h3>
@@ -405,7 +400,7 @@ select option:disabled{color:var(--muted)}
     </div>
 
     <div class="field" style="max-width:360px" data-page-node-id="t6P9pDfbZ5Ay5tPGZvKrnp"><label data-page-node-id="EdVlWXVyEgIX60ISuNPHlC">修改后台密码</label>
-      <input type="password" id="npw" placeholder="新密码（至少4位）" data-page-node-id="U6p1g6pUZGn8QVTwsw9lsF">
+      <input type="password" id="npw" placeholder="新密码（至少6位）" data-page-node-id="U6p1g6pUZGn8QVTwsw9lsF">
       <button class="btn sm mt" id="npw_go" data-page-node-id="GMHCwbVzzRKHQEqXY1o4Nh">保存</button>
     </div>
     <p class="muted tiny mt" data-page-node-id="yIFeFdthSM7MJ2xipHHEPi">数据库文件：<code data-page-node-id="WQiEkud1dzM7FsxWTN9KPG">data/kv.json</code></p>
@@ -560,6 +555,9 @@ select option:disabled{color:var(--muted)}
 
   <!-- 温湿度一键填充（后台） -->
   <div class="panel glass" id="p_env" data-page-node-id="EnvFillPanel0000000001">
+    <!-- ⚡ 一键填充（演示型：数值为程序生成）—— 受合规总开关控制，关闭时整块隐藏。
+         注意本块与下方「🛰 LIMS 实时数据源」是分开的：LIMS 取真实值，属合规业务功能，始终保留。 -->
+    <div id="p_envfillrow">
     <p class="muted tiny" data-page-node-id="EnvFillDesc00000000001">温湿度表（DEMO-QR-008）是「房间 + 月份」的月表，每天分上午 / 下午 / 晚上三个时段。这里可以一键把 <b>1 日至截止日</b> 之间 <b>还空着</b> 的格子批量补上温度 / 湿度，并套用所选签名人的电子签名 —— 数值按各房间「综合温湿度要求」圈的限定范围自动生成，保证落在范围内；已有数据的格子（含签名、划线）一律不动。</p>
     <div class="row" data-page-node-id="EnvFillRow000000000001">
       <div class="field" data-page-node-id="EnvFillFMonth000000001"><label data-page-node-id="EnvFillLMonth000000001">月份</label><input type="month" id="e_month" data-page-node-id="EnvFillIMonth000000001"></div>
@@ -570,11 +568,12 @@ select option:disabled{color:var(--muted)}
       <div class="field" data-page-node-id="EnvFillFSigner0000001"><label data-page-node-id="EnvFillLSigner0000001">签名人</label><select id="e_signer" data-page-node-id="EnvFillISigner0000001"></select></div>
       <div class="field" data-page-node-id="EnvFillFPw00000000001"><label data-page-node-id="EnvFillLPw00000000001">签名密码</label><input type="password" id="e_pw" placeholder="签名人密码" data-page-node-id="EnvFillIPv000000000001"></div>
     </div>
-    <div class="flex mb" data-page-node-id="EnvFillBtns0000000001">
+    <div class="flex mb" data-page-node-id="EnvFillBtns0000000001" id="p_envfillbtns">
       <button class="btn primary" id="e_go" data-page-node-id="EnvFillGo00000000001">🌡 一键填充（1 日 ~ 截止日，只补空格）</button>
       <span class="muted tiny" id="e_stat" data-page-node-id="EnvFillStat000000001"></span>
     </div>
     <div id="e_result" class="muted tiny" style="line-height:1.95" data-page-node-id="EnvFillResult0000001"></div>
+    </div><!-- /#p_envfillrow -->
 
     <!-- 随机生成范围（后台自调） -->
     <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)" id="p_envrange" data-page-node-id="EnvRangePanel000000001">
@@ -768,7 +767,33 @@ select option:disabled{color:var(--muted)}
 <div class="toast" id="toast" data-page-node-id="PZ7iMw46Cil3fKuVZPhOtH"></div>
 <script>
 const $=s=>document.querySelector(s);
-const api=(p,opt)=>fetch(p,Object.assign({credentials:'same-origin'},opt)).then(r=>r.json());
+// 统一请求：**任何情况下都返回对象，绝不 reject**。
+// 为什么这点关键：调用方普遍写成「先 disabled=true → await api(...) → disabled=false → if(r.error)…」，
+// 而原实现对网络异常是 reject —— 一旦断网，await 直接中断，后面的 disabled=false 永不执行：
+// 按钮永久卡在禁用态、用户再也点不动，未保存的内容只能刷掉。401 也同理（不会跳登录页）。
+// 所以把网络异常 / 401 / 非 2xx 一律归一成 { error: '…' }，交给既有分支自然处理。
+const api=async(p,opt)=>{
+  let res;
+  try{ res=await fetch(p,Object.assign({credentials:'same-origin'},opt)); }
+  catch(e){ const m='网络异常：连不上服务，请检查网络或确认服务在运行'; console.warn('[api] '+p,m,e); return { error:m }; }
+  if(res.status===401){
+    try{ location.href='/login?next='+encodeURIComponent(location.pathname+location.search); }catch(e2){}
+    return { error:'登录已失效，正在跳转登录页…' };
+  }
+  let data=null;
+  try{ data=await res.json(); }catch(e){ data=null; }
+  if(!res.ok) return { error:(data&&(data.error||data.message))||('请求失败（HTTP '+res.status+'）') };
+  return data==null?{}:data;
+};
+// 取「数组」的便捷入口：接口出错时 api 返回 { error:'…' }，
+// 直接拿去 .map()/.filter() 会抛「is not a function」把整段渲染打断。
+// 这里统一归一成空数组，并把原因写进控制台便于排查。
+const apiList=async p=>{
+  const r=await api(p);
+  if(Array.isArray(r)) return r;
+  console.warn('[apiList] 未取到数组：'+p, (r&&r.error)||r);
+  return [];
+};
 function toast(m,t){const e=$('#toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(()=>e.className='toast',2600);}
 // 转义用户可输入字段，防止存储型 XSS（设备名/模板内容/签名人姓名等会回显到 innerHTML）
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -1185,7 +1210,65 @@ async function enter(){
   const ok=await me();if(!ok.ok){return;}
   $('#login').style.display='none';$('#app').style.display='block';
   $('#who').textContent=(ok.name||ok.username)+'（'+(ok.role==='admin'?'管理员':'普通用户')+'）';
+  // v1.43.0：先取总开关状态再渲染（gateCanDemo 在状态未知时返回 false，避免入口闪现）。
+  // 本页没有 core.js，故直接调接口 —— 该接口对所有登录用户开放（不再 403 踢人）。
+  try{ const st=await api('/api/admin/demo-gate/state'); GATE_ON=!!(st&&st.ok&&st.effective); }catch(e){ GATE_ON=false; }
+  applyDemoMode(ok);
   loadDev();
+}
+// ===== 合规总开关 + 演示模式（v1.42.0 起，v1.43.0 加总开关）=====
+// 演示型功能（月度点检整月生成/撤销、按科室随机分派签名人、温湿度一键填充+LIMS、点检记录里的
+// 批量删除）默认对所有账号关闭 —— 包括管理员。需要同时满足「总开关开启」且「账号被授权」才可见；
+// 后端同款三层校验兜底（见 server.js 的 demoAllowed / demoGated）。
+//
+// 注意：本页**未引入 core.js**（自带一套 api()/esc() 等），所以这里必须自带一份等价实现，
+//       不能调 CORE.canDemo —— 否则 window.CORE 恒为 undefined、判据恒 false，
+//       页签会被永久隐藏（含管理员），v1.43.0 踩过这个坑。
+let GATE_ON=null;   // null=未取到（按不可用处理，宁可先隐藏） / true / false
+const gateCanDemo=meObj=>{
+  if(GATE_ON!==true) return false;
+  if(!meObj||!meObj.ok) return false;
+  if(meObj.role==='admin') return true;   // 总开关开启即放行管理员（与后端 demoGated 分支一致）
+  const p=meObj.perms||{};
+  return p.demo_mode===1||p.demo_mode===true;
+};
+function applyDemoMode(meObj){
+  const on=gateCanDemo(meObj);
+
+  // ① 整页签隐藏：只隐藏「纯演示」的月度点检。
+  //    ⚠ 「温湿度填充」(env) 页签**不能整页签隐藏** —— 它同时装着「🛰 LIMS 实时数据源」配置，
+  //      而 LIMS 抓取取的是真实测量数据、属合规业务功能（v1.43.1 起不受总开关管控）。
+  //      整页签藏掉会把 LIMS 配置一起藏了，等于把合规功能也关了。
+  const DEMO_TABS=['month'];
+  DEMO_TABS.forEach(t=>{
+    const btn=document.querySelector('.tabs button[data-t="'+t+'"]');
+    if(btn)btn.style.display=on?'':'none';
+  });
+
+  // ② 面板本体：p_month/p_checkmonth 整块隐藏；p_env 只在内部按子块收敛（见 ③）
+  ['#p_month','#p_checkmonth'].forEach(sel=>{
+    const el=document.querySelector(sel);
+    if(el&&!on)el.style.display='none';
+  });
+
+  // ③ env 页签里的演示型子块：一键填充 / 随机生成范围 / 温湿度批量删除
+  //    （LIMS 实时数据源区不在其中，始终保留可见可用）
+  ['#p_envfillrow','#p_envfillbtns','#p_envfilleresult','#p_envrange','#p_envdel'].forEach(sel=>{
+    const el=document.querySelector(sel);
+    if(el)el.style.display=on?'':'none';
+  });
+
+  // ③b v1.43.3：「系统设置」页签里的「🔐 签名验证」整块（含标题）也是演示型 ——
+  //     免密签名降低的是「这个字是谁签的」的凭据门槛。总开关关闭时整块隐藏，
+  //     服务端 signNoPw() 同步强制回退为「要密码」，两端一致。
+  //     ⚠ 不能只藏免密复选框而留标题：孤零零一个「签名验证」标题反而引人猜疑。
+  const sv=document.querySelector('#p_signver');
+  if(sv)sv.style.display=on?'':'none';
+
+  // ④ 点检记录页里的批量删除按钮同样属演示型操作
+  const bd=document.querySelector('#rec_delmulti,#rec_batchdel');
+  if(bd&&!on)bd.style.display='none';
+  window.CAN_DEMO=on;
 }
 
 // ===== 用户管理 =====
@@ -1201,25 +1284,27 @@ async function loadUsers(){
         <button class="btn sm ${u.active?'':'cyan'}" onclick="toggleUser('${u.id}',${u.active?0:1})">${u.active?'停用':'启用'}</button>
         <button class="btn sm danger" onclick="delUser('${u.id}')">删</button></td></tr>`).join('');
 }
-// 功能权限开关（v1.9.0）：与 server.js PERM_DEFS 对应。def = 用户未配置过时的默认状态
+// 功能权限开关（v1.9.0；v1.42.0 收口演示型功能）。与 server.js PERM_DEFS 一一对应。def = 用户未配置过时的默认状态
+// v1.42.0：原 env_fill / inspect_batch 已合并为 demo_mode（合规演示功能）—— 演示型功能统一由它控制。
 const PERM_LIST=[
   ['env_edit','温湿度表录入','温湿度页手动填写 / 保存 / 划线（默认放开，可单独收紧）',1],
-  ['env_fill','温湿度一键填充','后台一键填充、LIMS 抓取 / 同步',0],
   ['env_delete','温湿度记录删除','后台按「房间+月份」整表删除温湿记录',0],
   ['tpl_edit','点检模板管理','新增 / 编辑 / 复制 /删除点检模板与检查项',0],
-  ['inspect_batch','批量点检操作','一键点检、整月生成 / 撤销、批量删除点检记录',0],
   ['export','数据导出备份','下载 JSON 备份、导出点检 / 温湿 CSV',0],
+  ['demo_mode','合规演示功能','⚠️ 批量点检、整月生成 / 撤销、按科室随机分派签名人、温湿度一键填充、免密签名。默认对所有人关闭（含管理员），仅供合规演示账号使用',0],
 ];
+// 合规演示功能属「严格键」：勾选后连管理员都不自动放行，只看用户上是否显式开启
+const PERM_STRICT=['demo_mode'];
 const permEff=(perms,k,def)=>(perms&&perms[k]!==undefined&&perms[k]!==null)?!!perms[k]:!!def;
 async function permUser(id){
   const users=await api('/api/users');const u=users.find(x=>x.id===id);if(!u)return;
   const m=$('#modal');
   m.innerHTML=`<h3>🔑 功能权限 · ${esc(u.name||u.username)}</h3>
-    <p class="muted tiny" style="margin-top:-4px">勾选 = 允许该用户使用此功能（无需给管理员角色）。不勾 = 保持关闭。管理员不受此限制。</p>
+    <p class="muted tiny" style="margin-top:-4px">勾选 = 允许该用户使用此功能（无需给管理员角色）。不勾 = 保持关闭。常规项对管理员不生效（管理员恒可用）；标 ⚠️ 的「合规演示功能」是例外 —— 默认对所有人关闭，必须在这里显式勾选才可用，管理员也一样。</p>
     ${PERM_LIST.map(([k,label,desc,def])=>`
-      <label style="display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border:1px solid rgba(255,255,255,.10);border-radius:8px;margin-bottom:6px;cursor:pointer">
+      <label style="display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border:1px solid ${PERM_STRICT.indexOf(k)>=0?'rgba(255,180,80,.45)':'rgba(255,255,255,.10)'};border-radius:8px;margin-bottom:6px;cursor:pointer">
         <input type="checkbox" id="perm_${k}" ${permEff(u.perms,k,def)?'checked':''} style="margin-top:2px">
-        <span><b>${label}</b><span class="muted tiny" style="display:block;line-height:1.6">${desc}</span></span>
+        <span><b>${label}</b>${PERM_STRICT.indexOf(k)>=0?' <span class="muted tiny">（严格：含管理员）</span>':''}<span class="muted tiny" style="display:block;line-height:1.6">${desc}</span></span>
       </label>`).join('')}
     <div class="flex"><button class="btn primary" onclick="savePerms('${id}')">保存权限</button><button class="btn ghost" onclick="closeM()">取消</button></div>`;
   $('#mask').classList.add('show');
@@ -1241,7 +1326,7 @@ async function fillSignerSelect(sel, cur){
 $('#user_add').onclick=()=>{
   const m=$('#modal');m.innerHTML=`<h3>新增用户</h3>
     <div class="field"><label>用户名 / 姓名</label><input id="u_name" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">必填，唯一。<b>这一个名字同时是登录账号、也是页面显示的姓名</b>（已合并为一条，不用重复填）；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
-    <div class="field"><label>密码</label><input type="password" id="u_pw" placeholder="至少4位"></div>
+    <div class="field"><label>密码</label><input type="password" id="u_pw" placeholder="至少6位" minlength="6"></div>
     <div class="field"><label>角色</label><select id="u_role"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
     <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
       <div class="muted tiny" style="margin-top:3px">指定后，该用户登录只看到本科室的房间；留空则按角色（管理员看全部，普通用户看全部）</div></div>
@@ -1267,7 +1352,7 @@ async function editUser(id){
   _euOrig={u:u.username,n:u.name||u.username};
   const m=$('#modal');m.innerHTML=`<h3>编辑用户</h3>
     <div class="field"><label>用户名 / 姓名</label><input id="u_name" value="${esc(u.name||u.username)}" maxlength="32" placeholder="2-32 位，可中文/英文/数字"><p class="muted tiny">已合并为一条：<b>这个名字同时是登录账号、也是显示姓名</b>；2-32 位，可中文、英文、数字、下划线、点、连字符（不含空格）</p></div>
-    <div class="field"><label>重置密码（留空不修改）</label><input type="password" id="u_pw" placeholder="至少4位"></div>
+    <div class="field"><label>重置密码（留空不修改）</label><input type="password" id="u_pw" placeholder="至少6位" minlength="6"></div>
     <div class="field"><label>角色</label><select id="u_role"><option value="user" ${u.role==='user'?'selected':''}>普通用户</option><option value="admin" ${u.role==='admin'?'selected':''}>管理员</option></select></div>
     <div class="field"><label>科室（可选）</label><select id="u_dept"></select>
       <div class="muted tiny" style="margin-top:3px">指定后，该用户登录只看到本科室的房间；留空则按角色（管理员看全部，普通用户看全部）</div></div>
@@ -1907,7 +1992,6 @@ async function loadDev(){
   const [tpls,progs]=await Promise.all([api('/api/templates'),api('/api/programs')]);
   ALL_TPL=tpls;
   ALL_PROG=Array.isArray(progs)?progs:[];
-  $('#g_tpl').innerHTML='<option value="">（无模板）</option>'+tpls.map(t=>`<option value="${t.id}">${esc(t.key)} · ${esc(t.equip_name)}</option>`).join('');
   const devs=await api('/api/devices');
   ALL_DEV=devs;   // ALL_PROG 上面已取，供「一台设备多张检查表」铺开用
   renderDevList();
@@ -1956,14 +2040,16 @@ function renderDevList(){
   const allCb=$('#dev_all'); if(allCb){allCb.checked=false;}
   updateDelBtn();
 }
-$('#g_go').onclick=async()=>{
-  const r=await api('/api/devices/batch',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({count:+$('#g_count').value,template_id:$('#g_tpl').value||null})});
-  if(r.error){toast(r.error,'err');return;}toast('已生成 '+r.count+' 台','ok');loadDev();
-};
 $('#imp_go').onclick=async()=>{
+  const txt=$('#imp_txt').value||'';
+  const lines=txt.split(/\r?\n/).filter(l=>l.trim()).length;
+  if(!lines){ toast('请先粘贴要导入的设备内容','err'); return; }
+  if(!confirm('将按 '+lines+' 行文本导入设备（已存在的自动跳过），确定继续？')) return;
+  if($('#imp_go').disabled) return;
+  $('#imp_go').disabled=true;
   const r=await api('/api/devices/import',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:$('#imp_txt').value})});
+    body:JSON.stringify({text:txt})});
+  $('#imp_go').disabled=false;
   if(r.error){toast(r.error,'err');return;}toast(`导入成功 ${r.added} 台，跳过 ${r.skipped} 台`,'ok');loadDev();
 };
 $('#dev_add').onclick=()=>editDev('');
@@ -2671,6 +2757,10 @@ async function genTpl(){
   if($('#it_header').checked) lines=lines.slice(1);
   const items=parseTplText(lines.join('\n'));
   if(!items.length){ toast('未解析到检查项','err'); return; }
+  // 覆盖导入会整份替换同标识模板的检查项（历史点检记录随之迁移）——不可逆，必须二次确认
+  if($('#it_overwrite').checked && !confirm('「标识已存在时覆盖检查项」已勾选：\n\n'
+    + '同标识模板的现有检查项会被**整份替换**，历史点检记录会迁移到新检查项上。\n\n确定继续导入？')) return;
+  if($('#it_go').disabled) return;
   $('#it_go').disabled=true;
   const r=await api('/api/admin/import-template',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({key,equip_name:name,model:$('#it_model').value.trim(),source_file:$('#it_src').value.trim(),overwrite:$('#it_overwrite').checked,items,signer_id:sid,password:pw})});
@@ -4185,11 +4275,11 @@ async function loadRec(){
   const rows=await api('/api/inspections'+(q?'?'+q:''));
   $('#r_stat').textContent=`共 ${rows.length} 条`;
   $('#r_list').innerHTML=rows.map(r=>`<tr>
-    <td><input type="checkbox" class="rck" value="${r.id}" onchange="updCnt()"></td>
-    <td class="tiny">${r.inspect_date}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td><td>${esc(r.room)||'—'}</td>
-    <td><span class="pill ${r.status}">${r.status==='ok'?'正常':r.status==='ng'?'异常':'—'}</span></td>
-    <td>${r.signed_by||'—'}</td><td class="tiny">${r.abnormal_note||''}</td>
-    <td><button class="btn sm danger" onclick="delRec('${r.id}')">删</button></td></tr>`).join('');
+    <td><input type="checkbox" class="rck" value="${esc(r.id)}" onchange="updCnt()"></td>
+    <td class="tiny">${esc(r.inspect_date)}</td><td>${esc(r.no)}</td><td>${esc(r.name)}</td><td>${esc(r.room)||'—'}</td>
+    <td><span class="pill ${r.status==='ng'?'ng':'ok'}">${r.status==='ok'?'正常':r.status==='ng'?'异常':'—'}</span></td>
+    <td>${esc(r.signed_by)||'—'}</td><td class="tiny">${esc(r.abnormal_note)}</td>
+    <td><button class="btn sm danger" onclick="delRec('${esc(r.id)}')">删</button></td></tr>`).join('');
   updCnt();
 }
 // 更新选中计数；全选勾选态 = 全部可见行都选中
@@ -4247,7 +4337,7 @@ async function loadMonthInspect(){
   const signers=await api('/api/signers/public');
   $('#m_signer').innerHTML='<option value="">（请选择）</option>'+signers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
   const devs=await api('/api/devices');
-  $('#m_dev').innerHTML=devs.map(d=>`<option value="${d.id}">${d.no} ${esc(d.name)}</option>`).join('');
+  $('#m_dev').innerHTML=devs.map(d=>`<option value="${d.id}">${esc(d.no)} ${esc(d.name)}</option>`).join('');
   // 房间下拉：一次只处理一个房间的设备，避免"一下全厂"
   const rooms=await api('/api/rooms');
   $('#m_room').innerHTML=rooms.map(r=>`<option value="${esc(r.name)}">${esc(r.name)}（${r.count} 台）</option>`).join('');
@@ -4513,6 +4603,10 @@ async function loadSysSignNoPw(){
 }
 if($('#sys_signnopw')) $('#sys_signnopw').onchange=async()=>{
   const v=$('#sys_signnopw').checked;
+  // 开启免密 = 取消签名密码校验：此后任何能打开页面的人都能代他人落签（含管理员/授权签名人）。
+  // 这是「降低安全门槛」的操作，勾一下就直接生效太轻率，必须二次确认。
+  if(v && !confirm('开启「免密签名」后，点检页 / 温湿度页只要选中签名人就能落签，\n不再要求输入签名人密码。\n\n'
+    + '影响：任何能打开这两个页面的人都可以代替他人签名。\n\n确定要开启吗？')){ $('#sys_signnopw').checked=false; return; }
   const r=await api('/api/admin/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({signNoPw:v})});
   if(r.error){ toast(r.error,'err'); $('#sys_signnopw').checked=!v; return; }
   toast(v?'已开启免密签名（刷新点检页生效）':'已恢复签名密码校验','ok');
@@ -4580,6 +4674,8 @@ me().then(r=>{if(r.ok)enter();}).then(async()=>{
   const p=new URLSearchParams(location.search);
   const t=p.get('tab'), rm=p.get('room');
   if(!t) return;
+  // v1.42.0：深链指向被演示模式隐藏的页签时直接忽略（防止绕过前端隐藏进入演示功能面板）
+  if(['month','env'].indexOf(t)>=0 && !window.CAN_DEMO) return;
   const btn=document.querySelector('.tabs button[data-t="'+t+'"]');
   if(!btn) return;
   btn.click();

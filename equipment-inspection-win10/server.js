@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.40.0';
-const APP_VERSION_DATE = '2026-09-23';
+const APP_VERSION = 'v1.43.6';
+const APP_VERSION_DATE = '2026-09-26';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -48,6 +48,11 @@ const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const ADMIN_COOKIE = 'admin_token';
 let PEPPER = '';
 let SECRET = '';
+// v1.43.0 合规总开关 · 紧急强制关闭（Emergency Hard Off）
+// 放在 config.json 而非 kv.json 的理由：① 不随「数据备份/还原」流动，还原备份不会把强制关闭覆盖掉；
+// ② kv.json 是业务数据、会被运行时频繁改写，而这是运维级「钉死」开关，语义上就该独立。
+// 置 true 后：无论后台/隐藏入口的开关是什么状态，演示型功能一律不可用（AND 逻辑的最高优先级）。
+let DEMO_HARD_OFF = false;
 
 function ensureConfig() {
   let cfg = {};
@@ -55,6 +60,9 @@ function ensureConfig() {
   let changed = false;
   if (!cfg.PEPPER) { cfg.PEPPER = crypto.randomBytes(32).toString('hex'); changed = true; }
   if (!cfg.SECRET) { cfg.SECRET = crypto.randomBytes(32).toString('hex'); changed = true; }
+  // 紧急强制关闭：只读不自动创建 —— cfg 里没有该键时保持缺省（false），不主动写入，
+  // 避免「凭空出现一个 demoHardOff:false」让人误以为已经配过。
+  DEMO_HARD_OFF = cfg.demoHardOff === true;
   if (changed) {
     try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2)); } catch (e) {}
   }
@@ -436,7 +444,15 @@ async function hmac(key, msg) {
   const sig = await subtle.sign('HMAC', k, new TextEncoder().encode(msg));
   return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
-async function buildToken(user) { return user + '.' + await hmac(SECRET, user); }
+// 令牌格式：<用户名>.<签发毫秒时间戳>.<HMAC(用户名|时间戳)>
+// ⚠️ 时间戳必须由**服务端**校验 —— 之前只看 Cookie 的 Max-Age，那纯粹是浏览器侧行为，
+// 服务端对一张旧令牌永远放行：令牌一旦外泄（截图、日志、共用电脑）就永久有效，
+// 而且改密码也不会让它失效。
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;      // 与 Cookie 的 Max-Age=86400 对齐
+async function buildToken(user) {
+  const ts = String(Date.now());
+  return user + '.' + ts + '.' + await hmac(SECRET, user + '|' + ts);
+}
 function uuid() {
   try { return crypto.randomUUID(); } catch { return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2); }
 }
@@ -519,11 +535,17 @@ async function getAdmin() {
 async function getLoginUser(req) {
   const t = getCookie(req, ADMIN_COOKIE);
   if (!t) return null;
-  // 用 lastIndexOf：用户名本身可能含点，hmac 为 64 位 hex 不含点，应切在最后一个点之后
-  const i = t.lastIndexOf('.');
-  if (i < 0) return null;
-  const u = t.slice(0, i), sig = t.slice(i + 1);
-  if (sig !== await hmac(SECRET, u)) return null;
+  // <用户名>.<签发毫秒>.<HMAC>。用户名本身可能含点（如 zhang.dunlong），所以从右侧切两段出来。
+  const i2 = t.lastIndexOf('.');
+  if (i2 < 0) return null;
+  const sig = t.slice(i2 + 1), rest = t.slice(0, i2);
+  const i1 = rest.lastIndexOf('.');
+  if (i1 < 0) return null;                       // 旧的两段式令牌一律不认 → 强制重新登录一次
+  const u = rest.slice(0, i1), ts = rest.slice(i1 + 1);
+  if (!/^\d{10,16}$/.test(ts)) return null;
+  const age = Date.now() - Number(ts);
+  if (!(age >= 0) || age > TOKEN_TTL_MS) return null;   // 服务端判过期（age<0 = 时钟回拨/伪造未来时间）
+  if (sig !== await hmac(SECRET, u + '|' + ts)) return null;
   const users = kvget('users', []);
   return users.find(x => x.username === u && x.active) || null;
 }
@@ -535,37 +557,139 @@ async function isAdmin(req) {
 // ---- 功能权限（v1.9.0）：给普通用户按人开关部分管理员功能 ----
 // user.perms = { key: 0|1 }；未配置的键取默认值 —— 老账号零影响（现状即默认）。
 // PERM_DEF=1 的键是「现在人人都能用」的功能（如温湿度表录入），默认放开、可单独收紧。
+// v1.42.0：原 inspect_batch / env_fill 两个键已被 demo_mode 取代（演示型功能收口到单一开关）。
+//         用户上若残留这两个键的历史值不会报错 —— PERM_KEYS 只校验已知键，多余键在保存时被自动丢弃。
 const PERM_DEFS = {
-  env_edit:      { label: '温湿度表录入',   desc: '温湿度页手动填写/保存/划线', def: 1 },
-  env_fill:      { label: '温湿度一键填充', desc: '后台一键填充、LIMS 抓取/同步', def: 0 },
-  env_delete:    { label: '温湿度记录删除', desc: '后台按房间+月份整表删除', def: 0 },
-  tpl_edit:      { label: '点检模板管理',   desc: '新增/编辑/复制/删除点检模板', def: 0 },
-  inspect_batch: { label: '批量点检操作',   desc: '一键点检、整月生成/撤销、批量删除记录', def: 0 },
-  export:        { label: '数据导出备份',   desc: '下载 JSON 备份、导出点检/温湿 CSV', def: 0 },
+  env_edit:   { label: '温湿度表录入',   desc: '温湿度页手动填写/保存/划线', def: 1 },
+  env_delete: { label: '温湿度记录删除', desc: '后台按房间+月份整表删除', def: 0 },
+  tpl_edit:   { label: '点检模板管理',   desc: '新增/编辑/复制/删除点检模板', def: 0 },
+  export:     { label: '数据导出备份',   desc: '下载 JSON 备份、导出点检/温湿 CSV', def: 0 },
+  // v1.42.0 合规演示模式：演示型功能的唯一开关。默认关闭，且**连管理员也不例外** —— 见 PERM_STRICT_KEYS。
+  // v1.43.1 起 LIMS 抓取已移出（取真实测量数据，属合规业务功能）；
+  // v1.43.3 起「免密签名」纳入（降低签名凭据门槛）。
+  demo_mode:  { label: '合规演示功能',   desc: '批量点检、整月生成/撤销、随机分派签名人、温湿度一键填充、免密签名（合规演示专用，默认对所有人关闭）', def: 0 },
 };
 const PERM_KEYS = Object.keys(PERM_DEFS);
+// v1.42.0 合规演示模式：这组键是「默认对所有人关闭，连管理员也不例外」的特殊权限。
+// 常规权限的语义是「给普通用户开放管理员功能」（管理员恒放行）；而演示模式的要求正相反 ——
+// 管理员日常/演示时都不该看到这些功能，只有被显式授权的账号才可用。
+// 因此这组键绕过 `role === 'admin'` 的恒放行分支，必须在用户上显式配置 1 才算持有。
+const PERM_STRICT_KEYS = ['demo_mode'];
+function isStrictPerm(key) { return PERM_STRICT_KEYS.indexOf(key) >= 0; }
 function userHasPerm(u, key) {
   if (!u) return false;
-  if (u.role === 'admin') return true;
   const d = PERM_DEFS[key];
   if (!d) return false;
   const v = u.perms ? u.perms[key] : undefined;
+  // 严格键：不受角色影响，只看用户上是否显式开了 1
+  if (isStrictPerm(key)) return v === 1 || v === true;
+  if (u.role === 'admin') return true;
   return (v === undefined || v === null) ? !!d.def : !!v;
 }
 async function hasPerm(req, key) {
   return userHasPerm(await getLoginUser(req), key);
 }
 function permLabel(key) { return (PERM_DEFS[key] || {}).label || key; }
+
+// ===================== 合规总开关（v1.43.0；入口方式 v1.43.2 改为链接+密码）=====================
+// 需求：为「设计上敏感、不符合合规要求」的功能加一个总开关。关闭时前端入口隐藏 + 后端接口拦截，
+// 默认关闭；仅管理员可切换；隐藏入口 = 暗 URL `/admin/_gate` + 管理员密码验证（v1.43.2 起，
+// 取代 v1.43.0 的 Konami 按键序列）；状态持久化；支持 config.json 紧急强制关闭；每次切换写审计日志。
+//
+// 三层 AND 语义（任一层不允许即不可用）：
+//   1) DEMO_HARD_OFF（config.json，最高优先级，紧急强制关闭）
+//   2) kv.demoGate.enabled（总开关本体，持久化，管理员通过隐藏入口切换）
+//   3) user.perms.demo_mode（账号级授权，v1.42.0 已有）
+//
+// 受管控的功能清单 = DEMO_GATE_PATHS（见路由表）。判定在 handleApi 里统一做，
+// 各 handler 内不再写死判断 —— 单一收口点，避免漂移。
+const DEMO_GATE_KEYS = ['enabled', 'updated_at', 'updated_by', 'updated_by_name', 'reason'];
+function demoGate() {
+  const g = kvget('demoGate', null);
+  if (!g || typeof g !== 'object') return { enabled: false, updated_at: null, updated_by: '', updated_by_name: '', reason: '' };
+  return {
+    enabled: g.enabled === true,
+    updated_at: g.updated_at || null,
+    updated_by: g.updated_by || '',
+    updated_by_name: g.updated_by_name || '',
+    reason: g.reason || '',
+  };
+}
+// 总开关是否放行（只看开关本体 + 紧急强制关闭，不含账号级权限）
+function demoGateOpen() {
+  if (DEMO_HARD_OFF) return false;
+  return demoGate().enabled === true;
+}
+// 演示型功能的最终判定：三层全通过才放行
+function demoAllowed(u) {
+  if (DEMO_HARD_OFF) return false;
+  if (!demoGate().enabled) return false;
+  return userHasPerm(u, 'demo_mode');
+}
+// 审计日志（独立存储，便于体系检查时单独出示；与运行日志 app-*.log 分开）
+const DEMO_GATE_LOG_MAX = 200;
+function demoGateLog(entry) {
+  const list = kvget('demoGateLog', []) || [];
+  list.push(Object.assign({ at: new Date().toISOString() }, entry));
+  if (list.length > DEMO_GATE_LOG_MAX) list.splice(0, list.length - DEMO_GATE_LOG_MAX);
+  kvset('demoGateLog', list);
+  // 同时落一条运行日志，便于与 app-*.log 交叉核对
+  logW('DEMOGATE', entry.action + ' by=' + (entry.by || '?') + ' ip=' + (entry.ip || '?') +
+    ' ' + (entry.from ? 'on' : 'off') + '→' + (entry.to ? 'on' : 'off') +
+    (entry.reason ? ' reason=' + entry.reason : ''));
+}
+// 隐藏入口失败限速：ip → {n, first}。连续 5 次失败锁 15 分钟（复用 loginFails 的思路）。
+// v1.43.2 起同时管两处：unlock（解锁入口）与 set（切换开关）—— 试错额度是共享的，
+// 防止「在解锁框上慢慢试密码」这一条路被单独放过。
+const gateFails = new Map();
+const GATE_FAIL_MAX = 5, GATE_FAIL_WINDOW = 15 * 60 * 1000;
+function gateFailCheck(ip) {
+  const f = gateFails.get(ip);
+  if (!f) return 0;
+  if (Date.now() - f.first > GATE_FAIL_WINDOW) { gateFails.delete(ip); return 0; }
+  return f.n;
+}
+function gateFailAdd(ip) {
+  const f = gateFails.get(ip);
+  if (!f || Date.now() - f.first > GATE_FAIL_WINDOW) gateFails.set(ip, { n: 1, first: Date.now() });
+  else f.n++;
+}
+function gateFailReset(ip) { gateFails.delete(ip); }
+
 // 确保 users 初始化：首次启动 seed 一个 admin 用户（沿用原 admin 密码或默认 admin123）
+// v1.42.0：另外幂等补一个「合规演示」专用账号（只补缺失、不覆盖已有 —— 用户改过密码也不会被打回）
+const DEMO_USERNAME = 'demo';
+const DEMO_PASSWORD_DEFAULT = 'Demo@12345';
 async function ensureUsers() {
   const users = kvget('users', []);
-  if (users && users.length) return;
-  const admin = kvget('admin', null);
-  const ph = (admin && admin.password_hash) || await sha256('admin123' + PEPPER);
-  const seed = [{ id: 'u-admin', username: 'admin', name: '管理员', password_hash: ph, role: 'admin', active: true, created_at: new Date().toISOString() }];
-  // 开源演示账号（data/sample.kv.json 中 users 为空时自动创建）
-  seed.push({ id: 'u-demo', username: 'demo-user', name: '演示用户', password_hash: await sha256('demo123' + PEPPER), role: 'user', active: true, created_at: new Date().toISOString(), dept: '演示科室', perms: { env_edit: 1 } });
-  kvset('users', seed);
+  if (!users || !users.length) {
+    const admin = kvget('admin', null);
+    const ph = (admin && admin.password_hash) || await sha256('admin123' + PEPPER);
+    kvset('users', [{ id: 'u-admin', username: 'admin', name: '管理员', password_hash: ph, role: 'admin', active: true, created_at: new Date().toISOString() }]);
+    // 首次初始化时一并建演示账号（下面统一补，这里不 return，走到第二段）
+  }
+  await ensureDemoUser();
+}
+// 幂等补充演示账号：已存在则原样保留（不重置密码、不覆盖权限、不复活已停用的账号）
+async function ensureDemoUser() {
+  const users = kvget('users', []);
+  if (users.some(u => u.username === DEMO_USERNAME)) return;
+  users.push({
+    id: 'u-demo',
+    username: DEMO_USERNAME,
+    name: '合规演示',
+    password_hash: await sha256(DEMO_PASSWORD_DEFAULT + PEPPER),
+    role: 'user',                                  // 故意不是 admin —— 避免绕过权限体系
+    active: true,
+    dept: '',
+    signer_id: '',
+    // 只开 demo_mode 一个键，其余键缺省取 PERM_DEFS.def（env_edit=1，其它=0）
+    perms: { demo_mode: 1 },
+    created_at: new Date().toISOString(),
+    remark: '合规演示专用账号：仅具备批量点检/整月生成/随机分派/一键填充等演示型功能权限。演示结束请停用或改密。',
+  });
+  kvset('users', users);
+  logW('INIT', '已创建合规演示账号: ' + DEMO_USERNAME + '（初始密码已生成，请首次登录后修改）');
 }
 
 // ===================== 业务助手 =====================
@@ -804,7 +928,15 @@ async function upsertInspection(rec, extra) {
 // 开：点检页 / 温湿度页不再要求「签名人密码」，选中签名人即可落签。
 // 关（默认）：签名密码是「这个字是谁签的」的凭据 —— ISO 记录通常要求保留，
 //             所以不擅自放开，由现场按自己的管理尺度决定。
-const signNoPw = () => !!kvget('signNoPw', false);
+//
+// ⚠️ v1.43.3：「免密签名」本身属演示型（降低签名凭据门槛），纳入合规总开关管控 ——
+//    最终生效值 = 库里的 signNoPw **AND** 总开关（demoGateOpen()）。
+//    总开关关闭时强制回退为「要密码」，**不是只在界面上藏起来** ——
+//    否则会出现「后台看不见这个开关、免密却还在跑」的最危险状态（看不见但生效）。
+//    注意这里用 demoGateOpen()（开关本体 + 紧急强制关闭）而**不是** demoAllowed(u)：
+//    它无 user 上下文（verifySigner 只管签名人，不管登录人），且签名免密是全局行为开关。
+const signNoPwRaw = () => !!kvget('signNoPw', false);
+const signNoPw = () => signNoPwRaw() && demoGateOpen();
 
 async function verifySigner(body) {
   const signer = allSigners().find(s => s.id === body.signer_id);
@@ -889,18 +1021,43 @@ async function handleMe(ctx) {
   });
 }
 // POST /api/admin/login —— 登录（成功后种 cookie）
+// 恒定时间字符串比较：普通 === 在首个不同字符处短路，理论上可被计时侧信道逐字节试出。
+// 哈希长度固定，所以「长度不等直接 false」不会额外泄露信息。
+function timingEq(a, b) {
+  const x = Buffer.from(String(a == null ? '' : a)), y = Buffer.from(String(b == null ? '' : b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+// 登录失败限速：内网 + 允许短密码，脚本爆破成本极低，这里按「来源 IP + 用户名」计数。
+// 按组合（而不是只按 IP）—— 一个人输错密码不该把同网段其他人一起锁掉。
+const LOGIN_FAIL_WIN = 5 * 60 * 1000, LOGIN_FAIL_MAX = 10;
+const loginFails = new Map();                    // 'ip|username' → {first, n}
 async function handleLogin(ctx) {
   const b = ctx.body;
+  const ip = (ctx.req && ctx.req.socket && ctx.req.socket.remoteAddress) || '';
+  const uname = String(b.username == null ? '' : b.username);
+  const fkey = ip + '|' + uname;
+  const fr = loginFails.get(fkey);
+  if (fr && Date.now() - fr.first <= LOGIN_FAIL_WIN && fr.n >= LOGIN_FAIL_MAX) {
+    logW('AUTH', '登录尝试过于频繁，已临时拒绝：' + uname + '（来源 ' + ip + '，窗口内 ' + fr.n + ' 次）');
+    return fail(ctx.res, '登录尝试过于频繁，请 5 分钟后再试', 429);
+  }
   const users = kvget('users', []);
   const user = users.find(x => x.username === b.username && x.active);
   if (user) {
     const ph = await sha256((b.password || '') + PEPPER);
-    if (ph === user.password_hash) {
+    if (timingEq(ph, user.password_hash)) {
+      loginFails.delete(fkey);
       const token = await buildToken(user.username);
       logI('AUTH', '登录成功: ' + user.username + (user.role === 'admin' ? '（管理员）' : ''));
       return sendJson(ctx.res, { ok: true, username: user.username, name: user.name, role: user.role },
         200, { 'Set-Cookie': adminCookie(token) });
     }
+  }
+  const now = Date.now();
+  if (!fr || now - fr.first > LOGIN_FAIL_WIN) loginFails.set(fkey, { first: now, n: 1 });
+  else fr.n++;
+  if (loginFails.size > 500) {                   // 防内存无限增长
+    for (const [k, v] of loginFails) if (now - v.first > LOGIN_FAIL_WIN) loginFails.delete(k);
   }
   logW('AUTH', '登录失败: ' + (b.username || '?') + '（账号不存在/密码错/已停用）');
   return fail(ctx.res, '账号或密码错误', 401);
@@ -908,7 +1065,7 @@ async function handleLogin(ctx) {
 // POST /api/admin/changepw —— 修改当前登录用户密码（多用户各改各的）
 async function handleChangePw(ctx) {
   const b = ctx.body;
-  if (!b.password || String(b.password).length < 4) return fail(ctx.res, '密码至少 4 位');
+  if (!b.password || String(b.password).length < 6) return fail(ctx.res, '密码至少 6 位');
   const me = await getLoginUser(ctx.req);
   if (!me) return fail(ctx.res, '未登录或登录已失效', 401);
   const users = kvget('users', []);
@@ -931,7 +1088,7 @@ async function handleCreateUser(ctx) {
   const username = (b.username || '').trim();
   if (!username || !b.password) return fail(ctx.res, '用户名与密码必填');
   if (!validUsername(username)) return fail(ctx.res, '用户名需 2-32 位，可中文/英文/数字/下划线/点/@/连字符，不能含空格');
-  if (String(b.password).length < 4) return fail(ctx.res, '密码至少 4 位');
+  if (String(b.password).length < 6) return fail(ctx.res, '密码至少 6 位');
   const users = kvget('users', []);
   if (users.some(u => u.username === username)) return fail(ctx.res, '用户名已存在');
   users.push({ id: uuid(), username, name: (b.name || '').trim() || username,
@@ -959,7 +1116,7 @@ async function handleUpdateUser(ctx) {
   }
   if ('name' in b) u.name = (b.name || '').trim() || u.username;
   if (b.password) {
-    if (String(b.password).length < 4) return fail(ctx.res, '密码至少 4 位');
+    if (String(b.password).length < 6) return fail(ctx.res, '密码至少 6 位');
     u.password_hash = await sha256(b.password + PEPPER);
   }
   if (b.role === 'admin' || b.role === 'user') u.role = b.role;
@@ -1298,26 +1455,9 @@ async function handleCreateDevice(ctx) {
   list.push(d); kvset('devices', list);
   return sendJson(ctx.res, d);
 }
-// POST /api/devices/batch —— 按数量批量生成设备（编号 001/002/...）
-async function handleBatchCreateDevices(ctx) {
-  const b = ctx.body;
-  const count = parseInt(b.count, 10);
-  if (!count || count < 1) return fail(ctx.res, '数量无效');
-  const tpls = allTemplates();
-  const t = b.template_id ? tpls.find(x => x.id === b.template_id) : null;
-  const list = allDevices();
-  let added = 0;
-  for (let i = 0; i < count; i++) {
-    const no = String(i + 1).padStart(3, '0');
-    if (list.some(d => d.no === no)) continue;
-    list.push({ id: uuid(), no, name: t ? t.equip_name : ('设备 ' + no), model: t ? (t.model || '') : '',
-      template_id: t ? t.id : null, location: '' });
-    added++;
-  }
-  kvset('devices', list);
-  return sendJson(ctx.res, { count: added });
-}
 // POST /api/devices/import —— 文本导入（每行：编号,型号,名称 或 编号,名称 或 编号）
+// 注：原「按数量批量生成设备」（POST /api/devices/batch，自动 No.001 起）已于 v1.43.5 移除 ——
+// 该功能按「已存在则跳过」生成连续编号，实际使用中容易与现场台账不符，用户反馈体验不佳。
 async function handleImportDevices(ctx) {
   const b = ctx.body;
   const text = b.text || '';
@@ -1494,9 +1634,9 @@ async function handleInspectMonth(ctx) {
 }
 // POST /api/inspect/delete —— 删除单台设备指定日期（或整月）的点检内容与电子签名
 // body: { device_id, dates:['YYYY-MM-DD', ...] }  或 { device_id, month:'YYYY-MM', dates? }
-// 说明：这条路由是 adminOnly + perm:'inspect_batch'（管理员恒放行、普通用户须被授权），
-//       因为删除不可恢复。签名图和 bySn 与记录同为一体，删记录即删签名 —— 这正是
-//       此前「点检页面的签名删不掉」缺的那一步（原来只把格子清空，服务端不删记录）。
+// 说明：这条路由是 adminOnly + perm:'demo_mode'（v1.42.0 起：属合规演示功能，默认对所有人关闭，
+//       连管理员也需显式授权），因为删除不可恢复。签名图和 bySn 与记录同为一体，删记录即删签名 ——
+//       这正是此前「点检页面的签名删不掉」缺的那一步（原来只把格子清空，服务端不删记录）。
 async function handleInspectDelete(ctx) {
   const b = ctx.body || {};
   const dev = allDevices().find(d => d.id === b.device_id);
@@ -1796,6 +1936,14 @@ async function handleGetSettings(ctx) {
 async function handlePutSettings(ctx) {
   const b = ctx.body || {};
   if (typeof b.signNoPw === 'boolean') {
+    // v1.43.3：签名免密受合规总开关管控 —— 总开关关闭时该开关不生效（signNoPw() 恒 false），
+    // 此时若还允许改，会造成「改了没反应」的静默无效。直接拒绝并说明原因。
+    if (!demoGateOpen()) {
+      const cur = signNoPwRaw();
+      if (b.signNoPw !== cur) {
+        return fail(ctx.res, '签名免密属演示型功能，需先在「合规总开关」中开启后才能修改（当前对所有人关闭）', 403);
+      }
+    }
     kvset('signNoPw', b.signNoPw);
     logI('设置', '签名免密 = ' + (b.signNoPw ? '开（点检页不再要求签名密码）' : '关（恢复密码校验）'));
   }
@@ -4853,6 +5001,9 @@ async function handleRestore(ctx) {
   const bak = path.join(DATA_DIR, 'kv-restore-backup-' + ts + '.json');
   try { fs.writeFileSync(bak, JSON.stringify(store, null, 2), 'utf8'); } catch (e) { return fail(ctx.res, '备份当前数据失败：' + e.message, 500); }
   const defaults = { admin: null, devices: [], templates: [], signers: [], inspections: [], abnormalRecords: [], rooms: [], depts: [], envRecords: [] };
+  // v1.43.0：合规总开关（demoGate）与审计日志（demoGateLog）刻意**不进 defaults**。
+  // 效果：还原一份不含这两个键的旧备份时，总开关会被重置为「关闭」——这是有意的安全取向
+  //      （导入数据不该顺带把演示功能打开）；若备份里带了它们则原样恢复，便于整机迁移。
   store = Object.assign({}, defaults, incoming);
   try {
     await fs.promises.mkdir(DATA_DIR, { recursive: true });
@@ -4863,6 +5014,125 @@ async function handleRestore(ctx) {
   return sendJson(ctx.res, { ok: true, backup: path.basename(bak), counts: {
     devices: (store.devices || []).length, rooms: (store.rooms || []).length, users: (store.users || []).length,
     inspections: (store.inspections || []).length, signers: (store.signers || []).length } });
+}
+
+// ===================== 合规总开关 API（v1.43.0）=====================
+// POST /api/admin/demo-gate/unlock —— 隐藏入口的「解锁」步骤（v1.43.2）
+// 背景：入口 = 一个直达链接 /admin/_gate，打开后显示「系统维护」样式的密码框；
+//       密码正确才揭示控制面板。取代 v1.43.0 的按键序列（那条路径已移除）。
+// 与 set 的分工：unlock 只负责「证明你是管理员」，不改任何状态；
+//       真正的开/关仍走 set（它自己也带一次密码校验，双保险）。
+// 安全设计：
+//   ① 必须已登录且角色为 admin（服务端页面级已拦，这里是第二道）；
+//   ② 密码用 sha256+salt 恒定时间比较，与登录同一套 hash；
+//   ③ 与 set 共用 gateFails 限速表 —— 在解锁框上试错同样会累积到「5 次锁 15 分钟」；
+//   ④ 成功/失败都进审计日志，便于事后追溯谁在什么时候试图进过这个页面。
+async function handleDemoGateUnlock(ctx) {
+  const ip = (ctx.req && ctx.req.socket && ctx.req.socket.remoteAddress) || '';
+  const u = await getLoginUser(ctx.req);
+  if (!u) return fail(ctx.res, '未登录或登录已失效', 401);
+  if (u.role !== 'admin') {
+    demoGateLog({ action: 'denied_not_admin', by: u.username, by_id: u.id, by_name: u.name || '', ip, from: demoGate().enabled, to: demoGate().enabled, reason: '非管理员尝试解锁合规总开关' });
+    return fail(ctx.res, '权限不足：合规总开关仅管理员可操作', 403);
+  }
+  const failed = gateFailCheck(ip);
+  if (failed >= GATE_FAIL_MAX) {
+    return fail(ctx.res, '尝试次数过多，请 15 分钟后再试', 429);
+  }
+  const b = ctx.body || {};
+  if (!b.password) return fail(ctx.res, '请输入管理员密码');
+  const users = kvget('users', []);
+  const me = users.find(x => x.id === u.id);
+  if (!me) return fail(ctx.res, '账号不存在', 404);
+  const ph = await sha256(String(b.password) + PEPPER);
+  if (!timingEq(ph, me.password_hash)) {
+    gateFailAdd(ip);
+    const left = Math.max(0, GATE_FAIL_MAX - gateFailCheck(ip));
+    demoGateLog({ action: 'failed_unlock', by: u.username, by_id: u.id, by_name: u.name || '', ip, from: demoGate().enabled, to: demoGate().enabled, reason: '入口解锁密码错误' });
+    return fail(ctx.res, '密码错误（剩余尝试 ' + left + ' 次）', 401);
+  }
+  gateFailReset(ip);
+  demoGateLog({ action: 'unlock', by: u.username, by_id: u.id, by_name: u.name || u.username, ip, from: demoGate().enabled, to: demoGate().enabled, reason: '经隐藏入口解锁控制面板' });
+  return sendJson(ctx.res, { ok: true });
+}
+
+// GET /api/admin/demo-gate/state —— 读当前状态。
+// 为什么对所有登录用户开放（不能设 adminOnly）：这是**全局唯一**的「演示功能是否可用」标志，
+//   每个页面的 CORE.canDemo() 都要先读它；而 core.js 的 api() 把 403 一律当「会话过期」跳登录，
+//   若此接口只给管理员，普通用户打开任一页面都会被 403 踢回登录页（v1.43.1 修的真 bug）。
+// 泄露面：仅一个全局布尔 + 自己的 can_operate，不含任何账号/数据信息，对已登录用户公开无风险。
+async function handleDemoGateState(ctx) {
+  const u = await getLoginUser(ctx.req);
+  if (!u) return fail(ctx.res, '未登录或登录已失效', 401);
+  const g = demoGate();
+  return sendJson(ctx.res, {
+    ok: true,
+    enabled: g.enabled === true,
+    hard_off: DEMO_HARD_OFF,              // 紧急强制关闭（config.json）
+    effective: demoGateOpen(),            // 综合结果：false 表示无论开关怎么设都不可用
+    updated_at: g.updated_at,
+    updated_by_name: g.updated_by_name,
+    reason: g.reason,
+    can_operate: !!(u && u.role === 'admin'),   // 仅管理员可切换
+  });
+}
+// POST /api/admin/demo-gate/set —— 切换总开关（仅管理员）
+// body: { enabled:bool, password:'管理员密码', reason?:'备注' }
+// 安全设计：① 必须管理员；② 必须用当前账号密码二次验证（防止会话被劫持后直接改）；
+//          ③ 连续失败 5 次锁 15 分钟；④ 每次成功/失败都写审计日志。
+async function handleDemoGateSet(ctx) {
+  const ip = (ctx.req && ctx.req.socket && ctx.req.socket.remoteAddress) || '';
+  const u = await getLoginUser(ctx.req);
+  if (!u) return fail(ctx.res, '未登录或登录已失效', 401);
+  if (u.role !== 'admin') {
+    demoGateLog({ action: 'denied_not_admin', by: u.username, by_id: u.id, by_name: u.name || '', ip, from: demoGate().enabled, to: demoGate().enabled, reason: '非管理员尝试操作总开关' });
+    return fail(ctx.res, '权限不足：合规总开关仅管理员可操作', 403);
+  }
+  // 失败锁定
+  const failed = gateFailCheck(ip);
+  if (failed >= GATE_FAIL_MAX) {
+    return fail(ctx.res, '尝试次数过多，请 15 分钟后再试', 429);
+  }
+  const b = ctx.body || {};
+  if (typeof b.enabled !== 'boolean') return fail(ctx.res, '缺少 enabled 参数（true/false）');
+  if (!b.password) return fail(ctx.res, '需要输入当前账号密码进行二次验证');
+  const users = kvget('users', []);
+  const me = users.find(x => x.id === u.id);
+  if (!me) return fail(ctx.res, '账号不存在', 404);
+  const ph = await sha256(String(b.password) + PEPPER);
+  if (!timingEq(ph, me.password_hash)) {
+    gateFailAdd(ip);
+    const left = Math.max(0, GATE_FAIL_MAX - gateFailCheck(ip));
+    demoGateLog({ action: 'failed_bad_password', by: u.username, by_id: u.id, by_name: u.name || '', ip, from: demoGate().enabled, to: demoGate().enabled, reason: '密码校验失败' });
+    return fail(ctx.res, '密码错误（剩余尝试 ' + left + ' 次）', 401);
+  }
+  gateFailReset(ip);
+  const before = demoGate();
+  const next = b.enabled === true;
+  kvset('demoGate', {
+    enabled: next,
+    updated_at: new Date().toISOString(),
+    updated_by: u.username,
+    updated_by_name: u.name || u.username,
+    reason: String(b.reason || '').slice(0, 200),
+  });
+  demoGateLog({
+    action: next ? 'enable' : 'disable',
+    by: u.username, by_id: u.id, by_name: u.name || u.username, ip,
+    from: before.enabled === true, to: next,
+    reason: String(b.reason || '').slice(0, 200),
+  });
+  return sendJson(ctx.res, {
+    ok: true, enabled: next, hard_off: DEMO_HARD_OFF, effective: demoGateOpen(),
+    updated_at: new Date().toISOString(), updated_by_name: u.name || u.username,
+  });
+}
+// GET /api/admin/demo-gate/log —— 审计日志（管理员）
+async function handleDemoGateLogList(ctx) {
+  const list = (kvget('demoGateLog', []) || []).slice().reverse();   // 最新在前
+  const q = parseInt((ctx.query && ctx.query.limit) || '50', 10);
+  const limit = Number.isFinite(q) ? Math.min(Math.max(q, 1), DEMO_GATE_LOG_MAX) : 50;
+  return sendJson(ctx.res, { ok: true, total: list.length, items: list.slice(0, limit) });
 }
 
 function csvCell(v) {
@@ -4929,6 +5199,9 @@ const PSEXE = (() => {
 })();
 const DEFAULT_PORT_ = 8787;
 const MAX_PKG_BYTES = 96 * 1024 * 1024;
+// 解压后的总大小上限：只限「压缩包大小」挡不住压缩炸弹（deflate 极限约 1000:1，
+// 一个几十 KB 的包能解出几 GB）。真实的升级包解压后约 10~20MB，400MB 足够宽松。
+const MAX_UNZIP_BYTES = 400 * 1024 * 1024;
 const PAYLOAD_MARK  = '__PAYLOAD__';
 const PKG_ALLOW = ['server.js', 'public', 'tools', 'runtime', '启动.bat', '停止.bat',
                    '_run_hidden.vbs', 'setup.ps1', 'version.txt', '安装.bat', '安装说明.txt'];
@@ -4969,6 +5242,7 @@ function unzip(buf) {
   let off = buf.readUInt32LE(eocd + 16);
   if (!count) throw new Error('ZIP 里没有任何文件');
   const out = [];
+  let total = 0;                     // 累计解压后大小：压缩炸弹只压「包」的大小，解压后才见真章
   for (let n = 0; n < count; n++) {
     if (off + 46 > buf.length || buf.readUInt32LE(off) !== 0x02014b50) throw new Error('ZIP 目录项损坏（第 ' + (n + 1) + ' 项）');
     const method = buf.readUInt16LE(off + 10);
@@ -4989,6 +5263,11 @@ function unzip(buf) {
     else if (method === 8) data = zlib.inflateRawSync(raw);
     else throw new Error('不支持的压缩方式 ' + method + '（' + name + '）');
     if (usize && data.length !== usize) throw new Error('解压后大小不符：' + name);
+    total += data.length;
+    if (total > MAX_UNZIP_BYTES) {
+      throw new Error('解压后总大小超过 ' + Math.round(MAX_UNZIP_BYTES / 1048576) +
+        ' MB 上限（疑似压缩炸弹），已中止：' + name);
+    }
     out.push({ name: name.replace(/\\/g, '/'), data });
     off += 46 + nlen + elen + clen;
   }
@@ -5113,6 +5392,42 @@ function lanReady() {
 // 「本机是否允许被升级」+「来源是不是本系统的分发端」。两种凭据都收：
 //   · 专用令牌（老方式；显式开 open=false 后是唯一方式）—— 逐台配置，最严
 //   · 系统级共享密钥（默认）—— 零配置，任意一台机器登录后台即可推
+// ---------- 远程升级的入口防护（v1.41.0）----------
+// 「接受局域网升级」是给内网分发中心用的：开启后，任何能访问本机端口的人只要带对令牌，
+// 就能推一个升级包过来 —— 包会被解压落盘、交给升级引擎执行，**等价于远程代码执行**。
+// 所以入口必须收紧两条：
+//   ① 只认内网来源（挡住把端口映射到公网、或经跳板机转发的情形）；
+//   ② 令牌比较用恒定时间（tokenEq）+ 连续失败限速（挡住暴力猜令牌）。
+// 注意：这两条挡不住「已经在内网、且知道共享密钥」的人 —— 那要靠下面两个开关：
+//   到目标机后台把「接受系统共享密钥」关掉（open=false）并设一个专用令牌。
+function isPrivateAddr(addr) {
+  let a = String(addr == null ? '' : addr).trim();
+  if (!a) return false;
+  a = a.replace(/^::ffff:/i, '');                       // IPv4-mapped IPv6
+  if (a === '::1' || a === '127.0.0.1' || a === 'localhost') return true;
+  if (a.startsWith('10.') || a.startsWith('192.168.') || a.startsWith('169.254.')) return true;
+  const m = a.match(/^172\.(\d{1,3})\./);
+  if (m && +m[1] >= 16 && +m[1] <= 31) return true;     // 172.16.0.0/12
+  if (/^f[cd][0-9a-f]{2}:/i.test(a)) return true;       // IPv6 ULA fc00::/7
+  if (/^fe[89ab][0-9a-f]:/i.test(a)) return true;       // IPv6 链路本地 fe80::/10
+  return false;
+}
+const LAN_FAIL_WIN = 5 * 60 * 1000, LAN_FAIL_MAX = 10;
+const lanFails = new Map();                             // ip → {first, n}
+function lanFailCount(ip) {
+  const r = lanFails.get(ip);
+  if (!r) return 0;
+  if (Date.now() - r.first > LAN_FAIL_WIN) { lanFails.delete(ip); return 0; }
+  return r.n;
+}
+function lanFailAdd(ip) {
+  const now = Date.now(), r = lanFails.get(ip);
+  if (!r || now - r.first > LAN_FAIL_WIN) lanFails.set(ip, { first: now, n: 1 });
+  else r.n++;
+  if (lanFails.size > 500) {                            // 防内存无限增长
+    for (const [k, v] of lanFails) if (now - v.first > LAN_FAIL_WIN) lanFails.delete(k);
+  }
+}
 function lanAccept(given) {
   const c = lanCfg();
   if (!c.enabled) {
@@ -5173,8 +5488,21 @@ async function handleLanApply(ctx) {
   const self = !!req.__eqSelf;
   const who = self ? '本机' : '目标机';
   if (!self) {
+    const ip = (req.socket && req.socket.remoteAddress) || '';
+    if (!isPrivateAddr(ip)) {          // 只认内网来源
+      logW('LAN', '拒绝非内网来源的升级请求：' + ip);
+      return fail(res, '拒绝：远程升级只接受内网来源的请求', 403);
+    }
+    if (lanFailCount(ip) >= LAN_FAIL_MAX) {   // 连续失败限速
+      logW('LAN', '来源 ' + ip + ' 的升级请求失败过多，已临时拒绝');
+      return fail(res, '尝试次数过多，请 5 分钟后再试', 429);
+    }
     const a = lanAccept(req.headers['x-eq-token']);
-    if (!a.ok) return fail(res, a.msg, a.code);
+    if (!a.ok) {
+      lanFailAdd(ip);
+      logW('LAN', '升级凭据校验失败（来源 ' + ip + '，窗口内第 ' + lanFailCount(ip) + ' 次）');
+      return fail(res, a.msg, a.code);
+    }
   }
   const r0 = lanReady();
   if (!r0.win) return fail(res, who + '不是 Windows，暂不支持远程一键升级', 400);
@@ -5876,7 +6204,6 @@ const routes = [
 
   // ---- 设备 ----
   { method: 'POST', path: '/api/devices', handler: handleCreateDevice, adminOnly: true },
-  { method: 'POST', path: '/api/devices/batch', handler: handleBatchCreateDevices, adminOnly: true },
   { method: 'POST', path: '/api/devices/import', handler: handleImportDevices, adminOnly: true },
   { method: 'POST', path: '/api/devices/batch-delete', handler: handleBatchDeleteDevices, adminOnly: true },
   { method: 'PUT', pattern: /^\/api\/devices\/([^/]+)$/, paramNames: ['id'], handler: handleUpdateDevice, adminOnly: true },
@@ -5884,20 +6211,20 @@ const routes = [
 
   // ---- 点检记录（删除类可授权给「批量点检操作」用户） ----
   { method: 'GET', path: '/api/inspections', handler: handleListInspections, adminOnly: true },
-  { method: 'POST', path: '/api/inspections/batch-delete', handler: handleBatchDeleteInspections, adminOnly: true, perm: 'inspect_batch' },
-  { method: 'DELETE', pattern: /^\/api\/inspections\/([^/]+)$/, paramNames: ['id'], handler: handleDeleteInspection, adminOnly: true, perm: 'inspect_batch' },
+  { method: 'POST', path: '/api/inspections/batch-delete', handler: handleBatchDeleteInspections, adminOnly: true, perm: 'demo_mode', demoGated: true },
+  { method: 'DELETE', pattern: /^\/api\/inspections\/([^/]+)$/, paramNames: ['id'], handler: handleDeleteInspection, adminOnly: true, perm: 'demo_mode', demoGated: true },
 
   // ---- 点检操作 ----
-  { method: 'POST', path: '/api/inspect/batch', handler: handleInspectBatch, adminOnly: true, perm: 'inspect_batch' },
+  { method: 'POST', path: '/api/inspect/batch', handler: handleInspectBatch, adminOnly: true, perm: 'demo_mode', demoGated: true },
   { method: 'POST', path: '/api/inspect/day-sig', handler: handleDaySign },
   { method: 'POST', path: '/api/inspect/month', handler: handleInspectMonth },
-  { method: 'POST', path: '/api/inspect/delete', handler: handleInspectDelete, adminOnly: true, perm: 'inspect_batch' },
+  { method: 'POST', path: '/api/inspect/delete', handler: handleInspectDelete, adminOnly: true, perm: 'demo_mode', demoGated: true },
   { method: 'GET', pattern: /^\/api\/inspect\/device\/([^/]+)$/, paramNames: ['id'], handler: handleDeviceDetail },
 
-  // ---- 整月一键操作（可授权给「批量点检操作」用户） ----
-  { method: 'POST', path: '/api/admin/inspect-month', handler: handleAdminInspectMonth, adminOnly: true, perm: 'inspect_batch' },
-  { method: 'POST', path: '/api/admin/cancel-inspect-month', handler: handleAdminCancelInspectMonth, adminOnly: true, perm: 'inspect_batch' },
-  { method: 'POST', path: '/api/admin/check-month', handler: handleAdminCheckMonth, adminOnly: true, perm: 'inspect_batch' },
+  // ---- 整月一键操作（演示型：改挂 demo_mode，v1.42.0 合规演示模式） ----
+  { method: 'POST', path: '/api/admin/inspect-month', handler: handleAdminInspectMonth, adminOnly: true, perm: 'demo_mode', demoGated: true },
+  { method: 'POST', path: '/api/admin/cancel-inspect-month', handler: handleAdminCancelInspectMonth, adminOnly: true, perm: 'demo_mode', demoGated: true },
+  { method: 'POST', path: '/api/admin/check-month', handler: handleAdminCheckMonth, adminOnly: true, perm: 'demo_mode', demoGated: true },
 
   // ---- 房间管理 ----
   { method: 'GET', path: '/api/rooms', handler: handleListRooms },
@@ -5921,21 +6248,24 @@ const routes = [
   { method: 'POST', path: '/api/env-alerts/ack', handler: handleEnvAlertAck },
   { method: 'GET', path: '/api/notifs', handler: handleNotifsList },
   { method: 'POST', path: '/api/notifs/read', handler: handleNotifsRead },
-  { method: 'POST', path: '/api/admin/env-fill', handler: handleEnvFill, adminOnly: true, perm: 'env_fill' },
-  { method: 'GET', path: '/api/admin/env-range', handler: handleEnvRangeGet, adminOnly: true, perm: 'env_fill' },
-  { method: 'PUT', path: '/api/admin/env-range', handler: handleEnvRangePut, adminOnly: true, perm: 'env_fill' },
+  { method: 'POST', path: '/api/admin/env-fill', handler: handleEnvFill, adminOnly: true, perm: 'demo_mode', demoGated: true },
+  { method: 'GET', path: '/api/admin/env-range', handler: handleEnvRangeGet, adminOnly: true, perm: 'demo_mode', demoGated: true },
+  { method: 'PUT', path: '/api/admin/env-range', handler: handleEnvRangePut, adminOnly: true, perm: 'demo_mode', demoGated: true },
   { method: 'POST', path: '/api/admin/env-records/delete', handler: handleEnvRecordsDelete, adminOnly: true, perm: 'env_delete' },
   { method: 'GET', path: '/api/admin/env-records/export-csv', handler: handleExportEnvCsv, adminOnly: true, perm: 'export' },
 
   // ---- LIMS 温湿度实时数据源 ----
+  // 注：LIMS 抓取是「取真实测量数据」的业务功能，不是演示型功能，故不受合规总开关管控。
+  //     房间状态 / 抓取 / 任务轮询对所有登录用户开放，房间级映射与角色分档由 handler 内部把关
+  //     （管理员可整月补历史，普通用户只能抓当天当前时段）。
   { method: 'GET',  path: '/api/lims/config',   handler: handleLimsConfigGet, adminOnly: true },
   { method: 'PUT',  path: '/api/lims/config',   handler: handleLimsConfigPut, adminOnly: true },
   { method: 'POST', path: '/api/lims/test',     handler: handleLimsTest,      adminOnly: true },
-  { method: 'GET',  path: '/api/lims/room-status', handler: handleLimsRoomStatus, perm: 'env_fill' },    // 某房间能不能抓（温湿度页按钮用）
+  { method: 'GET',  path: '/api/lims/room-status', handler: handleLimsRoomStatus, adminOnly: true, perm: 'env_edit' },    // 某房间能不能抓（温湿度页按钮用）
   { method: 'POST', path: '/api/lims/verify-rooms', handler: handleLimsVerifyRooms, adminOnly: true },   // 房间名实测校验（异步）
-  { method: 'POST', path: '/api/lims/sync',     handler: handleLimsSync, adminOnly: true, perm: 'env_fill' },   // 温湿度页「一键抓取」
-  { method: 'POST', path: '/api/lims/sync-all', handler: handleLimsSyncAll, adminOnly: true, perm: 'env_fill' },
-  { method: 'GET',  pattern: /^\/api\/lims\/job\/([^/]+)$/, paramNames: ['id'], handler: handleLimsJob, adminOnly: true, perm: 'env_fill' },   // 异步任务进度轮询
+  { method: 'POST', path: '/api/lims/sync',     handler: handleLimsSync, adminOnly: true, perm: 'env_edit' },   // 温湿度页「一键抓取」
+  { method: 'POST', path: '/api/lims/sync-all', handler: handleLimsSyncAll, adminOnly: true, perm: 'env_edit' },
+  { method: 'GET',  pattern: /^\/api\/lims\/job\/([^/]+)$/, paramNames: ['id'], handler: handleLimsJob, adminOnly: true, perm: 'env_edit' },   // 异步任务进度轮询
 
   // ---- 数据备份 / 导出（管理员） ----
   // ---- 局域网远程升级（分发中心，管理员） ----
@@ -5958,6 +6288,13 @@ const routes = [
   { method: 'POST',   path: '/api/lan-upgrade/apply',      handler: handleLanApply, raw: true },
   { method: 'GET', path: '/api/admin/backup', handler: handleBackup, adminOnly: true },
   { method: 'POST', path: '/api/admin/restore', handler: handleRestore, adminOnly: true },
+  // ---- 合规总开关（v1.43.0）隐藏入口 ----
+  // state：所有登录用户可读（各页面 CORE.canDemo 的前置标志；挂 adminOnly 会把普通用户 403 踢出登录）。
+  // set / log：仅管理员（切开关要密码二次验证；审计日志含操作人，不对外）。
+  { method: 'GET',  path: '/api/admin/demo-gate/state', handler: handleDemoGateState },
+  { method: 'POST', path: '/api/admin/demo-gate/unlock', handler: handleDemoGateUnlock, adminOnly: true },
+  { method: 'POST', path: '/api/admin/demo-gate/set',   handler: handleDemoGateSet,   adminOnly: true },
+  { method: 'GET',  path: '/api/admin/demo-gate/log',   handler: handleDemoGateLogList, adminOnly: true },
   // ---- 数据定时备份（v1.38.0）----
   { method: 'GET',  path: '/api/backup/config', handler: handleGetBackup, adminOnly: true, perm: 'export' },
   { method: 'PUT',  path: '/api/backup/config', handler: handlePutBackup, adminOnly: true, perm: 'export' },
@@ -5971,13 +6308,14 @@ const routes = [
 function matchRoute(method, p) {
   for (const r of routes) {
     if (r.method !== method) continue;
-    if (r.path === p) return { handler: r.handler, params: {}, adminOnly: !!r.adminOnly, perm: r.perm || null, raw: !!r.raw };
+    // 注意：这里显式列举字段，新增路由属性必须同步加进来，否则 handleApi 读不到（v1.43.0 踩过）
+    if (r.path === p) return { handler: r.handler, params: {}, adminOnly: !!r.adminOnly, perm: r.perm || null, raw: !!r.raw, demoGated: !!r.demoGated };
     if (r.pattern) {
       const m = p.match(r.pattern);
       if (m) {
         const params = {};
         if (r.paramNames) r.paramNames.forEach((name, i) => { params[name] = m[i + 1]; });
-        return { handler: r.handler, params, adminOnly: !!r.adminOnly, perm: r.perm || null, raw: !!r.raw };
+        return { handler: r.handler, params, adminOnly: !!r.adminOnly, perm: r.perm || null, raw: !!r.raw, demoGated: !!r.demoGated };
       }
     }
   }
@@ -5992,13 +6330,42 @@ async function handleApi(req, res) {
   try {
     const route = matchRoute(method, p);
     if (!route) return fail(res, '接口不存在: ' + method + ' ' + p, 404);
+    // v1.43.0 合规总开关：受管控路由的三层校验（总开关 → 紧急强制关闭 → 账号授权）。
+    // 校验通过后**不再走下面的 adminOnly 分支** —— 否则 demo_mode 作为「严格键」会把
+    // 管理员再拦一次，导致「开了总开关自己却用不了」的运维怪状（v1.43.0 定：总开关开启即放行管理员）。
+    if (route.demoGated) {
+      const u0 = await getLoginUser(req);
+      if (!u0) return fail(res, '未登录或登录已失效', 401);
+      if (DEMO_HARD_OFF) {
+        logW('DEMOGATE', '已紧急强制关闭，拒绝 ' + u0.username + ' 调用 ' + method + ' ' + p);
+        return fail(res, '该功能已被紧急强制关闭（config.json 的 demoHardOff=true），请联系系统维护人员', 403);
+      }
+      if (!demoGate().enabled) {
+        logW('DEMOGATE', '总开关关闭中，拒绝 ' + u0.username + ' 调用 ' + method + ' ' + p);
+        return fail(res, '该功能已被「合规总开关」关闭，默认不允许使用', 403);
+      }
+      // 总开关开启后：管理员直接可用；普通账号需被显式授予 demo_mode
+      if (!(u0.role === 'admin' || userHasPerm(u0, 'demo_mode'))) {
+        logW('DEMOGATE', '账号无演示权限，拒绝 ' + u0.username + ' 调用 ' + method + ' ' + p);
+        return fail(res, '权限不足：该功能仅管理员或已授权账号可用', 403);
+      }
+      // 已通过总开关校验，直接进入业务处理（跳过 adminOnly 的 perm 复检）
+      const gbody = (!route.raw && (method === 'POST' || method === 'PUT')) ? await readBody(req, res) : {};
+      return await route.handler({ req, res, params: route.params, query: url.searchParams, body: gbody });
+    }
     if (route.adminOnly) {
       const u = await getLoginUser(req);
       if (!u) return fail(res, '未登录或登录已失效', 401);
-      // adminOnly + perm：管理员永远放行；普通用户持有对应功能权限也放行（v1.9.0 权限细化）
-      if (!(u.role === 'admin' || (route.perm && userHasPerm(u, route.perm)))) {
-        const why = route.perm ? '权限不足：该操作需要「' + permLabel(route.perm) + '」权限，请让管理员在 用户管理→权限 里勾选'
-                               : '权限不足：该操作仅管理员可用';
+      // adminOnly + perm：管理员放行；普通用户持有对应功能权限也放行（v1.9.0 权限细化）。
+      // v1.42.0：演示模式类权限（PERM_STRICT_KEYS）走 userHasPerm 内部的严格判定 —— 连管理员也需显式授权，
+      //          这样「管理员做演示时同样看不到、调不动」，符合合规演示场景的要求。
+      const okPerm = route.perm ? userHasPerm(u, route.perm) : (u.role === 'admin');
+      if (!okPerm) {
+        const why = route.perm
+          ? (isStrictPerm(route.perm)
+              ? '权限不足：该功能属于「' + permLabel(route.perm) + '」，默认对所有人关闭。仅授权账号（如 demo）可使用，如需开放请联系管理员在 用户管理→权限 中配置'
+              : '权限不足：该操作需要「' + permLabel(route.perm) + '」权限，请让管理员在 用户管理→权限 里勾选')
+          : '权限不足：该操作仅管理员可用';
         logW('AUTH', '权限不足: ' + u.username + ' 调用 ' + method + ' ' + p);
         return fail(res, why, 403);
       }
@@ -6036,6 +6403,10 @@ const CLEAN = {
   '/rooms': 'rooms.html',
   '/env': 'env.html',
   '/manual': 'manual.html',   // v1.35.0：内置操作手册（随系统分发，登录后可看）
+  // v1.43.0 合规总开关的隐藏入口。刻意不出现在任何导航 / 页面链接里，只能手输 URL 进入；
+  // 打开后初始只显示一个「系统维护」密码框，必须输入管理员密码才揭示控制面板（见 public/_gate.html）。
+  // v1.43.2：入口验证方式由 Konami 按键序列改为「链接 + 密码」。
+  '/admin/_gate': '_gate.html',
 };
 // 是否为需要登录的 HTML 页面（静态资源 .css/.js/.png 等不拦截）
 function isHtmlPage(p) {
@@ -6044,7 +6415,20 @@ function isHtmlPage(p) {
 }
 
 function serveStatic(req, res) {
-  let p = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  // ⚠️ decodeURIComponent 遇到非法百分号转义（如 /%zz 、裸 /%）会抛 URIError。
+  // 本函数在 http 回调里**没有** try/catch，抛出去就是未处理的 Promise rejection，
+  // 而 Node 15+ 默认 `--unhandled-rejections=throw` ⇒ **进程直接终止**。
+  // 实测：`curl http://host/%zz` 即可让服务下线，且**未登录也能触发**。
+  // 所以这里必须自己兜住，绝不能让它冒出去。
+  let p;
+  try {
+    p = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  } catch (e) {
+    logW('HTTP', '非法 URL 转义被拒: ' + String(req.url).slice(0, 120));
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('400 请求地址含非法转义字符');
+    return;
+  }
   if (CLEAN[p]) p = '/' + CLEAN[p];
   if (p === '/' || p === '') p = '/index.html';
   // 浏览器会无条件请求 /favicon.ico；不给就会在控制台留一条 404（回归测试会误判成 JS 报错）
@@ -6078,38 +6462,85 @@ function serveStatic(req, res) {
 
 // ===================== HTTP 服务器 =====================
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  const p = url.pathname;
-  if (p.startsWith('/api/')) {
-    handleApi(req, res);
-    return;
-  }
-  // 退出登录：清除登录 cookie 并回到登录页
-  if (p === '/logout' && req.method === 'GET') {
-    res.writeHead(302, { 'Location': '/login',
-      'Set-Cookie': `${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` });
-    res.end();
-    return;
-  }
-  // 页面级登录拦截：所有 HTML 页面（登录页除外）未登录时重定向到 /login
-  const cleanP = CLEAN[p] ? '/' + CLEAN[p] : p;
-  if (cleanP !== '/login' && cleanP !== '/login.html' && isHtmlPage(cleanP)) {
-    const u = await getLoginUser(req);
-    if (!u) {
-      res.writeHead(302, { 'Location': '/login?next=' + encodeURIComponent(p + url.search) });
+  // 总兜底：内网服务是无人值守的，任何未预期异常都不该让整台机器下线。
+  // 之前发生过「一个畸形 URL 就把进程打掉」的事故，所以这里再包一层（纵深防御）。
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const p = url.pathname;
+    if (p.startsWith('/api/')) {
+      handleApi(req, res);
+      return;
+    }
+    // 退出登录：清除登录 cookie 并回到登录页
+    if (p === '/logout' && req.method === 'GET') {
+      res.writeHead(302, { 'Location': '/login',
+        'Set-Cookie': `${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` });
       res.end();
       return;
     }
-    // 管理后台页面仅 admin 角色可访问
-    if (cleanP === '/admin' || cleanP === '/admin.html') {
-      if (u.role !== 'admin') {
-        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('无权限：仅管理员可访问后台');
+    // v1.43.0 合规总开关隐藏入口（/admin/_gate；v1.43.2 起入口验证=链接+密码）：
+    // 必须放在登录拦截之前 —— 否则未登录访问会被 302 到登录页，等于告诉试探者「这个路径存在」。
+    // 这里对一切非管理员（含未登录）一律回 404，与访问一个不存在的路径表现一致（状态码层面不泄露存在性）。
+    //
+    // v1.43.4：正文加一行「会话可能已过期」的提示。
+    // 原因：只回 404 会让**真正知道这个 URL 的管理员**分不清「网址错了」和「我没登录 / 会话过期了」——
+    // 用户实际踩过这个坑（在会话失效后看到 404，以为是 URL 写错）。
+    // 折中做法：**状态码仍是 404**（普通人分辨不出），仅在正文里给知道 URL 的人一句提示。
+    // 已登录但不是管理员时不给任何提示 —— 此时 404 就是对的，多说反而暴露。
+    if (p === '/admin/_gate' || p === '/_gate.html') {
+      const u0 = await getLoginUser(req);
+      if (!u0 || u0.role !== 'admin') {
+        res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(!u0
+          ? '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+            + '<title>404 Not Found</title></head><body>'
+            + '<p>404 Not Found</p>'
+            + '<p style="color:#888;font-size:13px">若您已登录，可能是会话已过期：'
+            + '<a href="/login?next=%2Fadmin%2F_gate">点此重新登录</a>后再次打开本页。</p>'
+            + '</body></html>'
+          : '404 Not Found');
         return;
       }
     }
+    // 页面级登录拦截：所有 HTML 页面（登录页除外）未登录时重定向到 /login
+    const cleanP = CLEAN[p] ? '/' + CLEAN[p] : p;
+    if (cleanP !== '/login' && cleanP !== '/login.html' && isHtmlPage(cleanP)) {
+      const u = await getLoginUser(req);
+      if (!u) {
+        res.writeHead(302, { 'Location': '/login?next=' + encodeURIComponent(p + url.search) });
+        res.end();
+        return;
+      }
+      // 管理后台页面仅 admin 角色可访问
+      if (cleanP === '/admin' || cleanP === '/admin.html') {
+        if (u.role !== 'admin') {
+          res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('无权限：仅管理员可访问后台');
+          return;
+        }
+      }
+      // v1.43.0 合规总开关隐藏入口：此段已被上方「登录拦截之前」的 404 检查覆盖。
+      // 保留一个兜底（防止有人只改了 CLEAN 映射顺序），但正常情况下不会走到这里。
+      // 注意：能走到这里说明**已经是登录用户**（上方登录拦截已放行），故不需要会话过期提示。
+      if (cleanP === '/admin/_gate') {
+        if (u.role !== 'admin') {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('404 Not Found');
+          return;
+        }
+      }
+    }
+    serveStatic(req, res);
+  } catch (e) {
+    console.error('[HTTP] 请求处理异常 ' + req.method + ' ' + req.url + '\n' + ((e && e.stack) || e));
+    logE('HTTP', '请求处理异常 ' + req.method + ' ' + String(req.url).slice(0, 120) + '：' + ((e && e.message) || e));
+    try {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('500 服务器内部错误');
+      } else { res.end(); }
+    } catch (e2) { /* 响应已断开，忽略 */ }
   }
-  serveStatic(req, res);
 });
 
 // ===================== 启动 =====================
@@ -6134,6 +6565,25 @@ server.listen(PORT, async () => {
   console.log(' 数据文件:  ' + DATA_FILE);
   console.log(' 默认管理员: admin（请登录后在后台添加更多用户）');
   console.log('==================================================');
+});
+
+// ===================== 进程级兜底 =====================
+// 这是台内网无人值守的服务：未捕获异常 / 未处理的 Promise 拒绝必须**记日志后继续跑**，
+// 绝不能静默退出（进程死了现场没人会去重启它）。
+// Node 15+ 默认把「未处理的 rejection」当致命错误直接终止进程 ——
+// 实测 `GET /%zz`（非法 URL 转义）就能把服务打掉，就是踩了这个默认值。
+process.on('unhandledRejection', (e) => {
+  try {
+    console.error('[未处理的 Promise 拒绝]', (e && e.stack) || e);
+    logE('SYS', '未处理的 Promise 拒绝：' + ((e && e.message) || String(e)));
+  } catch (e2) { }
+});
+process.on('uncaughtException', (e) => {
+  try {
+    console.error('[未捕获异常]', (e && e.stack) || e);
+    logE('SYS', '未捕获异常：' + ((e && e.message) || String(e)));
+    scheduleSave();          // 尽力把内存里的最新数据落一次盘，减少损失
+  } catch (e2) { }
 });
 
 // 退出前确保落盘

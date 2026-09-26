@@ -2381,7 +2381,7 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（跟随上游 server.js 的能力；开源脱敏版自身版本号见仓库 version.json）
-const APP_VERSION = 'v1.43.0';
+const APP_VERSION = 'v1.44.0';
 const APP_VERSION_DATE = '2026-09-24';
 
 // ===================== 只读演示站策略 =====================

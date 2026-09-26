@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<!--
+  v1.43.2 合规总开关 · 隐藏入口（/admin/_gate）
+
+  入口方式（v1.43.2 起）：
+   1) 直达链接 /admin/_gate —— 刻意不出现在任何导航 / 页面里，只能手输或书签进入；
+   2) 页面初始只显示一个「系统维护」样式的密码框，**必须输入管理员密码**才揭示控制面板；
+   3) 揭示后真正切换开关时，仍要再输一次密码（服务端 set 接口自带二次验证）。
+
+  设计演变：v1.43.0 用的是 Konami 按键序列（↑↑↓↓←→←→BA）。它的问题有两点 ——
+   ① 序列是公开常识，猜到成本极低，「隐藏」并不等于「安全」；
+   ② 手机 / 触屏设备没有实体方向键，根本敲不出来。
+  v1.43.2 改为「链接 + 密码」：验证强度直接等于管理员密码，且任何设备都能用。
+  真正的门永远是「管理员身份 + 密码 + 失败锁定」，URL 的隐蔽性只是减少无关人员误入。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>系统维护</title>
+<link rel="stylesheet" href="/assets/v2/style.css">
+<style>
+  body{margin:0;background:var(--bg,#0f141b);color:var(--fg,#e6edf3);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif;
+       display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box}
+  .box{width:min(560px,92vw);display:none}
+  .box.on{display:block}
+  .card{background:var(--panel,#161d26);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+  h1{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
+  .sub{color:var(--muted,#8b98a8);font-size:12px;margin-bottom:16px}
+  .st{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;margin-bottom:14px;
+      border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03)}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none}
+  .dot.on{background:#2ecc71;box-shadow:0 0 10px #2ecc71}
+  .dot.off{background:#7d8b9a}
+  .dot.hard{background:#e74c3c;box-shadow:0 0 10px #e74c3c}
+  .st b{font-size:15px}
+  .st .meta{margin-left:auto;color:var(--muted,#8b98a8);font-size:11.5px;text-align:right;line-height:1.35}
+  label{display:block;font-size:12.5px;color:var(--muted,#8b98a8);margin:12px 0 5px}
+  input{width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.14);
+        background:rgba(0,0,0,.28);color:inherit;font-size:13.5px;outline:none}
+  input:focus{border-color:#3b82f6}
+  .row{display:flex;gap:10px;margin-top:18px}
+  button{flex:1;padding:10px 14px;border-radius:9px;border:1px solid transparent;font-size:13.5px;cursor:pointer;font-weight:600}
+  .b-on{background:#2ecc71;color:#06240f}
+  .b-off{background:#e05252;color:#2a0606}
+  .b-ghost{background:transparent;border-color:rgba(255,255,255,.18);color:inherit;font-weight:400}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .warn{margin-top:14px;padding:10px 12px;border-radius:9px;font-size:12.5px;line-height:1.6;
+        background:rgba(231,76,60,.10);border:1px solid rgba(231,76,60,.35);color:#ffb3ad}
+  .msg{margin-top:12px;font-size:12.5px;min-height:18px}
+  .msg.err{color:#ff8a80}
+  .msg.ok{color:#7ee2a8}
+  .logs{margin-top:20px;border-top:1px solid rgba(255,255,255,.10);padding-top:14px}
+  .logs h2{font-size:13px;margin:0 0 8px;color:var(--muted,#8b98a8);font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  th,td{text-align:left;padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.07);white-space:nowrap}
+  th{color:var(--muted,#8b98a8);font-weight:500}
+  /* 解锁卡片：样式刻意做成普通「系统维护」登录框，不暴露它是合规总开关 */
+  .lock{text-align:center}
+  .lock .ico{font-size:26px;margin-bottom:6px}
+  .lock h1{justify-content:center;font-size:16px}
+  .lock .sub{margin-bottom:18px}
+  .lock label{text-align:left}
+  .lock .row{margin-top:14px}
+</style>
+</head>
+<body>
+<div class="box on lock" id="lock">
+  <div class="card">
+    <div class="ico">🔧</div>
+    <h1>系统维护</h1>
+    <div class="sub">此页面仅供维护人员使用，请输入维护密码。</div>
+    <label>维护密码</label>
+    <input type="password" id="lock_pw" placeholder="请输入密码" autocomplete="current-password" autofocus>
+    <div class="row">
+      <button class="b-ghost" id="btn_unlock" style="background:#3b82f6;border-color:#3b82f6;color:#fff;font-weight:600">进入</button>
+    </div>
+    <div class="msg" id="lock_msg"></div>
+  </div>
+</div>
+
+<div class="box" id="box">
+  <div class="card">
+    <h1>⚙️ 合规总开关</h1>
+    <div class="sub">控制「演示型功能」的全局可用性 · 仅管理员可操作</div>
+
+    <div class="st">
+      <span class="dot off" id="dot"></span>
+      <div>
+        <b id="st_text">读取中…</b>
+        <div class="sub" id="st_sub" style="margin:2px 0 0"></div>
+      </div>
+      <div class="meta" id="st_meta"></div>
+    </div>
+
+    <div id="hard_warn" class="warn" style="display:none">
+      ⛔ <b>紧急强制关闭已生效</b>（config.json 的 <code>demoHardOff=true</code>）。
+      此状态下无论总开关怎么设置，演示型功能一律不可用。如需恢复，请由维护人员修改
+      <code>data/config.json</code> 后重启服务。
+    </div>
+
+    <label>管理员密码（二次验证）</label>
+    <input type="password" id="pw" placeholder="输入当前账号密码" autocomplete="current-password">
+    <label>操作备注（可选，记入审计日志）</label>
+    <input type="text" id="reason" placeholder="例如：9/28 客户参观演示" maxlength="200">
+
+    <div class="row">
+      <button class="b-on"  id="btn_on">开启演示功能</button>
+      <button class="b-off" id="btn_off">关闭演示功能</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="b-ghost" id="btn_refresh">刷新状态</button>
+      <button class="b-ghost" id="btn_hide">收起（返回后台）</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="logs">
+      <h2>🕓 最近开关审计（操作人 / 时间 / 状态变更）</h2>
+      <div id="logbox"><div class="sub">加载中…</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var HARD_OFF = false, CUR = false;
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+function fmt(iso){
+  try {
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    var p = function(n){ return String(n).padStart(2,'0'); };
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+  } catch(e){ return iso; }
+}
+function api2(url, opt){
+  return fetch(url, Object.assign({ credentials:'same-origin' }, opt||{}))
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return { status:r.status, json:j }; }); })
+    .catch(function(){ return { status:0, json:{} }; });
+}
+
+/* ---------- 第一步：解锁（链接 + 密码） ----------
+   服务端 /api/admin/demo-gate/unlock 负责校验；它同时受「5 次锁 15 分钟」限速，
+   所以这里不需要再做任何前端计数（前端计数能被人绕过，服务端才算数）。 */
+var unlocking = false;
+function unlock(){
+  if (unlocking) return;
+  var pw = $('lock_pw').value;
+  if (!pw) { lockMsg('请输入密码', 'err'); return; }
+  unlocking = true;
+  $('btn_unlock').disabled = true;
+  lockMsg('验证中…', '');
+  api2('/api/admin/demo-gate/unlock', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ password: pw })
+  }).then(function(r){
+    unlocking = false;
+    $('btn_unlock').disabled = false;
+    if (r.status === 0) { lockMsg('网络异常，请重试', 'err'); return; }
+    if (r.json && r.json.ok) {
+      // 解锁成功：本地不留存这个密码（真正操作时还要再输一次，服务端 set 会再校验）
+      $('lock_pw').value = '';
+      $('lock').classList.remove('on');
+      $('box').classList.add('on');
+      loadState(); loadLogs();
+      return;
+    }
+    if (r.status === 429) { lockMsg('尝试次数过多，请 15 分钟后再试', 'err'); return; }
+    if (r.status === 401 || r.status === 403) {
+      lockMsg((r.json && r.json.error) || '密码错误', 'err');
+      $('lock_pw').select();
+      return;
+    }
+    lockMsg((r.json && r.json.error) || ('失败 HTTP ' + r.status), 'err');
+  });
+}
+function lockMsg(s, cls){ var m = $('lock_msg'); m.textContent = s; m.className = 'msg ' + (cls||''); }
+$('btn_unlock').onclick = unlock;
+$('lock_pw').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); unlock(); } });
+
+/* ---------- 第二步：控制面板 ---------- */
+function render(){
+  var dot = $('dot'), tx = $('st_text'), sub = $('st_sub'), meta = $('st_meta');
+  if (HARD_OFF) {
+    dot.className = 'dot hard'; tx.textContent = '紧急强制关闭';
+    sub.textContent = '演示型功能全部不可用（运维强制）';
+  } else if (CUR) {
+    dot.className = 'dot on'; tx.textContent = '总开关：已开启';
+    sub.textContent = '授权账号可使用演示型功能';
+  } else {
+    dot.className = 'dot off'; tx.textContent = '总开关：已关闭';
+    sub.textContent = '演示型功能对所有人不可见、不可调用（默认）';
+  }
+  meta.innerHTML = '';
+  $('hard_warn').style.display = HARD_OFF ? '' : 'none';
+}
+
+function loadState(){
+  api2('/api/admin/demo-gate/state').then(function(r){
+    if (r.status === 401 || r.status === 403) {
+      // 会话失效：退回首页（本页不对非管理员暴露任何界面）
+      location.href = '/login?next=' + encodeURIComponent(location.pathname);
+      return;
+    }
+    var j = r.json || {};
+    CUR = !!j.enabled; HARD_OFF = !!j.hard_off;
+    render();
+    if (j.updated_at) {
+      $('st_meta').innerHTML = '最近变更：' + esc(fmt(j.updated_at)) + '<br>操作人：' + esc(j.updated_by_name || '—');
+    } else {
+      $('st_meta').textContent = '从未变更（默认关闭）';
+    }
+  });
+}
+function loadLogs(){
+  api2('/api/admin/demo-gate/log?limit=20').then(function(r){
+    var items = (r.json && r.json.items) || [];
+    if (!items.length) { $('logbox').innerHTML = '<div class="sub">暂无记录</div>'; return; }
+    var rows = items.map(function(x){
+      var act = ({enable:'开启', disable:'关闭', failed_bad_password:'密码错误', failed_unlock:'解锁失败',
+                  unlock:'进入面板', denied_not_admin:'越权尝试'})[x.action] || x.action;
+      var chg = (x.action==='enable'||x.action==='disable') ? (x.from?'开':'关') + ' → ' + (x.to?'开':'关') : '—';
+      return '<tr><td>'+esc(fmt(x.at))+'</td><td>'+esc(x.by_name||x.by||'—')+'</td><td>'+esc(act)+'</td><td>'+esc(chg)+'</td><td>'+esc(x.ip||'')+'</td></tr>';
+    }).join('');
+    $('logbox').innerHTML = '<table><thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>变更</th><th>来源</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  });
+}
+
+function setGate(on){
+  var pw = $('pw').value;
+  if (!pw) { msg('请输入管理员密码', 'err'); return; }
+  msg('处理中…', '');
+  api2('/api/admin/demo-gate/set', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ enabled: on, password: pw, reason: $('reason').value })
+  }).then(function(r){
+    var j = r.json || {};
+    if (j.ok) {
+      msg(on ? '✅ 已开启：授权账号现在可以使用演示型功能' : '✅ 已关闭：演示型功能已对所有账号隐藏并拦截', 'ok');
+      $('pw').value = '';
+      loadState(); loadLogs();
+    } else if (r.status === 429) {
+      msg('✗ 尝试次数过多，请 15 分钟后再试', 'err');
+    } else if (r.status === 401 || r.status === 403) {
+      // 会话失效 或 密码错误：都退回解锁卡片，逼其重新证明身份
+      $('pw').value = '';
+      $('box').classList.remove('on');
+      $('lock').classList.add('on');
+      lockMsg((j.error || '身份验证已失效，请重新输入密码'), 'err');
+      $('lock_pw').focus();
+    } else {
+      msg('✗ ' + (j.error || ('失败 HTTP ' + r.status)), 'err');
+    }
+  });
+}
+function msg(s, cls){ var m = $('msg'); m.textContent = s; m.className = 'msg ' + (cls||''); }
+
+$('btn_on').onclick  = function(){ setGate(true); };
+$('btn_off').onclick = function(){ setGate(false); };
+$('btn_refresh').onclick = function(){ loadState(); loadLogs(); msg('',''); };
+$('btn_hide').onclick = function(){ location.href = '/admin'; };   // 收起即回后台首页，不留在本页
+</script>
+
+<script>
+/* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */
+(function () {
+  if (window.__READONLY_INJECTED__) return; window.__READONLY_INJECTED__ = true;
+  function banner() {
+    if (document.getElementById('ro-banner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'ro-banner';
+    bar.textContent = '演示站 · 只读展示模式：可登录后台浏览（账号 admin / admin123 或 demo-user / demo123），新增 / 编辑 / 删除等写入操作均已被禁用';
+    // 贴顶固定（脱离文档流，不参与页面 flex 布局）+ 给 body 补 padding-top 让出高度：
+    // 登录页 body 是 flex 居中，横幅若作为 flex 子项会被挤压错位；固定定位则永久不遮挡按钮。
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#2563eb;color:#fff;'
+      + 'font-size:13px;line-height:1.7;padding:6px 12px;text-align:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.3);box-sizing:border-box';
+    if (!document.getElementById('ro-banner-style')) {
+      var st = document.createElement('style');
+      st.id = 'ro-banner-style';
+      // 粘性顶栏（旧版 .nav 与新版 .app-nav 两套）都要顺延到横幅下方，否则滚动时会被 fixed 横幅盖住。
+      // 打印时横幅不显示，顶栏偏移与 body padding 一并复位。
+      st.textContent = ':root{--ro-banner-h:0px}'
+        + '.nav,.app-nav{top:var(--ro-banner-h,0px)!important}'
+        + '@media print{#ro-banner{display:none!important}body{padding-top:0!important}'
+        + '.nav,.app-nav{top:auto!important}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    var host = document.body || document.documentElement;
+    host.appendChild(bar);
+    function reserveTop() {
+      var b = document.body; if (!b) return;
+      b.style.boxSizing = 'border-box';
+      b.style.paddingTop = ((bar.offsetHeight || 30) + 2) + 'px';
+      // 同时把横幅高度写成 CSS 变量：页面的粘性顶栏（.nav / .app-nav）要把 top 顺延到横幅下方，
+      // 否则滚动时顶栏会滑到 fixed 横幅底下被盖住。窄屏横幅可能换行成 2~3 行，高度是变化的，
+      // 所以这里每次 resize 都更新（而不是写死一个值）。
+      document.documentElement.style.setProperty('--ro-banner-h', (bar.offsetHeight || 30) + 'px');
+    }
+    reserveTop();
+    window.addEventListener('resize', reserveTop);
+    setTimeout(reserveTop, 300);
+    setTimeout(reserveTop, 1200);
+    setTimeout(reserveTop, 2500);
+  }
+  function hideWrites() {
+    // 命中规则：按钮文字 **或** title 属性里出现写动词。title 也要看 —— 表格行内的
+    // 「✕」删除按钮文字只有一个符号（如数据备份页签的目标行、局域网清单行），
+    // 只能靠 title（"删掉这个目标" / "从清单移除"）识别出来。
+    var verbs = ['新增','添加','删除','删','移除','编辑','保存','提交','导出','备份','恢复','签名','一键','批量','导入','升级','修改','新建','确认点检','整月生成','取消点检','自升级','远程','生成','测试'];
+    document.querySelectorAll('button,a,.btn,.big').forEach(function (el) {
+      if (el.classList.contains('nav-link') || el.classList.contains('brand')) return;
+      var t = (el.textContent || '').replace(/\s+/g, '');
+      var ti = (el.getAttribute('title') || '').replace(/\s+/g, '');
+      if (verbs.some(function (v) { return t.indexOf(v) >= 0 || ti.indexOf(v) >= 0; })) el.style.display = 'none';
+    });
+  }
+  if (document.readyState !== 'loading') { banner(); hideWrites(); }
+  document.addEventListener('DOMContentLoaded', function () { banner(); hideWrites(); });
+  setTimeout(hideWrites, 400); setTimeout(hideWrites, 1200); setTimeout(hideWrites, 2500);
+
+  /* ⚠️ 只靠上面几个固定时刻调用**不够**：后台绝大部分按钮是「拿到接口数据后动态渲染」的
+     （设备/房间/科室/模板/检查记录/用户… 每一行都有「编辑」「删除」，表单页签有成排的「保存」）。
+     实测登录后逐个页签检查，固定时刻跑完之后页面上仍残留近百个可见写入口 —— 只能靠
+     MutationObserver 监听后续渲染再补一次。观察 childList/subtree 而**不**观察 attributes：
+     本函数自己会改 el.style.display，若观察 attributes 会自我触发形成循环。 */
+  var _roPending = false;
+  function scheduleHide() {
+    if (_roPending) return; _roPending = true;
+    setTimeout(function () { _roPending = false; hideWrites(); }, 150);
+  }
+  function observeDom() {
+    if (!window.MutationObserver || !document.body) return;
+    if (window.__RO_MO__) return; window.__RO_MO__ = true;
+    new MutationObserver(scheduleHide).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.body) observeDom();
+  document.addEventListener('DOMContentLoaded', observeDom);
+  setTimeout(observeDom, 500);
+
+  var _fetch = window.fetch ? window.fetch.bind(window) : null;
+  if (_fetch) {
+    window.fetch = function (u, o) {
+      return _fetch(u, o).then(function (r) {
+        if (r && r.status === 403) {
+          try { r.clone().json().then(function (j) { if (j && j.readonly) alert('演示站为只读展示模式，禁止写入操作；如需浏览后台请使用 admin / admin123 登录'); }); } catch (e) {}
+        }
+        return r;
+      });
+    };
+  }
+})();
+</script>
+
+</body>
+</html>
