@@ -331,7 +331,7 @@ select option:disabled{color:var(--muted)}
       <span class="tiny muted">房间要求里没写的指标就不判定（例如只写了温度的房间不判湿度）；关掉则所有房间都用下面的全局默认</span>
     </label>
     <div class="flex" style="align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-      <span class="tiny">一个房间列了多条温度标准时（如冲击室 ASTM 15~25 + GB 18~28）：</span>
+      <span class="tiny">一个房间列了多条温度标准时（如测试室07 ASTM 15~25 + GB 18~28）：</span>
       <select id="al_multistd" style="width:250px">
         <option value="union">取并集（宽）→ 15~28℃</option>
         <option value="intersect">取交集（严）→ 18~25℃</option>
@@ -613,7 +613,7 @@ select option:disabled{color:var(--muted)}
     <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)">
       <h3 style="margin:0 0 6px;font-size:15px">🛰 LIMS 实时数据源</h3>
       <p class="muted tiny" style="line-height:1.8">温湿度页的「⬇ LIMS 抓取」按钮和下面的同步，直接从 LIMS「环境监测管理」抓<b>真实温湿度</b>：湿度走整月图表（5 分钟一点，可取整月历史），温度走「温湿同点」逐时段窗口（同一点同时取温湿度，配对可信）。只补空格：已有内容 / 签名 / 划线的格子一律不动。<br>
-        <b>温度可以在下面单独指源</b>：只有挂了温湿同点传感器的房间才拿得到温度，没挂的房间（湿度满格、温度空着）可以让它的<b>温度改从别的 LIMS 房间取</b>，例如多间统一指向「冲击室」——湿度仍走各自的源，两边互不影响。</p>
+        <b>温度可以在下面单独指源</b>：只有挂了温湿同点传感器的房间才拿得到温度，没挂的房间（湿度满格、温度空着）可以让它的<b>温度改从别的 LIMS 房间取</b>，例如多间统一指向「测试室07」——湿度仍走各自的源，两边互不影响。</p>
       <div class="row">
         <div class="field"><label>启用 LIMS 数据源</label><select id="l_enabled"><option value="1">启用</option><option value="0">停用</option></select></div>
         <div class="field"><label>LIMS 地址</label><input id="l_base" placeholder="https://example.com/lims"></div>
@@ -632,6 +632,7 @@ select option:disabled{color:var(--muted)}
             <option value="max">取时段最大值</option>
           </select></div>
         <div class="field"><label>记录员（未指定签名人时显示）</label><input id="l_recorder" placeholder="LIMS自动导入"></div>
+        <div class="field"><label>温度并发数（1=串行；越大越快但越压 LIMS）</label><input id="l_conc" type="number" min="1" max="8" step="1" placeholder="4"></div>
         <div class="field"><label>覆盖已有格子</label><select id="l_overwrite"><option value="0">否（只补空格，推荐）</option><option value="1">是（连已有格子也覆盖，慎用）</option></select></div>
       </div>
       <div class="row">
@@ -643,7 +644,7 @@ select option:disabled{color:var(--muted)}
             建议先点「🔍 实测校验房间名」把每个名字拿到 LIMS 里问一遍，再用「🧹 清理无效房间名」清掉错的。</p>
           <div id="room_map_box" class="scroll glass" style="max-height:300px;padding:6px"></div>
           <div class="row" style="margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:8px">
-            <div class="field" style="flex:1;min-width:200px"><label>新增 LIMS 源房间（填一个加一个，建议加完实测校验）</label><input id="l_newlimroom" placeholder="如：化学制样"></div>
+            <div class="field" style="flex:1;min-width:200px"><label>新增 LIMS 源房间（填一个加一个，建议加完实测校验）</label><input id="l_newlimroom" placeholder="如：测试室11"></div>
             <button class="btn sm" id="l_addlimroom">＋ 加入数据源清单</button>
             <button class="btn sm" id="l_verify" title="逐个房间名向 LIMS 实测（名字不存在会秒回 code=5000）。每个约 8 秒，后台异步执行，不卡界面">🔍 实测校验房间名</button>
             <button class="btn sm" id="l_prune" title="把实测为「LIMS 中不存在」的名字从清单里删掉，并清空指向它们的映射">🧹 清理无效房间名</button>
@@ -656,10 +657,11 @@ select option:disabled{color:var(--muted)}
         <div class="field"><label>触发时刻（逗号分隔，5 分钟窗口）</label><input id="l_times" placeholder="08:35,13:35,19:05"></div>
         <div class="field"><label>定时填充的记录员（可空）</label><input id="l_auto_rec" placeholder="留空 = 用上面的记录员"></div>
       </div>
-      <div class="flex mb">
+      <div class="flex mb" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
         <button class="btn primary sm" id="l_save">💾 保存 LIMS 配置</button>
         <button class="btn sm" id="l_test">🔌 测试连接</button>
-        <button class="btn cyan sm" id="l_syncall" title="抓取全部有映射房间的当月温湿度并写入（湿度整月 + 温度逐时段窗口补抓，含「有湿度但缺温度」的格子；只补空格）。后台异步执行，不卡界面">⬇ 同步整月（含温度）</button>
+        <div class="field" style="margin:0"><label>同步月份（可回补历史）</label><input type="month" id="l_syncall_ym" style="min-width:150px"></div>
+        <button class="btn cyan sm" id="l_syncall" title="抓取所选月份、全部有映射房间的温湿度并写入（湿度整月 + 温度逐时段窗口补抓，含「有湿度但缺温度」的格子；只补空格）。后台异步执行，不卡界面；历史月份温度窗口多、耗时较长，进度实时显示">⬇ 同步整月（含温度）</button>
         <span class="muted tiny" id="l_stat"></span>
       </div>
       <div id="l_result" class="muted tiny" style="line-height:1.95"></div>
@@ -3890,7 +3892,7 @@ let gLimsRooms=[], gInspectRooms=[], gAlias={}, gAllowShare=[], gNoFetch=[], gRo
 // v1.26.0：温度数据源（点检房间 → auto|off|LIMS房间）与「显式未映射」房间清单
 let gTempSrc={}, gUnmapped=[];
 function currentLimSource(rn){
-  // v1.26.0：显式「未映射」优先于同名直配 —— 否则点检「冲击室」永远被顶回「冲击室」，怎么改都改不掉
+  // v1.26.0：显式「未映射」优先于同名直配 —— 否则点检「测试室07」永远被顶回「测试室07」，怎么改都改不掉
   if(gUnmapped.includes(rn)) return '';
   for(const [lr,tr] of Object.entries(gAlias||{})){
     if(Array.isArray(tr)?tr.indexOf(rn)>=0:tr===rn) return lr;   // 别名值支持数组（一个源给多个房间）
@@ -3918,7 +3920,7 @@ function refreshCatalog(){
   $('#l_catalog').innerHTML=s;
 }
 // 「共用同一数据源」判定：某行选中的源，恰好是**另一个点检房间的名字** —— 那个房间已用同名直配占了它，
-// 所以这一行等于要和它拿同一份读数（曾出现：点检「疲劳，弯曲室」的温湿度与「冲击室」逐格完全相同）。
+// 所以这一行等于要和它拿同一份读数（曾出现：点检「测试室21」的温湿度与「测试室07」逐格完全相同）。
 // 现在由用户显式勾选「允许共用」放行；未勾选则该行暂停（不自动抓取，需手填）。
 function shareState(rn){
   const cur=currentLimSource(rn);
@@ -3937,7 +3939,7 @@ function renderRoomMap(){
   if(!gInspectRooms.length){ box.innerHTML='<div class="muted">（未取到点检房间，请刷新页面重试）</div>'; return; }
   // ★ 候选**只取 LIMS 侧房间名**：LIMS 源房间清单 + 各行当前已选中的值（保证历史选择不丢）。
   //   早前把「点检房间名」也并进候选，下拉里就混进了一堆 LIMS 根本没有的房间
-  //   （危化品库 / 晶间腐蚀室 / 落锤室 / 疲劳，弯曲室 / 测试室04 / 金相试样间 …），把"选哪个"彻底搞乱。
+  //   （测试室20 / 测试室18 / 测试室19 / 测试室21 / 测试室04 / 测试室09 …），把"选哪个"彻底搞乱。
   const opts=[...new Set([...(gLimsRooms||[]),...gInspectRooms.map(currentLimSource).filter(Boolean)])]
     .sort((a,b)=>String(a).localeCompare(String(b),'zh'));
   const rows=gInspectRooms.map(rn=>{
@@ -4126,6 +4128,8 @@ async function loadLims(){
     $('#l_pass').value=''; $('#l_pass').placeholder=c.pass_set?'留空 = 不修改':'（未设置）';
     $('#l_strategy').value=c.strategy||'random';
     $('#l_recorder').value=c.recorder||'';
+    if($('#l_conc')) $('#l_conc').value=(c.tempConcurrency!=null?c.tempConcurrency:4);
+    if($('#l_syncall_ym') && !$('#l_syncall_ym').value) $('#l_syncall_ym').value=localMonth();
     $('#l_overwrite').value=c.overwrite?'1':'0';
     gLimsRooms=(c.limsRooms||[]).slice();
     gAlias=c.roomAlias||{};
@@ -4162,6 +4166,7 @@ $('#l_save').onclick=async()=>{
     pass:$('#l_pass').value,                       // 留空 = 沿用旧密码
     strategy:$('#l_strategy').value,
     recorder:$('#l_recorder').value.trim(),
+    tempConcurrency:($('#l_conc')&&$('#l_conc').value)?Number($('#l_conc').value):undefined,
     overwrite:$('#l_overwrite').value==='1',
     // v1.26.0：多间选到同一个 LIMS 源时收成数组（一个源给多间共用），别让后选的把先选的顶掉
     roomAlias:(function(){ const m={}; document.querySelectorAll('.rmsel').forEach(sel=>{
@@ -4206,14 +4211,15 @@ $('#l_test').onclick=async()=>{
 };
 async function pollLimsJob(jobId, onProgress){
   const t0=Date.now();
-  while(Date.now()-t0 < 30*60*1000){
+  // v1.43.8：上限 30→60 分钟（温度窗口约 12.7 秒/窗，整月最多 87 窗；多房间「同步整月」更久）
+  while(Date.now()-t0 < 60*60*1000){
     const r=await api('/api/lims/job/'+encodeURIComponent(jobId));
     if(r.error) throw new Error(r.error);
     if(r.status==='done'||r.status==='error'){ if(onProgress) onProgress(r.progress||'', r.status); return r; }
     if(onProgress) onProgress(r.progress||'处理中…', r.status);
     await new Promise(res=>setTimeout(res,1500));
   }
-  throw new Error('轮询超时（30 分钟）');
+  throw new Error('轮询超时（60 分钟）：任务在服务器上仍在继续跑，稍后可刷新页面查看结果；如需加快可把「温度并发数」调大');
 }
 // 映射体检提示（「测试连接」与「同步完成」共用）：把"房间对错"直接说出来，不靠用户猜
 function auditHint(aud){
@@ -4233,9 +4239,27 @@ function auditHint(aud){
   else s+='<div class="muted tiny">· 还没做过房间名实测校验 → 到「LIMS 数据源」区点「🔍 实测校验房间名」</div>';
   return s;
 }
+// v1.43.10：同步结果「填 0 格」的原因**自证**（别让用户误以为温度功能坏了）。
+//   判据用结果里带的 lims_last_point（本次抓到的最新一个 LIMS 读数时刻）：
+//   - 没有它 → LIMS 一个点都没返回 = 上游完全没数据；
+//   - 有它但早于今天 → LIMS 已断流，0 格属如实反映上游无数据；
+//   - 晚于今天 → 只是本来就没有空格要填。
+function limsUpstreamHint(r){
+  if(r.filled_total) return '';
+  const p2=n=>n<10?('0'+n):''+n, d=new Date();
+  const today=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  const lp=String(r.lims_last_point||'').slice(0,10);
+  if(!lp) return '<div style="color:var(--warn)">⚠️ <b>LIMS 一个数据点都没返回</b>：本次「填 0 格」不是系统故障，'
+    +'而是 LIMS 侧没有可抓的数据。请点「🔌 测试连接」确认，再排查 LIMS 采集链路（传感器 / 网关 / 采集服务）。</div>';
+  if(lp<today) return '<div style="color:var(--warn)">⚠️ <b>LIMS 数据源已断流</b>：本次抓到的最新读数只到 <b>'+esc(lp)
+    +'</b>，之后没有任何新数据（全程仅抓到 '+(r.points_total||0)+' 点）。所以「填 0 格」「没补到温度」都是'
+    +'<b>如实反映上游没数据</b>，不是温度功能坏了 —— 恢复后重跑本按钮即可补齐。</div>';
+  return '<div class="muted">LIMS 最新读数到 '+esc(lp)+'，本次没有空格需要填。</div>';
+}
 function renderSyncResult(r){
   let h='<div>✅ '+r.ym+' 同步完成：'+r.rooms+' 个房间，共填 <b>'+r.filled_total+'</b> 格'
-    +(r.temp_filled_total?('，其中补温度 <b>'+r.temp_filled_total+'</b> 格'):'<span class="muted">（本次没补到温度）</span>')+'</div>'+auditHint(r.map_audit);
+    +(r.temp_filled_total?('，其中补温度 <b>'+r.temp_filled_total+'</b> 格'):'<span class="muted">（本次没补到温度）</span>')+'</div>'
+    +limsUpstreamHint(r)+auditHint(r.map_audit);
   h+='<div>明细：<br>'+(r.results||[]).map(x=>x.error
       ?('· <span style="color:var(--warn)">'+esc(x.room)+'：'+esc(x.error)+'</span>')
       :('· '+esc(x.room)+'（湿度源 '+esc(x.source)+(x.temp_source&&x.temp_source!==x.source?(' · 温度源 '+esc(x.temp_source)):(x.temp_mode==='off'?' · 不抓温度':''))+'）填 '+x.filled+' 格'
@@ -4244,8 +4268,11 @@ function renderSyncResult(r){
   return h;
 }
 $('#l_syncall').onclick=async()=>{
-  const ym=localMonth();
-  if(!confirm('从 LIMS 同步 '+ym+' 整月【温湿度】到全部有映射的房间，并直接写入记录？\n\n· 湿度：整月空格（各自的数据源）\n· 温度：逐时段窗口抓「温湿同点」读数，含把「有湿度但缺温度」的格子补上\n  （缺得多时受窗口预算限制，跑完再点一次可续补；后台已把原来的「补全房间历史温度」并进这个按钮）\n· 只补空格：已有记录 / 签名 / 划线一律不动\n· 后台异步执行，可继续操作，进度实时显示\n\n确定继续吗？')) return;
+  const sel=$('#l_syncall_ym');
+  const ym=(sel&&sel.value)?sel.value:localMonth();
+  if(ym>localMonth()){ toast('不能同步未来月份（'+ym+'）','err'); return; }
+  const hist=ym!==localMonth();
+  if(!confirm('从 LIMS 同步 '+ym+' 整月【温湿度】到全部有映射的房间，并直接写入记录？\n\n· 湿度：整月空格（各自的数据源）\n· 温度：逐时段窗口抓「温湿同点」读数，含把「有湿度但缺温度」的格子补上\n  （缺得多时受窗口预算限制，跑完再点一次可续补；后台已把原来的「补全房间历史温度」并进这个按钮）\n· 只补空格：已有记录 / 签名 / 划线一律不动\n· 后台异步执行，可继续操作，进度实时显示'+(hist?'\n\n⚠️ 这是历史月份：温度窗口较多，按当前并发数约需数分钟到十几分钟，请勿关闭页面（进度会实时显示）':'')+'\n\n确定继续吗？')) return;
   const btn=$('#l_syncall'); btn.disabled=true; $('#l_stat').textContent='同步中…（后台异步）'; $('#l_result').innerHTML='';
   try{
     const s=await api('/api/lims/sync-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ym,with_temp:true,temp_scope:'all',backfill_temp:true})});

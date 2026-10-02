@@ -970,7 +970,7 @@ async function init(){
   if(devParam){
     const pool=DEVICES.filter(d=>CUR_ROOM?(d.location===CUR_ROOM):(!ROOM_SCOPE||ROOM_SCOPE.has(String(d.location||'').trim())));
     // 精确编号/ID 视为深链接（大屏卡片就是按编号跳的），不受当前房间筛选影响，
-    // 否则会话房间停在冲击室时，点显微镜的编号链接会变成「未找到设备」；
+    // 否则会话房间停在测试室07时，点显微镜的编号链接会变成「未找到设备」；
     // 模糊匹配（整名/片段）仍只在当前房间内找，避免越房间乱跳。
     const d = DEVICES.find(x=>String(x.no)===devParam) || DEVICES.find(x=>String(x.id)===devParam)
            || pool.find(x=>(x.name||'')===devParam) || pool.find(x=>x.name&&x.name.includes(devParam));

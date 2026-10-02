@@ -1,8 +1,8 @@
 {
   "name": "设备点检巡检系统",
   "name_en": "Equipment Inspection & Patrol System",
-  "version": "v1.45.0",
-  "date": "2026-09-26",
+  "version": "v1.46.0",
+  "date": "2026-10-02",
   "edition": "开源脱敏版 / Open-Source Desensitized Edition",
   "repo": "https://github.com/zhangdunlong/equipment-inspection",
   "demo": "https://equipment-inspection-cp0.pages.dev",
@@ -16,7 +16,7 @@
     "templates": 17,
     "signers": 4,
     "programs": 4,
-    "note": "跟随上游 v1.43.6：合规演示模式（demo_mode 权限 + demoGate 总开关 + /admin/_gate 暗链接）；演示站开启总开关展示完整功能界面，写操作仍只读"
+    "note": "跟随上游 v1.43.10：LIMS 窗口钳到今天（不查未来日期）、温度窗口有界并发（lims.tempConcurrency，默认 4）、备份可写性探测改覆盖写（28.9x 提速）、同步结果自证 LIMS 断流（last_point / points_total）；演示站开启 demoGate 总开关展示完整功能界面，写操作仍只读"
   },
   "features": [
     "设备台账与模板管理",
@@ -41,5 +41,5 @@
     "LIMS 对接（湿度抓取按 ≤20 天分段串行拉取，绕过 LIMS 单次跨度 23 天上限）/ 局域网远程升级（接口保留、默认关闭、占位配置）",
     "三套发布形态：Cloudflare Pages 只读演示站（可登录浏览）/ Node 服务版 / Windows 便携版"
   ],
-  "upstream": "v1.43.6"
+  "upstream": "v1.43.10"
 }

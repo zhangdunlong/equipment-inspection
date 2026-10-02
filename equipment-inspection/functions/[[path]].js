@@ -1421,6 +1421,7 @@ const LIMS_DEFAULTS = {
   interfaceId: '<LIMS_INTERFACE_ID>',
   interfaceIdTh: '<LIMS_INTERFACE_TH_ID>',
   tempWindowBudget: 90,
+  tempConcurrency: 4,                                      // 温度窗口查询并发数（上游 v1.43.8）
   recorder: 'LIMS自动导入',
   strategy: 'random',
   overwrite: false,
@@ -2249,7 +2250,7 @@ const DEMO_LOGS = [
   { level: 'INFO', tag: 'LIMS', msg: '演示环境未配置 LIMS 地址，自动抓取保持关闭' },
   { level: 'INFO', tag: '数据', msg: '温湿度定时填充：演示数据已就绪' },
   { level: 'WARN', tag: '温湿度预警', msg: '蠕变试验室 1 湿度 74.5%RH 超过上限 70%RH（演示数据）' },
-  { level: 'WARN', tag: '温湿度预警', msg: '金相分析室 温度 27.5℃ 超过上限 26℃（演示数据）' },
+  { level: 'WARN', tag: '温湿度预警', msg: '测试室04 温度 27.5℃ 超过上限 26℃（演示数据）' },
   { level: 'INFO', tag: '点检', msg: '本月点检记录已生成（演示数据）' },
   { level: 'INFO', tag: '备份', msg: '定时备份配置已加载：2 个目标（演示站为只读，不实际写盘）' },
   { level: 'ERROR', tag: '备份', msg: '目标文件夹不可写：演示站不访问任何文件系统（自托管版本可正常读写）' },
@@ -2416,8 +2417,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（跟随上游 server.js 的能力；开源脱敏版自身版本号见仓库 version.json）
-const APP_VERSION = 'v1.45.0';
-const APP_VERSION_DATE = '2026-09-26';
+const APP_VERSION = 'v1.46.0';
+const APP_VERSION_DATE = '2026-10-02';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

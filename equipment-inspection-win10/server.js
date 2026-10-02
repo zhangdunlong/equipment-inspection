@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.43.6';
-const APP_VERSION_DATE = '2026-09-26';
+const APP_VERSION = 'v1.43.10';
+const APP_VERSION_DATE = '2026-10-02';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -2626,7 +2626,7 @@ async function handleSaveEnvRecord(ctx) {
   const rejected = [];
   // 温湿度只接受数值：空串，或「可选负号 + 数字 + 可选小数」。
   // 为什么要在这里卡：以前只做 String().slice(0,8)，于是「记录员姓名」也能存进湿度框
-  // （2026-09-22 实测 冲击室/2026-09/16_Night 的 humidity 是「张新元」）。
+  // （2026-09-22 实测 测试室07/2026-09/16_Night 的 humidity 是「张新元」）。
   // 脏值一旦入库，会一路显示在打印表和 CSV 导出的数字列里；而预警逻辑用
   // parseFloat + Number.isFinite 判断，遇到非数字只是「静默跳过」——不报错、不提示，
   // 所以这种污染能长期潜伏。收口必须放在写入侧。
@@ -2737,7 +2737,7 @@ async function handleExportEnvCsv(ctx) {
 // 房间「温湿度要求」的自由文本 → 数值范围。线上实测到的写法（都要认）：
 //   温度：10℃-35℃ ／ 温度：15℃~25℃ (ASTM E23-25) ／ 温度要求：— （表示没有温度要求）
 //   湿度：≤80%RH ／ 湿度要求：≤60% ／ 湿度：≤65%RH ／ 湿度：40~70%（区间写法，上下限都认）
-// 一个房间可以列多条温度标准（冲击室 = ASTM E23-25 15~25℃ + GB/T229-2020 18~28℃），
+// 一个房间可以列多条温度标准（测试室07 = ASTM E23-25 15~25℃ + GB/T229-2020 18~28℃），
 // 按 mode 合成：union（默认，宽）取「下限最小 / 上限最大」；intersect（严）取「下限最大 / 上限最小」。
 // 交集为空时退化为并集，避免把房间判成「永远超限」。
 const ENV_TEMP_LINE_RE = /温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C|C)?\s*[-~—–～至]\s*(-?\d+(?:\.\d+)?)/g;
@@ -3058,17 +3058,18 @@ const LIMS_DEFAULTS = {
   interfaceId: 'oapi:94af36b40d7f4e7db4364acd0b74fbde',
   interfaceIdTh: 'oapi:e35dbe77f46f4f7e8d82d427339898b2',   // temperatureHumidityList（温湿同点）专用
   tempWindowBudget: 90,                                      // month 模式补历史温度的窗口查询预算（次；约 12 秒/次）
+  tempConcurrency: 4,                                        // 温度窗口查询并发数（v1.43.8；串行 18 分钟/房间 → 并发后大幅缩短）
   recorder: 'LIMS自动导入',                  // 未指定签名人时，记录员格显示的文本
   strategy: 'random',
   overwrite: false,                          // true = 连已有内容的格子也覆盖（慎用）
   // 别名 = LIMS源房间名 → 点检房间名。同名房间无需别名（同名直配）。
   // 注：'测试室05' 经核查 LIMS 侧房间名就是「测试室05」、点检房间同名，无需别名；
   //     旧默认 '室拉，高拉室' 是错误映射（会路由到不存在的房间），已移除。
-  roomAlias: { '金相分析': '测试室04', '金相制样间': '金相试样间' },
-  limsRooms: ['冲击室', '测试室05', '测试室02', '测试室01', '测试室06', '金相制样间', 'ICP-MS',
-    '直读光谱（OES）', '碳硫分析（C、S）', 'ICP-OES', '金相分析（办公）', '金相分析', '化学制样', '化学分析', '氧氮氢（O、N、H）'],
+  roomAlias: { '测试室04': '测试室04', '测试室08': '测试室09' },
+  limsRooms: ['测试室07', '测试室05', '测试室02', '测试室01', '测试室06', '测试室08', '测试室16',
+    '测试室13', '测试室14', '测试室15', '测试室10', '测试室04', '测试室11', '测试室12', '测试室17'],
   // allowShare：**显式允许**「与别的点检房间共用同一个 LIMS 数据源」的点检房间名。
-  //   背景：别名若指向一个「本身也是点检房间名」的 LIMS 源（如 疲劳，弯曲室 → 冲击室），
+  //   背景：别名若指向一个「本身也是点检房间名」的 LIMS 源（如 测试室21 → 测试室07），
   //   那个源已被同名房间占用，两个房间会自动填成同一份数据（工厂 9 月实锤：两房间逐格相同）。
   //   默认不生效（需人工确认）；用户认为"共用一份数据本来就应该允许"时，把房间名放这里即可放行。
   allowShare: [],
@@ -3078,14 +3079,14 @@ const LIMS_DEFAULTS = {
   noFetch: [],
   // tempSource（v1.26.0）：**温度**的数据来源映射，点检房间名 → 'auto' | 'off' | LIMS 房间名。
   //   为什么单独一张表：湿度与温度在 LIMS 里不是一张传感器表。湿度走 humidityChart（每间都能有），
-  //   温度只有「温湿同点」的房间才有（temperatureHumidityList）。实测测试室04 / 金相试样间
+  //   温度只有「温湿同点」的房间才有（temperatureHumidityList）。实测测试室04 / 测试室09
   //   湿度满格但温度只有几格 —— 它们的 LIMS 源房间没挂温湿同点传感器。
   //   'auto'（默认，不必写）= 温度跟随湿度源（原来唯一的行为）；'off' = 这间不抓温度（留空手填）；
-  //   写具体 LIMS 房间名 = 温度改从那一间取（例如多间统一指向有温湿同点传感器的「冲击室」）。
+  //   写具体 LIMS 房间名 = 温度改从那一间取（例如多间统一指向有温湿同点传感器的「测试室07」）。
   //   注意：这张表是「点检房间 → 源」，与 roomAlias（源 → 房间）方向相反，因为一个源要能给多个房间用。
   tempSource: {},
   // unmapped（v1.26.0）：用户显式点了「（未映射 · 不抓取）」的点检房间名。
-  //   为什么必须有：limsSourceRoomDetail 的第①条「同名直配」会让点检「冲击室」无条件占用 LIMS「冲击室」，
+  //   为什么必须有：limsSourceRoomDetail 的第①条「同名直配」会让点检「测试室07」无条件占用 LIMS「测试室07」，
   //   于是用户想在后台把它改成「未映射」时会被顶回原值（改了 → 保存 → 刷新又回来了），
   //   而且那个源一直算「被同名房间占用」，别的房间想用它就得先勾「允许共用同一数据源」。
   //   显式进这张表 = 用户说了「这间不用任何 LIMS 源」，优先级最高，同名直配也要让路（源随之变为空闲，可自由给别的房间）。
@@ -3203,14 +3204,22 @@ async function limsFetchHumidityWindow(cfg, token, limsRoom, body) {
 
 // 整月湿度：拆成 ≤LIMS_SPAN_MAX 天的窗口串行拉取后合并。
 // ⚠️ 不能一次拉整月（LIMS 限制 23 天），见上方 LIMS_SPAN_MAX 注释。
+// ⚠️⚠️ 关键修正（v1.43.7，2026-10-02）：查询窗口的结束日绝不能越过「今天」。
+//    LIMS humidityChart 一旦 startDate~endDate 包含未来日期，就返回近乎空的数据
+//    （实测：2026-10 当月查 Oct1~Oct20 只回 1 点，而只查 Oct1~Oct2（全在过去）回 8 点）。
+//    后果：每月「当前月」抓取时把未来日期也塞进窗口，导致整月只填进零星一格
+//    （工厂实况：自动填充只出了「10.1 上午」）。过去月份（全在过去）不受影响，故 9 月数据正常。
+//    修复：当月则把末段截止日钳到今天；历史月份保持整月。
 async function limsFetchHumidity(cfg, token, limsRoom, ym) {
   const [yy, mm] = ym.split('-').map(Number);
   const dim = new Date(yy, mm, 0).getDate();
+  const isCur = ym === currentMonthStr();
+  const maxDay = isCur ? Math.min(dim, new Date().getDate()) : dim;
   const pad = n => String(n).padStart(2, '0');
   const merged = [];
   const seen = new Set();
-  for (let d0 = 1; d0 <= dim; d0 += LIMS_SPAN_MAX) {
-    const d1 = Math.min(dim, d0 + LIMS_SPAN_MAX - 1);
+  for (let d0 = 1; d0 <= maxDay; d0 += LIMS_SPAN_MAX) {
+    const d1 = Math.min(maxDay, d0 + LIMS_SPAN_MAX - 1);
     const body = { interfaceId: cfg.interfaceId, roomName: limsRoom,
       startDate: ym + '-' + pad(d0), endDate: ym + '-' + pad(d1), startTime: '', endTime: '' };
     const arr = await limsFetchHumidityWindow(cfg, token, limsRoom, body);
@@ -3222,7 +3231,7 @@ async function limsFetchHumidity(cfg, token, limsRoom, ym) {
     }
   }
   logI('LIMS', 'humidityChart[' + limsRoom + '] ' + ym + ' 点数=' + merged.length +
-    '（分 ' + Math.ceil(dim / LIMS_SPAN_MAX) + ' 段，每段≤' + LIMS_SPAN_MAX + ' 天）');
+    '（' + (isCur ? '当月，截止今天' + maxDay + '号' : '全月') + '，分 ' + Math.ceil(maxDay / LIMS_SPAN_MAX) + ' 段，每段≤' + LIMS_SPAN_MAX + ' 天）');
   return merged;
 }
 
@@ -3258,6 +3267,32 @@ async function limsFetchEnvWindow(cfg, token, limsRoom, date, startHM, endHM) {
   }
   throw lastErr || new Error('LIMS 温湿度列表接口失败');
 }
+
+// 有界并发执行器（v1.43.8）：同一时刻最多 limit 个在飞。
+// 背景：temperatureHumidityList 单次约 12.7 秒（服务端分页钉死 pageSize=20，无法靠放大窗口减少次数），
+//   整月最多 93 个「日+时段」窗口。原实现是**串行 for 循环** → 87 窗实测 1104 秒（18.4 分钟）/房间，
+//   8 个房间「同步整月」≈ 2.5 小时，前端 30 分钟轮询超时 → 用户看到的就是「卡死/同步失败」。
+//   改为有界并发后，同样的窗口数耗时降到约 1/limit。limit 可配（kv.lims.tempConcurrency，默认 4）。
+async function limsMapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  if (!items.length) return results;
+  const n = Math.max(1, Math.min(Number(limit) > 0 ? Math.floor(Number(limit)) : 1, items.length));
+  let next = 0;
+  const runners = [];
+  for (let i = 0; i < n; i++) {
+    runners.push((async () => {
+      for (;;) {
+        const idx = next++;
+        if (idx >= items.length) return;
+        results[idx] = await worker(items[idx], idx);
+      }
+    })());
+  }
+  await Promise.all(runners);
+  return results;
+}
+// 温湿度窗口查询的并发上限（防把 LIMS 打爆；服务器本身很慢，4~6 已能显著提速）
+const LIMS_TEMP_CONC_MAX = 8;
 
 // 时段 → 当日窗口（与 limsPeriodOf 分桶边界一致：AM<12h、PM<18h、Night≥18h）
 const LIMS_PERIOD_WINDOW = { AM: ['00:00:00', '11:59:59'], PM: ['12:00:00', '17:59:59'], Night: ['18:00:00', '23:59:59'] };
@@ -3321,8 +3356,8 @@ function limsPickPoint(pts, strategy, refTm) {
 //   shared  = 该房间正在**共用**另一个点检房间的同名数据源（用户已在 allowShare 里显式允许）
 // 判定顺序：① 同名直配优先 ② 别名（roomAlias：LIMS源 → 点检房间）
 // ★ 防串：若别名要借用的 LIMS 源，同时又是另一个点检房间的名字（那个房间已"同名直配"占用它），
-//   默认**暂停**这条别名 —— 否则两个点检房间会自动填充到同一份数据。工厂实测：点检「疲劳，弯曲室」的
-//   温湿度与点检「冲击室」逐格完全相同（都以 LIMS「冲击室」为源），即由此产生。
+//   默认**暂停**这条别名 —— 否则两个点检房间会自动填充到同一份数据。工厂实测：点检「测试室21」的
+//   温湿度与点检「测试室07」逐格完全相同（都以 LIMS「测试室07」为源），即由此产生。
 //   但「引用同一个数据源」本身是合理需求（现场可能就没给那间装温湿度计）—— 把房间名加进
 //   cfg.allowShare 即可放行，放行后两个房间会拿到同一份读数（界面会明确标出"共用"）。
 function limsSourceRoomDetail(cfg, roomName) {
@@ -3330,8 +3365,8 @@ function limsSourceRoomDetail(cfg, roomName) {
   const isInspect = (n) => kvget('rooms', []).some(r => r.name === n);
   const allowShare = Array.isArray(cfg.allowShare) ? cfg.allowShare : [];
   // ⓿（v1.26.0）用户显式设成「（未映射 · 不抓取）」的房间 —— 优先级最高，连同名直配都要让路。
-  //   修的就是这个死结：点检「冲击室」原本被同名直配无条件绑住 LIMS「冲击室」，既关不掉，
-  //   又一直占着那个源，导致别的房间想用 LIMS「冲击室」必须先勾「允许共用」。
+  //   修的就是这个死结：点检「测试室07」原本被同名直配无条件绑住 LIMS「测试室07」，既关不掉，
+  //   又一直占着那个源，导致别的房间想用 LIMS「测试室07」必须先勾「允许共用」。
   if ((cfg.unmapped || []).includes(roomName)) return { source: null, via: 'unmapped', blocked: '', shared: '' };
   if (isLims(roomName)) return { source: roomName, via: 'same', blocked: '', shared: '' };   // ① 同名直配
   for (const [lr, tr] of Object.entries(cfg.roomAlias || {})) {                              // ② 别名
@@ -3576,7 +3611,12 @@ async function limsSyncRoomUnlocked(opts) {
   const tempSkippedBudget = tempWins.length - tempRuns.length;
   const tempBuckets = {};
   let winUsed = 0;
-  for (const w of tempRuns) {
+  // v1.43.8：并发跑窗口（原来是串行 + 每窗 sleep 200ms → 87 窗要 18 分钟，用户以为卡死）。
+  //   并发数是唯一有效的提速手段：LIMS 侧分页钉死 20 点/次，窗口数无法减少，只能并行。
+  const tempConc = Math.max(1, Math.min(LIMS_TEMP_CONC_MAX,
+    Number(cfg.tempConcurrency) > 0 ? Math.floor(Number(cfg.tempConcurrency)) : LIMS_DEFAULTS.tempConcurrency));
+  let winDone = 0;
+  await limsMapLimit(tempRuns, tempConc, async (w) => {
     try {
       const win = LIMS_PERIOD_WINDOW[w.period] || LIMS_PERIOD_WINDOW.AM;
       const wpts = await limsFetchEnvWindow(cfg, token, tempSource, w.ds, win[0], win[1]);
@@ -3587,8 +3627,12 @@ async function limsSyncRoomUnlocked(opts) {
       // 单窗口失败不阻塞：温度留空（由「补抓温度」在后续同步中自愈），但要落日志让故障可见
       logW('LIMS', '温度窗口[' + tempSource + ' ' + w.ds + ' ' + w.period + '] 失败: ' + (e && e.message || e));
     }
-    await new Promise(res => setTimeout(res, 200));
-  }
+    winDone++;
+    // 进度回报：静默 18 分钟 = 用户感知「卡死」，必须让界面动起来
+    if (onProgress && (winDone % 3 === 0 || winDone === tempRuns.length)) {
+      onProgress('温度窗口 ' + winDone + '/' + tempRuns.length + '（并发 ' + tempConc + '）…');
+    }
+  });
 
   // 第三步：选点写入 —— 温度窗口点（温湿配对，同一点同时取温湿度）优先，窗口无温度点则回退湿度主源（温度留空）
   let touched = false;
@@ -3649,20 +3693,32 @@ async function limsSyncRoomUnlocked(opts) {
       if (ds === today && ENV_PERIODS.indexOf(m[2]) > ENV_PERIODS.indexOf(curPeriod)) continue;   // 今天未来时段
       want.push({ k, ds, period: m[2] });
     }
+    // v1.43.8：先确定「要查哪些窗口」并按剩余预算截断，再并发查，最后串行写入。
+    //   原实现是「查一个写一个」的串行循环，87 格实测 18 分钟 —— 与第二步同样的病。
+    const wantFetch = [];
     for (const w of want) {
-      if (!tempBuckets[w.k] || !tempBuckets[w.k].length) {
-        if (winUsed >= budget) { backfillSkippedBudget++; continue; }   // 与第二步共用窗口预算
-        try {
-          const win = LIMS_PERIOD_WINDOW[w.period] || LIMS_PERIOD_WINDOW.AM;
-          const wpts = await limsFetchEnvWindow(cfg, token, tempSource, w.ds, win[0], win[1]);
-          winUsed++;
-          const withT = wpts.filter(x => x.temp != null && x.temp !== '');
-          if (withT.length) tempBuckets[w.k] = withT;
-        } catch (e) {
-          logW('LIMS', '补抓温度窗口[' + tempSource + ' ' + w.ds + ' ' + w.period + '] 失败: ' + (e && e.message || e));
-        }
-        await new Promise(res => setTimeout(res, 200));
+      if (tempBuckets[w.k] && tempBuckets[w.k].length) continue;          // 第二步已取到，免重复查
+      if (winUsed + wantFetch.length >= budget) { backfillSkippedBudget++; continue; }   // 与第二步共用窗口预算
+      wantFetch.push(w);
+    }
+    let bfDone = 0;
+    await limsMapLimit(wantFetch, tempConc, async (w) => {
+      try {
+        const win = LIMS_PERIOD_WINDOW[w.period] || LIMS_PERIOD_WINDOW.AM;
+        const wpts = await limsFetchEnvWindow(cfg, token, tempSource, w.ds, win[0], win[1]);
+        const withT = wpts.filter(x => x.temp != null && x.temp !== '');
+        if (withT.length) tempBuckets[w.k] = withT;
+      } catch (e) {
+        logW('LIMS', '补抓温度窗口[' + tempSource + ' ' + w.ds + ' ' + w.period + '] 失败: ' + (e && e.message || e));
       }
+      bfDone++;
+      if (onProgress && (bfDone % 3 === 0 || bfDone === wantFetch.length)) {
+        onProgress('补历史温度 ' + bfDone + '/' + wantFetch.length + '（并发 ' + tempConc + '）…');
+      }
+    });
+    winUsed += wantFetch.length;   // 预算按「发起过的查询」计数（含极少数失败的重试，宁可保守）
+    // 写入阶段（纯内存，串行）
+    for (const w of want) {
       const pts = tempBuckets[w.k] || [];
       if (!pts.length) continue;
       const isCur = (ym === cur && Number(w.k.split('_')[0]) === Number(today.slice(8, 10)) && w.period === curPeriod);
@@ -3696,6 +3752,10 @@ async function limsSyncRoomUnlocked(opts) {
     temp_skipped_budget: tempSkippedBudget,
     with_temp: withTemp,
     points_total: points.length,
+    // v1.43.10：本次抓到的**最新一个 LIMS 读数时刻**。
+    //   用途：结果页要能自证「填 0 格」到底是「LIMS 根本没数据」还是「系统故障」——
+    //   只要这个时间明显早于今天，就说明上游已断流，界面必须说清楚，不能让用户误以为温度功能坏了。
+    last_point: points.length ? (points[points.length - 1].time || '') : '',
   };
 }
 
@@ -3720,6 +3780,10 @@ async function handleLimsConfigPut(ctx) {
   if (b.tempWindowBudget != null) {
     const n = Number(b.tempWindowBudget);
     next.tempWindowBudget = Number.isFinite(n) && n > 0 ? Math.min(200, Math.round(n)) : LIMS_DEFAULTS.tempWindowBudget;
+  }
+  if (b.tempConcurrency != null) {
+    const n = Number(b.tempConcurrency);
+    next.tempConcurrency = Number.isFinite(n) && n > 0 ? Math.min(LIMS_TEMP_CONC_MAX, Math.round(n)) : LIMS_DEFAULTS.tempConcurrency;
   }
   if (!String(b.pass || '').trim()) next.pass = saved.pass || LIMS_DEFAULTS.pass;   // 留空 = 沿用
   if (b.roomAlias != null && typeof b.roomAlias === 'object' && !Array.isArray(b.roomAlias)) {
@@ -3942,7 +4006,9 @@ async function handleLimsSyncAll(ctx) {
   if (aud.empty_sources.length) logW('LIMS', '映射用到的 LIMS 源房间实测无数据（未挂温湿度计）：' + aud.empty_sources.join('、'));
   const job = limsJobNew('整月同步 ' + ym);
   limsJobRun(job, async (jb) => {
-    const results = []; let filledTotal = 0, tempFilledTotal = 0;
+    const results = []; let filledTotal = 0, tempFilledTotal = 0, pointsTotal = 0;
+    // v1.43.10：汇总本次抓到的 LIMS 最新读数时刻 → 结果页据此自证「填 0 格」是上游断流还是系统故障
+    let lastPoint = '';
     for (let i = 0; i < rooms.length; i++) {
       const room = rooms[i];
       jb.progress = '同步 ' + room + '（' + (i + 1) + '/' + rooms.length + '）';
@@ -3958,14 +4024,19 @@ async function handleLimsSyncAll(ctx) {
         else {
           results.push({ room, source: r.source_room, temp_source: r.temp_source, temp_mode: r.temp_mode,
             filled: r.filled_count, temp_filled: r.filled_temp_count, skipped: r.skipped_existing,
-            no_data: r.no_data, temp_from_lims: r.temp_from_lims, temp_skipped_budget: r.temp_skipped_budget });
+            no_data: r.no_data, temp_from_lims: r.temp_from_lims, temp_skipped_budget: r.temp_skipped_budget,
+            points_total: r.points_total, last_point: r.last_point || '' });
           filledTotal += r.filled_count; tempFilledTotal += r.filled_temp_count;
+          pointsTotal += (r.points_total || 0);
+          if (r.last_point && r.last_point > lastPoint) lastPoint = r.last_point;
         }
       } catch (e) { results.push({ room, error: String(e && e.message || e) }); }
       await new Promise(res => setTimeout(res, 300));   // 温和限速，别轰炸 LIMS
     }
     jb.progress = '完成';
-    return { ok: true, ym, rooms: rooms.length, filled_total: filledTotal, temp_filled_total: tempFilledTotal, results, map_audit: aud };
+    // v1.43.10：带上「本次一共抓到多少点 / 最新一个点是什么时候」，让结果页能自己判断是上游断流还是系统故障
+    return { ok: true, ym, rooms: rooms.length, filled_total: filledTotal, temp_filled_total: tempFilledTotal,
+      points_total: pointsTotal, lims_last_point: lastPoint, results, map_audit: aud };
   });
   return sendJson(ctx.res, { ok: true, jobId: job.id });
 }
@@ -4656,9 +4727,11 @@ async function handleGetBackup(ctx) {
     if (!t.error) {
       try {
         await fs.promises.mkdir(t.abs, { recursive: true });
-        const probe = path.join(t.abs, '.write-test-' + Date.now());
-        await fs.promises.writeFile(probe, 'ok');
-        await fs.promises.unlink(probe);
+        // v1.43.9：固定文件名「覆盖写」探测可写性，**写后不删**。
+        // 原实现写后即删，而本机 fs.unlink 单次需 1 秒以上（文件实时监控介入），
+        // 本页每次打开都卡（实测 /api/backup/config 达 2169ms）。覆盖写不触发删除路径，探测效果等同。
+        // 残留的 .write-test 不会被「备份文件列表」收录（那里只认 `点检数据备份_*.json`）。
+        await fs.promises.writeFile(path.join(t.abs, '.write-test'), 'ok');
         item.writable = true;
         item.disk_free = await diskFreeBytes(t.abs);
         item.disk_free_text = humanSize(item.disk_free);
@@ -4903,10 +4976,10 @@ async function handleTestBackup(ctx) {
     const probeDir = path.join(abs, String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
     try {
       await fs.promises.mkdir(probeDir, { recursive: true });
-      const p = path.join(probeDir, '.write-test-' + Date.now());
+      const p = path.join(probeDir, '.write-test');
       const t0 = Date.now();
+      // v1.43.9：同上 —— 覆盖写不删除，避开 unlink 的秒级开销（测试目标耗时直接反映在 cost_ms 上）
       await fs.promises.writeFile(p, 'ok');
-      await fs.promises.unlink(p);
       r.ok = true; r.sub_dir = probeDir; r.cost_ms = Date.now() - t0;
       r.disk_free = await diskFreeBytes(probeDir);
       r.disk_free_text = humanSize(r.disk_free);
@@ -5947,7 +6020,7 @@ const ENV_ALERT_DEFAULTS = {
   cooldownHours: 12,
   // v1.25.0：阈值默认「跟着房间的温湿度要求走」，后台不必再逐个房间手配
   useRoomReq: true,
-  // 一个房间列了多条温度标准时（如冲击室 ASTM E23-25 与 GB/T229-2020 各一个范围）怎么合：
+  // 一个房间列了多条温度标准时（如测试室07 ASTM E23-25 与 GB/T229-2020 各一个范围）怎么合：
   //   union = 并集（宽，只要有一条标准容得下就不报）/ intersect = 交集（严，要同时满足所有标准）
   multiStd: 'union',
   channels: { inApp: true, banner: true },
@@ -5969,7 +6042,7 @@ function envReqText(roomName) {
 //   ① 后台「按房间覆盖」里手填的数字（最高优先，只覆盖填了的那一项）
 //   ② 房间自己的「温湿度要求」自动解析（默认走这条，后台无需配置）
 //   ③ 全局默认阈值（仅当该房间压根没写要求时兜底）
-// 房间要求里没写的指标（如测试室06没写湿度、金相试样间温度写「—」）= 不判定（null），
+// 房间要求里没写的指标（如测试室06没写湿度、测试室09温度写「—」）= 不判定（null），
 // 不再拿全局默认去凑——否则会给没有依据的指标报预警。
 function envAlertLimits(room) {
   const cfg = envAlertCfgRaw();
