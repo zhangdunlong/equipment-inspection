@@ -228,6 +228,10 @@
     unlock:    '<rect x="3.8" y="10.4" width="16.4" height="9.8" rx="2"/><path d="M7.6 10.4V7.6a4.4 4.4 0 0 1 8.6-1.1"/>'
   };
   function icon(name, size, cls) {
+    // v1.44.7：图标集已抽到 assets/icons.js（v1/v2 共用、供 data-ic 自动注入），
+    //   这里优先走共享实现，保证同一个图标名在两套样式体系里画出的是同一枚图形；
+    //   若该脚本没加载（例如旧页面/离线打开），再退回本文件内置的旧图标集。
+    if (window.UI && typeof window.UI.icon === 'function') return window.UI.icon(name, size, cls);
     const body = ICONS[name];
     if (!body) return '';
     const s = size || 18;

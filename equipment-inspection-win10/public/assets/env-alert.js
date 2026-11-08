@@ -5,6 +5,9 @@
  * 行为：本科室人员登录后，自动拉 /api/env/alerts，把超范围的温湿度记录以分级横幅展示。
  * 等级：超出 ≤1 度=注意(黄) / ≤2=警告(橙) / >2=危险(红)。无科室或无超限则不显示。
  * v1.30.4：每条 <li> 整行可点 → /env.html?room=房间名；头部「去温湿度记录」也带上首条房间。
+ * v1.44.1：横幅只是一次**快照**，不再只在页面加载时取一次 —— 暴露 window.ENV_ALERT_REFRESH()，
+ *   温湿度页保存后调用，立刻按最新数值重算（数值改合规 → 横幅消失；改越限 → 横幅出现）。
+ *   横幅口径与落库预警统一走服务端 envAlertLimits()，两处不会再对不上。
  */
 (function () {
   function esc(s) {
@@ -83,16 +86,25 @@
     box.style.display = '';
   }
 
+  function load() {
+    return fetch('/api/env/alerts', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(render)
+      .catch(function () { render(null); });
+  }
+
   function init() {
     if (!window.DEPT) { render(null); return; }
     Promise.resolve(DEPT.loaded ? DEPT.me : DEPT.load()).then(function () {
       if (!DEPT.dept) { render(null); return; }
-      fetch('/api/env/alerts', { credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(render)
-        .catch(function () { render(null); });
+      load();
     }).catch(function () { render(null); });
   }
+
+  /* v1.44.1：暴露刷新入口。温湿度页保存成功后调用它，横幅立刻按「库里的最新数值」重算 ——
+     否则用户把超限值改成合规、保存后横幅还挂着，只能靠刷新整页才消失，
+     看起来就像「改了也不管用」。本函数幂等，可重复调用。 */
+  window.ENV_ALERT_REFRESH = function () { try { load(); } catch (e) { } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

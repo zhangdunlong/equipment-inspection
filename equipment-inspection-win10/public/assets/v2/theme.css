@@ -119,11 +119,19 @@ h1,h2,h3,h4 { margin:0; line-height:var(--lh-tight); font-weight:700; }
   font-size:var(--fs-lg); font-weight:800; letter-spacing:.5px;
   color:var(--tx-1); white-space:nowrap;
 }
+/* 左上角标识（v1.44.6 重绘）：渐变徽章 + 「点检记录」（板夹 + 对勾）线性图标。
+   图标用 SVG data-URI 作 mask 绘制 —— 零图片、零 emoji、任意分辨率都清晰；
+   笔画颜色由 background-color 决定（深墨 #04101f 压在亮渐变徽章上，对比 ≈ 9:1）。
+   与 v1（assets/style.css 的 .brand .mark）使用同一图形，两个体系观感一致。 */
 .app-nav .brand .mark {
-  width:26px; height:26px; flex:none; border-radius:7px;
-  display:grid; place-items:center; font-size:14px;
+  width:24px; height:24px; flex:none; border-radius:7px; position:relative;
   background:linear-gradient(135deg,var(--accent),var(--cyan));
-  color:#04101f;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);
+}
+.app-nav .brand .mark::after {
+  content:''; position:absolute; inset:0; background-color:#04101f;
+  -webkit-mask:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.6' y='5.4' width='14.8' height='14.8' rx='2.6'/%3E%3Cpath d='M9.7 3.2h4.6a1 1 0 0 1 1 1v2.2H8.7V4.2a1 1 0 0 1 1-1z'/%3E%3Cpath d='M8.9 12.8l2.4 2.4 4.2-4.6'/%3E%3C/svg%3E") center/16px 16px no-repeat;
+          mask:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.6' y='5.4' width='14.8' height='14.8' rx='2.6'/%3E%3Cpath d='M9.7 3.2h4.6a1 1 0 0 1 1 1v2.2H8.7V4.2a1 1 0 0 1 1-1z'/%3E%3Cpath d='M8.9 12.8l2.4 2.4 4.2-4.6'/%3E%3C/svg%3E") center/16px 16px no-repeat;
 }
 .app-nav .links { display:flex; align-items:center; gap:2px; margin-left:var(--s-4); }
 .app-nav .links a {
@@ -356,17 +364,23 @@ svg.ic { flex:none; display:inline-block; vertical-align:-.16em;
   body { background:#fff; color:#000; }
 }
 
-/* v1.27.0 左上角品牌图（白底片保证黑字在深色导航上可读） */
-/* 顶栏标识（v1.36.2）：登录后不再放公司大图标，改用「方块标记 + 文字」——
-   标记用 CSS 画的 3 条横杠（记录/清单意象），零图片、零 emoji，与控制台风格一致 */
-.app-nav .brand .mark {
-  width:24px; height:24px; flex:none; border-radius:7px; position:relative;
-  background:linear-gradient(135deg,var(--accent),var(--cyan));
+/* v1.27.0 左上角品牌图 / v1.36.2「方块标记 + 3 条横杠」的历史规则，
+   已并入上方 §3 的 .app-nav .brand .mark（v1.44.6 重绘为 SVG mask 图标），此处不再重复定义。 */
+
+/* ---------- 15. 交互与可访问性打磨（v1.44.6 · 叠加规则，不改既有视觉语言） ---------- */
+/* 页内锚点跳转时给 sticky 顶栏留位，标题不被遮挡 */
+section[id], [id]:target { scroll-margin-top: calc(var(--nav-h) + var(--s-3)); }
+/* 导航项补齐「按下」反馈（原来只有 hover），与 .btn 的 :active 一致 */
+.app-nav .links a:active { transform: translateY(1px); }
+/* 把 transform 纳入过渡，按下/抬起才不会「跳」 */
+.btn, .app-nav .links a {
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast),
+              box-shadow var(--t-fast), transform 110ms cubic-bezier(.4,0,.2,1);
 }
-.app-nav .brand .mark::after {
-  content:''; position:absolute; left:5px; right:5px; top:6px; bottom:6px;
-  background:
-    linear-gradient(#04101f,#04101f) 0 0/100% 2px no-repeat,
-    linear-gradient(#04101f,#04101f) 0 50%/72% 2px no-repeat,
-    linear-gradient(#04101f,#04101f) 0 100%/48% 2px no-repeat;
+/* 极小屏（手机竖屏）收紧字号，避免标题换行过多、表格横向溢出更严重 */
+@media (max-width:560px) {
+  :root { --fs-2xl:21px; --fs-3xl:26px; --fs-4xl:32px; }
+  .page-head h1 { font-size: var(--fs-xl); }
+  .page { padding: var(--s-4) var(--s-3) var(--s-8); }
+  .panel-pad { padding: var(--s-4); }
 }

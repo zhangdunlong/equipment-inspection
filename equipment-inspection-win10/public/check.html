@@ -141,8 +141,14 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
   /* 专项表原来在打印态把 .sheet 的边框整个去掉了 → 表格**没有外框**，
      与其它三个打印页（都有外框）风格不一致。这里给 .ctab 本体补上外框：
      collapse 模式下外框取「表格自身 border」与「首/末单元格 border」的较大者，
-     所以写 4.5pt 即可稳定得到约 4.5pt，与 env.html 的温湿度表同一档。 */
-  .ctab{ border:4.5pt solid #000 !important; }
+     所以写多少就稳定得到多少。
+     ⚠️ 2026-10-07：4.5pt → **2.5pt**，与内线同档。
+       原因：4.5pt 实测渲染 4.68pt，而内线 2.5pt 实测 2.01~2.20pt ⇒ 比值 2.33:1，
+       外框成了一圈明显的黑框，用户报「边框线粗细不一致、太粗」。
+       改为 2.5pt 后实测外框 2.34pt / 内线 2.20pt ⇒ 1.06:1，全表一套线。
+       另外三个打印页（inspect / print-all / monthly）本来就是 2.5pt 外框，
+       这一改让**全部 5 个打印页统一**（env.html 同批一起改）。 */
+  .ctab{ border:2.5pt solid #000 !important; }
   .ctab{ font-size:6.6pt !important; }
   /* 内线 2.5pt：1px 实测只有 0.48~0.61pt（≈0.2mm）；而 1.5pt（实测 1.16pt）在 Chrome 打印预览里
      仍会因缩放（A4 横向缩到约 690px）落到 1 屏幕像素以下而发灰。
@@ -194,8 +200,8 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
     <div class="field"><label>检查项目</label><select id="p_sel" style="min-width:200px"></select></div>
     <div class="field" style="min-width:230px"><label>设备</label><select id="d_sel" style="min-width:220px"></select></div>
     <div class="field"><label>月份</label><input type="month" id="ym_sel"></div>
-    <button class="btn" id="save_btn">💾 保存</button>
-    <button class="btn ghost" id="print_btn">🖨 打印</button>
+    <button class="btn" id="save_btn" data-ic="save" data-ic-size="15">保存</button>
+    <button class="btn ghost" id="print_btn" data-ic="print" data-ic-size="15">打印</button>
     <span class="muted tiny" id="stat"></span>
   </div>
   <div class="tipbar no-print" id="tipbar"></div>
@@ -220,6 +226,7 @@ table.ctab{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:
   </div>
 </div>
 
+<script src="/assets/icons.js"></script>
 <script src="/assets/dept.js"></script>
 <script>
 const $ = s => document.querySelector(s);

@@ -131,9 +131,13 @@ ready(function () {
       var lst = document.getElementById('ntList');
       if (!items.length) { lst.innerHTML = '<div class="nt-i" style="color:#98a2b3">暂无通知</div>'; return; }
       lst.innerHTML = items.map(function (n) {
+        // v1.44.1：数值被改成合规后，服务端会把该条预警及其通知置为 resolved（并清掉未读）——
+        // 这里如实标出「已恢复合规」，而不是让它继续以未读的样子催人。
+        var tag = n.resolved ? ' · <b style="color:#0a7c42">已恢复合规</b>'
+                             : (n.read ? '' : ' · <b style="color:#b42318">未读</b>');
         return '<div class="nt-i' + (n.read ? '' : ' unread') + '" data-id="' + esc(n.id) + '">' +
           '<div class="t">' + esc(n.title) + '</div><div class="b">' + esc(n.body) + '</div>' +
-          '<div class="tm">' + fmt(n.at) + (n.read ? '' : ' · <b style="color:#b42318">未读</b>') + '</div></div>';
+          '<div class="tm">' + fmt(n.at) + tag + '</div></div>';
       }).join('');
       lst.querySelectorAll('.nt-i').forEach(function (el) {
         el.addEventListener('click', function () {

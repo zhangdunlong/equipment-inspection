@@ -2060,6 +2060,38 @@ async function handleListPrograms(ctx) {
   });
   return json(out);
 }
+// GET /api/dashboard/bootstrap —— 大屏/房间页首屏「一次取齐」（跟随上游 v1.44.7）
+// 与逐个调用 /api/rooms + /api/devices + /api/programs + /api/templates 的结果完全一致：
+// 复用同一份整形逻辑（roomCounts / use_count / resolveFormHead），不放大任何可见范围。
+async function handleDashboardBootstrap(ctx) {
+  const devices = ctx.kvget('devices', []);
+  const rooms = ctx.kvget('rooms', []);
+  const c = roomCounts(ctx.store);
+  const cnt = {};
+  devices.forEach(d => { if (d.template_id) cnt[d.template_id] = (cnt[d.template_id] || 0) + 1; });
+  const dmap = {};
+  devices.forEach(d => { dmap[d.id] = d; });
+  const programs = ctx.kvget('programs', []).map(p => {
+    const devs = (p.device_ids || []).map(id => dmap[id]).filter(Boolean);
+    return Object.assign({}, p, {
+      device_count: devs.length,
+      form_head: resolveFormHead(ctx, 'program', p).line,
+      rooms: [...new Set(devs.map(d => String(d.location || '').trim()).filter(Boolean))],
+      devices: devs.map(d => ({ id: d.id, no: d.no, name: d.name, model: d.model, location: d.location || '' }))
+    });
+  });
+  return json({
+    rooms: rooms.map(r => ({ name: r.name, desc: r.desc || '', count: c[r.name] || 0,
+      group: r.group || '', dept: r.dept || '',
+      thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '',
+      thermo_requirement: r.thermo_requirement || '', env_range: r.env_range || null,
+      form_head: r.form_head || '' })),
+    devices: devices,
+    programs: programs,
+    templates: ctx.kvget('templates', []).map(t => Object.assign({}, t, { use_count: cnt[t.id] || 0 }))
+  });
+}
+
 // GET /api/check-records —— 支持 program_id / device_id / ym 三个过滤（v1.32.1）
 async function handleListCheckRecords(ctx) {
   const pid = (ctx.query.get('program_id') || '').trim();
@@ -2287,6 +2319,7 @@ const routes = [
   { method: 'GET', path: '/api/devices', handler: handleListDevices },
   { method: 'GET', path: '/api/monthly', handler: handleMonthly },
   { method: 'GET', path: '/api/dashboard', handler: handleDashboard },
+  { method: 'GET', path: '/api/dashboard/bootstrap', handler: handleDashboardBootstrap },
   { method: 'GET', pattern: /^\/api\/inspect\/device\/([^/]+)$/, paramNames: ['id'], handler: handleDeviceDetail },
   { method: 'POST', path: '/api/inspect/day-sig', handler: handleDaySign },
   { method: 'POST', path: '/api/inspect/month', handler: handleInspectMonth },
@@ -2417,8 +2450,8 @@ function matchRoute(method, p) {
 }
 
 // 系统版本号（跟随上游 server.js 的能力；开源脱敏版自身版本号见仓库 version.json）
-const APP_VERSION = 'v1.46.0';
-const APP_VERSION_DATE = '2026-10-02';
+const APP_VERSION = 'v1.47.0';
+const APP_VERSION_DATE = '2026-11-08';
 
 // ===================== 只读演示站策略 =====================
 // 演示站允许「登录」：登录只做口令校验 + HMAC 签发票据（cookie），不写入任何数据，

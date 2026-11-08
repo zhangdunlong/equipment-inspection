@@ -39,8 +39,8 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 // 系统版本号（单一信息源）：与《交接文档.md》头部版本保持一致，每次迭代发布时同步修改此处。
 // 前端各页面通过 GET /api/version 拉取并显示，无需改前端。
 // 全局版本号（语义化版本 主版本.次版本.修订号）：接口破坏性变更→主版本+1；新功能→次版本+1；bug 修复→修订号+1。只改这里，前端自动跟随
-const APP_VERSION = 'v1.43.10';
-const APP_VERSION_DATE = '2026-10-02';
+const APP_VERSION = 'v1.45.0';
+const APP_VERSION_DATE = '2026-11-07';
 
 // 安全：PEPPER / SECRET 原本硬编码于源码，开源前已移除。
 // 现改为首次启动时随机生成并持久化到 data/config.json（该文件已被 .gitignore 排除，不会随源码泄露）。
@@ -171,8 +171,8 @@ const DEFAULT_PROGRAMS = [
     device_ids: [],
     // 自动关联规则（按模板 key）：4 台显微镜（3 台金相 + 1 台体视）。
     // 新模板若也挂到设备上，同样会被自动纳入本项目。
-    auto_tpl_keys: ['DEMO-QR-079', 'DEMO-QR-079-Axio vert A1', 'DEMO-QR-079-Axio observer',
-      'DEMO-QR-079-Axio scope5', 'DEMO-QR-079-OLYMPUS SZX7'],
+    auto_tpl_keys: ['DEMO-QR-079', 'DEMO-QR-079-MIC-A', 'DEMO-QR-079-MIC-B',
+      'DEMO-QR-079-MIC-C', 'DEMO-QR-079-MIC-D'],
     name: '显微镜维护记录',
     title: '显微镜维护记录',
     title_en: 'Maintenance Record of Microscope',
@@ -1031,6 +1031,69 @@ function timingEq(a, b) {
 // 按组合（而不是只按 IP）—— 一个人输错密码不该把同网段其他人一起锁掉。
 const LOGIN_FAIL_WIN = 5 * 60 * 1000, LOGIN_FAIL_MAX = 10;
 const loginFails = new Map();                    // 'ip|username' → {first, n}
+// 温湿度预警「读时自愈」复核（v1.44.2）
+//
+// 为什么还需要它：v1.44.1 起「数值被改成合规」会在**保存那一刻**把预警撤销 —— 但那是**写入驱动**的。
+// 于是有两类预警永远撤不掉：
+//   ① v1.44.1 之前遗留的 open 预警（数值当时或后来已经合规，但之后没人再保存过那一格）；
+//   ② 后台把房间要求/覆盖阈值改宽之后，原来那条超限已经不成立了。
+// 两者的共同表现正是用户报的问题：**新登录的用户仍然收到提醒**（铃铛未读 + 后台「未确认」）。
+//
+// 所以补一条**读取驱动**的兜底：按库里**当前**数值复核所有 open 预警，已不成立的就地 resolved，
+// 并把引用它的站内通知标成「已恢复合规 + 已读」，让新登录的人角标就是干净的。
+// 幂等；判定口径与 evalEnvAlerts 完全一致（同一个 envAlertLimits、同一条「必须是数值才判」的红线）。
+let _envReconcileAt = 0;
+function reconcileEnvAlerts(actorName, force) {
+  try {
+    const now = Date.now();
+    if (!force && now - _envReconcileAt < 60000) return { skipped: 'throttled' };   // 横幅每次都调 → 限流
+    _envReconcileAt = now;
+    const alerts = kvget('envAlerts', []);
+    const openRows = alerts.filter(a => a.status === 'open');
+    if (!openRows.length) return { checked: 0, resolved: 0 };
+    const recMap = {};
+    allEnvRecords().forEach(r => { recMap[r.room + '|' + r.ym] = r.cells || {}; });
+    const limCache = {};
+    const atIso = new Date().toISOString();
+    const resolvedIds = [];
+    for (const a of openRows) {
+      const cells = recMap[a.room + '|' + a.ym];
+      if (!cells) continue;                        // 记录已不存在 → 无从判定，保持原状
+      const c = cells[a.key];
+      if (!c || c.strike) continue;                // 格子没了 / 该时段无需记录 → 保持原状
+      const isTemp = a.kind.indexOf('temp') === 0;
+      const v = parseFloat(isTemp ? c.temp : c.humidity);
+      if (!Number.isFinite(v)) continue;           // 数值被清空 ≠ 改合规（与 evalEnvAlerts 同一红线）
+      if (!(a.room in limCache)) limCache[a.room] = envAlertLimits(a.room);
+      const L = limCache[a.room];
+      let bad = false;
+      if (isTemp) {
+        if (L.tMax != null && v > L.tMax) bad = true;
+        if (L.tMin != null && v < L.tMin) bad = true;
+      } else {
+        if (L.hMax != null && v > L.hMax) bad = true;
+        if (L.hMin != null && v < L.hMin) bad = true;
+      }
+      if (bad) continue;                           // 仍然越限 → 预警继续有效，不动
+      a.status = 'resolved';
+      a.resolved_at = atIso; a.resolved_by = actorName || '系统(登录复核)'; a.resolved_value = v;
+      resolvedIds.push(a.id);
+    }
+    if (!resolvedIds.length) return { checked: openRows.length, resolved: 0 };
+    kvset('envAlerts', alerts.slice(-2000));
+    const done = new Set(resolvedIds);
+    const notifs = kvget('notifs', []);
+    let touched = 0;
+    for (const nt of notifs) {
+      if (!done.has(nt.alert_id) || nt.resolved) continue;
+      nt.resolved = 1; nt.resolved_at = atIso; nt.read = 1; touched++;
+    }
+    if (touched) kvset('notifs', notifs.slice(-4000));
+    logI('预警', '复核：自动关闭 ' + resolvedIds.length + ' 条已不成立的预警（数值已合规），同步清未读 ' +
+      touched + ' 条 · ' + (actorName || '系统'));
+    return { checked: openRows.length, resolved: resolvedIds.length, notif_read: touched };
+  } catch (e) { logE('预警', '复核失败: ' + (e && e.message || e)); return { error: String(e && e.message || e) }; }
+}
 async function handleLogin(ctx) {
   const b = ctx.body;
   const ip = (ctx.req && ctx.req.socket && ctx.req.socket.remoteAddress) || '';
@@ -1049,6 +1112,9 @@ async function handleLogin(ctx) {
       loginFails.delete(fkey);
       const token = await buildToken(user.username);
       logI('AUTH', '登录成功: ' + user.username + (user.role === 'admin' ? '（管理员）' : ''));
+      // v1.44.2：登录时按库里当前数值复核一遍预警 —— 数值早就改合规的陈旧预警不该再推给这个人。
+      // 放在「构建 token 之后、回包之前」，保证新会话第一次拉 /api/notifs 就是干净的。
+      reconcileEnvAlerts((user.name || user.username || '') + '(登录复核)', true);
       return sendJson(ctx.res, { ok: true, username: user.username, name: user.name, role: user.role },
         200, { 'Set-Cookie': adminCookie(token) });
     }
@@ -1264,11 +1330,16 @@ async function handleDeleteSigner(ctx) {
 // ---------- 模板 ----------
 // GET /api/templates —— 模板列表（公开，点检作业需读取）
 // use_count = 引用该模板的设备数（后台用来提示「改这个模板会影响 N 台设备」）
-async function handleListTemplates(ctx) {
+// v1.44.7：把「列表整形」从 handler 里拆成纯函数 ——
+//   /api/templates 与 /api/dashboard/bootstrap（大屏首屏一次取齐）共用同一份整形逻辑，
+//   以后加字段只改一处，不会出现「大屏看得到、列表页看不到」的不一致。
+function listTemplatesData() {
   const cnt = {};
   allDevices().forEach(d => { if (d.template_id) cnt[d.template_id] = (cnt[d.template_id] || 0) + 1; });
-  const list = allTemplates().map(t => Object.assign({}, t, { use_count: cnt[t.id] || 0 }));
-  return sendJson(ctx.res, list);
+  return allTemplates().map(t => Object.assign({}, t, { use_count: cnt[t.id] || 0 }));
+}
+async function handleListTemplates(ctx) {
+  return sendJson(ctx.res, listTemplatesData());
 }
 // POST /api/templates —— 新建模板
 async function handleCreateTemplate(ctx) {
@@ -1441,8 +1512,9 @@ async function handleImportTemplate(ctx) {
 
 // ---------- 设备 ----------
 // GET /api/devices —— 设备列表（公开）
+function listDevicesData() { return allDevices(); }
 async function handleListDevices(ctx) {
-  return sendJson(ctx.res, allDevices());
+  return sendJson(ctx.res, listDevicesData());
 }
 // POST /api/devices —— 新增单台设备
 async function handleCreateDevice(ctx) {
@@ -1599,10 +1671,12 @@ async function handleDaySign(ctx) {
   const items = await deviceItems(dev);
   const existing = allInspections().find(r => r.device_id === b.device_id && r.inspect_date === b.date);
   let bySn = {};
-  if (existing && existing.bySn) {
+  if (existing && existing.bySn && !Object.values(existing.bySn).every(v => v === 'holiday')) {
     bySn = existing.bySn;          // 已有点检结果则保留
   } else {
-    bySn = buildBySn(items, 'ok'); // 否则按模板初始化为正常
+    // v1.44.0：没有记录、或该日原本是「本日无需点检」（整日划杠）→ 按模板初始化为正常。
+    // 语义：既然有人给这一天签了字，就说明这一天确实点检了，整日划杠随之解除。
+    bySn = buildBySn(items, 'ok');
   }
   const r = await upsertInspection(
     { device_id: b.device_id, inspect_date: b.date },
@@ -1617,20 +1691,106 @@ async function handleInspectMonth(ctx) {
   const b = ctx.body;
   const { signer, error } = await verifySigner(b);
   if (error) return fail(ctx.res, error, error === '签名密码错误' ? 401 : 400);
-  let created = 0, updated = 0;
+  let created = 0, updated = 0, cleared = 0;
   const days = b.days || {};
+  // v1.44.0：撤销「本日无需点检」的日子。这类日子在数据里就是「一条 bySn 全 holiday、无签名的占位记录」，
+  // 所以撤销划线必须把这条记录删掉 —— 否则保存时会跳过全空格的日子，记录留在库里、重载后划线「复活」。
+  // ⚠️ 只有前端在「撤销一条已保存的划线」时才会带 {clear:true}；把普通格子清空不会删记录（行为不变）。
+  const clearSet = new Set(Object.keys(days).filter(dd => days[dd] && days[dd].clear && !isFutureDate(dd)));
+  if (clearSet.size) {
+    const list = allInspections();
+    const left = list.filter(r => !(r.device_id === b.device_id && clearSet.has(String(r.inspect_date))));
+    cleared = list.length - left.length;
+    if (cleared) {
+      kvset('inspections', left);
+      const abnAll = allAbnormal();       // 同期异常明细一并清掉，避免打印页出现孤儿异常行
+      const abnLeft = abnAll.filter(r => !(r.device_id === b.device_id && clearSet.has(String(r.date || ''))));
+      if (abnLeft.length !== abnAll.length) kvset('abnormalRecords', abnLeft);
+    }
+  }
+  let kept = 0;   // v1.44.9：因「已签过名」而**保留原签名**的天数
+  const inspAll = allInspections();   // 循环外取一次，别每天重扫整表
   for (const dd in days) {
+    if (days[dd] && days[dd].clear) continue;   // 上面已按删除处理
     if (isFutureDate(dd)) continue; // 禁止保存未来日期的点检
     const cell = days[dd];
     const bySn = cell.bySn || {};
+    // v1.44.0「本日无需点检」（整日划杠）：当日**全部**检查项都是 holiday 时，这一天不需要点检，
+    // 自然也不应该有签名 —— 否则会落一条「已划杠却带签名图」的自相矛盾记录（打印虽按「/」渲染，数据却说不通）。
+    // 状态记 'holiday' 而不是 statusFromBySn 的 'ok'：否则大屏 / CSV 会把「无需点检」误报成「正常」。
+    // ⚠️ 这条只在「全部 holiday」时生效；只要有一格是 √/×，仍按原来的 statusFromBySn 走。
+    const vals = Object.values(bySn);
+    const allHoliday = vals.length > 0 && vals.every(v => v === 'holiday');
+    /* v1.44.9：**已经签过名的日子保留原签名**，不因换了个签名人就被整月保存覆盖。
+       原实现无条件写本次请求的 signer（整月保存只传一个签名人），于是「A 签了 1~9 号、B 签 10 号后点保存整月」
+       会把 1~9 号的 signed_by / signer_id / signature_image 全部换成 B —— 连签名图都被换掉。
+       签名图是法律凭证，「这一天是谁签的」必须与当初落签的人一致。
+       要改某一天的签名，走既有流程：删掉该日签名（签名格右上角 ✕ / 右键删除）→ 用新签名人重签。
+       「本日无需点检」（全 holiday）不在此列：那种日子本就不含签名，继续清空四件套。 */
+    const prev = inspAll.find(r => r.device_id === b.device_id && String(r.inspect_date) === String(dd));
+    const keepSig = !allHoliday && !!(prev && prev.signer_id && prev.signature_image);
+    if (keepSig) kept++;
     const r = await upsertInspection({ device_id: b.device_id, inspect_date: dd },
-      { status: statusFromBySn(bySn), signed_by: signer.name, signer_id: signer.id,
-        signature_image: pickSigImage(signer), abnormal_note: cell.abnormal_note || '',
-        bySn, signed_at: new Date().toISOString() });
+      { status: allHoliday ? 'holiday' : statusFromBySn(bySn),
+        signed_by: allHoliday ? '' : (keepSig ? prev.signed_by : signer.name),
+        signer_id: allHoliday ? '' : (keepSig ? prev.signer_id : signer.id),
+        signature_image: allHoliday ? '' : (keepSig ? prev.signature_image : pickSigImage(signer)),
+        abnormal_note: cell.abnormal_note || '',
+        bySn,
+        signed_at: allHoliday ? '' : (keepSig ? (prev.signed_at || '') : new Date().toISOString()) });
     if (r === 'created') created++; else updated++;
   }
   replaceMonthAbnormal(b.device_id, b.month, Array.isArray(b.abnormal) ? b.abnormal : []);
-  return sendJson(ctx.res, { created, updated, abnormal: (Array.isArray(b.abnormal) ? b.abnormal : []).length });
+  return sendJson(ctx.res, { created, updated, cleared, kept, abnormal: (Array.isArray(b.abnormal) ? b.abnormal : []).length });
+}
+// POST /api/inspect/strike-day —— 「本日无需点检」单日标记 / 取消（自动保存专用）
+//
+// 为什么单独开一个接口、不复用 /api/inspect/month：
+//   ① 整月保存开头就 verifySigner（签名人 + 密码），而「本日无需点检」的日子按 v1.44.0 的设计
+//      **本来就不含签名** —— 为了划掉一天反而先要一个签名，语义上是矛盾的，自动保存也没法免交互；
+//   ② 这个动作只影响「一天」，与整月保存解耦后，用户手里没保存完的半成品编辑不会被顺手写库。
+//
+// body: { device_id, date:'YYYY-MM-DD', on:true|false }
+//   on=true ：该日全部**日检**项置 holiday、清空签名四件套、status='holiday'（与整月保存同一口径）
+//   on=false：删掉该日的划线占位记录，并清掉该日异常明细（与整月保存的 {clear:true} 同一口径）
+// 审计：划杠日不产生签名（那会伪造凭据），但会写一条日志并把操作人记进去，保证「谁划的」可追。
+async function handleStrikeDay(ctx) {
+  const u = await getLoginUser(ctx.req);
+  if (!u) return fail(ctx.res, '未登录或登录已失效', 401);
+  const b = ctx.body || {};
+  const dev = allDevices().find(d => d.id === b.device_id);
+  if (!dev) return fail(ctx.res, '设备不存在');
+  const date = String(b.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(ctx.res, '日期格式应为 YYYY-MM-DD');
+  if (isFutureDate(date)) return fail(ctx.res, '未来日期不能标记「本日无需点检」');
+  const who = (u.name || u.username || '') + '(' + (u.username || '') + ')';
+  const on = b.on !== false;
+  if (!on) {
+    const list = allInspections();
+    const left = list.filter(r => !(r.device_id === dev.id && String(r.inspect_date) === date));
+    const deleted = list.length - left.length;
+    if (deleted) {
+      kvset('inspections', left);
+      // 同期异常明细一并清掉：记录没了、异常还在会让打印页出现"孤儿"异常行
+      const abnAll = allAbnormal();
+      const abnLeft = abnAll.filter(r => !(r.device_id === dev.id && String(r.date || '') === date));
+      if (abnLeft.length !== abnAll.length) kvset('abnormalRecords', abnLeft);
+    }
+    logI('点检', '取消「本日无需点检」：' + dev.no + ' ' + dev.name + ' · ' + date +
+      ' → 删除 ' + deleted + ' 条占位记录 · 操作人 ' + who);
+    return sendJson(ctx.res, { ok: true, on: false, deleted });
+  }
+  const items = await deviceItems(dev);
+  const daily = items.filter(it => it.frequency !== '每月');
+  if (!daily.length) return fail(ctx.res, '该设备没有日检项目，无法标记「本日无需点检」');
+  const bySn = {};
+  daily.forEach(it => { bySn[it.sn] = 'holiday'; });
+  const r = await upsertInspection({ device_id: dev.id, inspect_date: date },
+    { status: 'holiday', signed_by: '', signer_id: '', signature_image: '',
+      abnormal_note: '', bySn, signed_at: '' });
+  logI('点检', '本日无需点检：' + dev.no + ' ' + dev.name + ' · ' + date + ' → ' + (r === 'created' ? '新建' : '更新') +
+    '（' + daily.length + ' 项划「/」，不产生签名）· 操作人 ' + who);
+  return sendJson(ctx.res, { ok: true, on: true, action: r, items: daily.length });
 }
 // POST /api/inspect/delete —— 删除单台设备指定日期（或整月）的点检内容与电子签名
 // body: { device_id, dates:['YYYY-MM-DD', ...] }  或 { device_id, month:'YYYY-MM', dates? }
@@ -1912,9 +2072,9 @@ async function handleResetFormHead(ctx) {
 }
 
 // GET /api/programs —— 项目清单（含参与设备、所在房间，供入口与选择器使用）
-async function handleListPrograms(ctx) {
+function listProgramsData() {
   const dmap = {}; allDevices().forEach(d => dmap[d.id] = d);
-  const out = allPrograms().map(p => {
+  return allPrograms().map(p => {
     const devs = (p.device_ids || []).map(id => dmap[id]).filter(Boolean);
     return Object.assign({}, p, {
       device_count: devs.length,
@@ -1924,7 +2084,9 @@ async function handleListPrograms(ctx) {
       devices: devs.map(d => ({ id: d.id, no: d.no, name: d.name, model: d.model, location: d.location || '' }))
     });
   });
-  return sendJson(ctx.res, out);
+}
+async function handleListPrograms(ctx) {
+  return sendJson(ctx.res, listProgramsData());
 }
 // GET /api/settings —— 前端需要的少量开关（点检 / 温湿度页据此决定是否显示「签名密码」框）。
 // 公开可读：它只影响 UI 是否显示输入框，真正的放行判定仍在服务端 verifySigner 里。
@@ -2343,7 +2505,7 @@ async function handleDashboard(ctx) {
     if (t) {
       const r = todayMap[d.id];
       const st = r ? r.status : 'none';
-      if (st !== 'none') jobDone++;
+      if (st !== 'none' && st !== 'holiday') jobDone++;   // v1.44.0 整日划杠（本日无需点检）不算「已完成」
       if (st === 'ng') jobNg++;
       jobs.push({ device_id: d.id, no: d.no, name: d.name, model: d.model || '', location: d.location || '',
         job_kind: 'device', job_id: t.id, job_name: '设备点检', tpl_key: t.key || '',
@@ -2373,9 +2535,21 @@ async function handleDashboard(ctx) {
     .concat(progRecent)
     .sort((a, b) => (String(a.signed_at) < String(b.signed_at) ? 1 : -1))
     .slice(0, 12);
+  // ===== v1.44.7 条件请求：客户端带上上次的 sig，没变化就只回一个极小响应 =====
+  //   为什么必须有：这张响应里带着 130+ 张检查表卡片的**手写签名图**（base64 data URL），
+  //   单个房间轻松几百 KB；大屏 20 秒轮询一次 = 每 20 秒把签名图重传一遍，常年挂墙上就是纯浪费。
+  //   sig 只由「会影响显示结果的字段」算出（不含图片内容本身），命中即短路：
+  //   后面几十~几百 KB 的序列化与传输全部省掉，客户端也不重绘（不丢焦点、不闪）。
+  //   注意 recent 也进了 sig —— 否则改了「异常说明」而状态没变时，页面会显示旧文案。
+  const sig = jobs.map(j => j.job_kind + ':' + j.job_id + ':' + j.no + ':' + j.status + ':' + (j.signed_at || '')).join('|')
+    + '#' + devices.length + '#' + jobDone + '#' + jobNg + '#' + monthCount
+    + '#' + recent.map(r => [r.no, r.status, r.signer_name, r.signed_at, r.abnormal_note].join(':')).join(';');
+  if (String(q.get('sig') || '') === sig) {
+    return sendJson(ctx.res, { unchanged: 1, sig });
+  }
   return sendJson(ctx.res, { total: devices.length, today_inspected: jobDone,
     today_abnormal: jobNg, month_inspected: monthCount, grid, recent,
-    job_total: jobs.length, job_done: jobDone, job_abnormal: jobNg, jobs });
+    job_total: jobs.length, job_done: jobDone, job_abnormal: jobNg, jobs, sig });
 }
 // GET /api/inspect/device/:id —— 单台设备某日明细
 async function handleDeviceDetail(ctx) {
@@ -2449,17 +2623,34 @@ function roomCounts() {
 }
 
 // GET /api/rooms —— 房间列表（含设备数；房间名非敏感信息，登录与否均可读）
-async function handleListRooms(ctx) {
+function listRoomsData() {
   const rooms = kvget('rooms', []);
   const c = roomCounts();
-  return sendJson(ctx.res, rooms.map(r => ({
+  return rooms.map(r => ({
     name: r.name, desc: r.desc || '', count: c[r.name] || 0,
     group: r.group || '',   // 分组：同组房间在前端（大屏/房间选择页/下拉）合并到一个组名之下展示
     dept: r.dept || '',     // 科室：该房间归属的科室（空 = 不限定，全厂可见）
     thermo_apparatus: r.thermo_apparatus || '', thermo_equipment: r.thermo_equipment || '', thermo_requirement: r.thermo_requirement || '',
     env_range: r.env_range || null,  // 每房间专属随机范围（v1.9.0，null = 未设置）
     form_head: r.form_head || ''     // 温湿度表页眉的房间级覆盖（v1.37.0，空 = 用表种默认值）
-  })));
+  }));
+}
+async function handleListRooms(ctx) {
+  return sendJson(ctx.res, listRoomsData());
+}
+
+// GET /api/dashboard/bootstrap —— 大屏/房间页首屏「一次取齐」（v1.44.7 性能）
+// 为什么加它：原本首屏要分别打 /api/rooms + /api/devices + /api/programs + /api/templates 四个接口，
+//   每个都要重新解析参数、扫一遍库表，工厂网络上往返成本叠加明显；这里合成一次。
+// 范围与逐个调用**完全一致**（复用同一批 list*Data() 整形函数；devices/programs/templates 不做科室过滤，
+//   与改动前 /api/devices 的行为保持不变），所以不会因为「合并」而放大任何一方的可见范围。
+async function handleDashboardBootstrap(ctx) {
+  return sendJson(ctx.res, {
+    rooms: listRoomsData(),
+    devices: listDevicesData(),
+    programs: listProgramsData(),
+    templates: listTemplatesData()
+  });
 }
 
 // POST /api/rooms —— 新增房间
@@ -2626,7 +2817,7 @@ async function handleSaveEnvRecord(ctx) {
   const rejected = [];
   // 温湿度只接受数值：空串，或「可选负号 + 数字 + 可选小数」。
   // 为什么要在这里卡：以前只做 String().slice(0,8)，于是「记录员姓名」也能存进湿度框
-  // （2026-09-22 实测 测试室07/2026-09/16_Night 的 humidity 是「张新元」）。
+  // （2026-09-22 实测 冲击室/2026-09/16_Night 的 humidity 是「张新元」）。
   // 脏值一旦入库，会一路显示在打印表和 CSV 导出的数字列里；而预警逻辑用
   // parseFloat + Number.isFinite 判断，遇到非数字只是「静默跳过」——不报错、不提示，
   // 所以这种污染能长期潜伏。收口必须放在写入侧。
@@ -2662,7 +2853,7 @@ async function handleSaveEnvRecord(ctx) {
       humidity: hv === null ? '' : hv,
       recorder: String(c.recorder || '').slice(0, 64),
       signature_image: sigRaw,
-      strike: c.strike ? 1 : 0   // 该日无需记录：整行划线（温度/湿度/记录员三格都带此标记）
+      strike: c.strike ? 1 : 0   // v1.45.0：该「时段」无需记录（可只划下午；整日划线 = 三段各自置 1）
     };
   }
   const list = allEnvRecords();
@@ -2684,8 +2875,11 @@ async function handleSaveEnvRecord(ctx) {
   logI('ENV', '保存温湿记录 ' + room + '@' + ym + ' 格数=' + Object.keys(clean).length +
     (rejected.length ? ' —— 拒绝非数值 ' + rejected.length + ' 个：' +
       rejected.map(x => x.cell + '.' + x.field + '=' + JSON.stringify(x.value)).join(', ') : ''));
-  evalEnvAlerts(room, ym, clean, '手动保存');
-  return sendJson(ctx.res, { ok: true, id: rec.id, updated_at: rec.updated_at, rejected });
+  // 保存后立刻按「库里的最新数值」重算预警：该报的报、该撤的撤。
+  // 返回给前端，让用户在保存那一刻就知道「这次消掉了 / 新增了几条超限」——
+  // 否则他改完数值看到横幅还在，只会以为改动没生效。
+  const alertRes = evalEnvAlerts(room, ym, clean, '手动保存', u);
+  return sendJson(ctx.res, { ok: true, id: rec.id, updated_at: rec.updated_at, rejected, alerts: alertRes });
 }
 
 // GET /api/admin/logs —— 运行日志（内存环形缓冲最近 N 条，可按级别/关键字过滤）
@@ -2717,7 +2911,7 @@ async function handleExportEnvCsv(ctx) {
     for (const p of ENV_PERIODS) {
       const c = rec.cells[d + '_' + p] || {};
       rows.push([ym + '-' + String(d).padStart(2, '0'), ENV_PERIOD_CN[p], c.temp || '', c.humidity || '', c.recorder || '',
-        c.strike ? '／ 该日无需记录' : '']);
+        c.strike ? '／ 该时段无需记录' : '']);
     }
   }
   const lines = [header.map(escCsv).join(',')].concat(rows.map(r => r.map(escCsv).join(',')));
@@ -2737,7 +2931,7 @@ async function handleExportEnvCsv(ctx) {
 // 房间「温湿度要求」的自由文本 → 数值范围。线上实测到的写法（都要认）：
 //   温度：10℃-35℃ ／ 温度：15℃~25℃ (ASTM E23-25) ／ 温度要求：— （表示没有温度要求）
 //   湿度：≤80%RH ／ 湿度要求：≤60% ／ 湿度：≤65%RH ／ 湿度：40~70%（区间写法，上下限都认）
-// 一个房间可以列多条温度标准（测试室07 = ASTM E23-25 15~25℃ + GB/T229-2020 18~28℃），
+// 一个房间可以列多条温度标准（冲击室 = ASTM E23-25 15~25℃ + GB/T229-2020 18~28℃），
 // 按 mode 合成：union（默认，宽）取「下限最小 / 上限最大」；intersect（严）取「下限最大 / 上限最小」。
 // 交集为空时退化为并集，避免把房间判成「永远超限」。
 const ENV_TEMP_LINE_RE = /温度(?:要求)?\s*[：:]\s*(-?\d+(?:\.\d+)?)\s*(?:℃|°C|C)?\s*[-~—–～至]\s*(-?\d+(?:\.\d+)?)/g;
@@ -2848,6 +3042,16 @@ async function handleEnvFill(ctx) {
   if (!Number.isFinite(endDay)) endDay = maxDay;
   endDay = Math.min(Math.max(endDay, 1), maxDay);
 
+  // 时段封顶边界（v1.44.3 修复一键填充「上午把当天全天都填了」的缺陷）：
+  //   · 历史月 / 过去的日子 → 三个时段全部可填（均已真实发生）；
+  //   · 今天（且为本月）→ 只填到「当前实时时段」之前（含当前时段），未发生的下午/晚上一律留空。
+  // 当前时段按真实时钟取（与 LIMS 抓取 limsPeriodOf 同口径：<12h=上午, <18h=下午, ≥18h=晚上），
+  // 因此上午执行只填「上午」一格，下午执行填「上午+下午」，依此类推。
+  const isCurMonth = (ym === cur);
+  const todayDayNum = isCurMonth ? Number(todayStr().slice(8, 10)) : 0;
+  const curPeriod = limsPeriodOf(new Date().getHours());
+  const todayPeriodCap = ENV_PERIODS.indexOf(curPeriod);   // 今天最大可填时段下标
+
   const { signer, error } = await verifySigner(b);
   if (error) return fail(ctx.res, error, error === '签名密码错误' ? 401 : 400);
   const sigImg = pickSigImage(signer);   // 温湿度记录员格是横向格 → 横版签名
@@ -2878,7 +3082,9 @@ async function handleEnvFill(ctx) {
       const temps = envDayValues(bands.temp, 0.8);
       const hums = envDayValues(bands.hum, 3.5);
       let dayFilled = false;
-      for (let i = 0; i < ENV_PERIODS.length; i++) {
+      // 今天（且为本月）才封顶到「当前时段」；过去的日子 / 历史月一律填满三个时段
+      const periodCap = (isCurMonth && day === todayDayNum) ? todayPeriodCap : ENV_PERIODS.length - 1;
+      for (let i = 0; i <= periodCap; i++) {
         const k = day + '_' + ENV_PERIODS[i];
         if (envCellHasData(rec && rec.cells[k])) continue;   // 只补空格
         if (!rec) {
@@ -2900,21 +3106,32 @@ async function handleEnvFill(ctx) {
   return sendJson(ctx.res, {
     ok: true, ym, end_day: endDay, cells, days, rooms: touched,
     range_source: custom ? 'custom' : 'room',
+    today_period_cap: isCurMonth ? ENV_PERIODS[todayPeriodCap] : null,
     signer: { id: signer.id, name: signer.name }, signer_has_sig: !!sigImg,
     detail, skipped
   });
 }
 // GET /api/env/alerts —— 本科室温湿度超限提醒（任意登录用户；无科室或无超限返回空）
-// 仅看「本人科室」房间的温湿度记录；取最近两个月（当月优先，否则上月）；逐格比对房间
-// 「综合温湿度要求」解析出的范围；超出量按等级：≤1 度=注意, ≤2=警告, >2=危险。
+// 仅看「本人科室」房间的温湿度记录；取最近两个月（当月优先，否则上月）；逐格比对生效阈值；
+// 超出量按等级：≤1 度=注意, ≤2=警告, >2=危险。
+//
+// ⚠️ v1.44.1：阈值口径**必须与落库预警（evalEnvAlerts）完全一致**，统一走 envAlertLimits()。
+//   原来这里用 parseEnvLimits(room.thermo_requirement) 裸解析，忽略了后台「按房间覆盖阈值」
+//   与「多标准合成方式(multiStd)」——于是后台按覆盖值把数值调好之后，落库预警已经不再判定，
+//   这个横幅却仍按老口径报超限，用户看到的就是「我明明改到符合设定了，报警还在」。
+//   另外横幅也要尊重预警总开关（关闭时不再提醒）。
 async function handleEnvAlerts(ctx) {
   const u = await getLoginUser(ctx.req);
   if (!u) return sendJson(ctx.res, { ok: false, alerts: [] });
   const dept = String(u.dept || '').trim();
   if (!dept) return sendJson(ctx.res, { ok: true, hasDept: false, dept: '', alerts: [] });
+  const cfg = Object.assign({}, ENV_ALERT_DEFAULTS, envAlertCfgRaw());
+  if (!cfg.enabled) return sendJson(ctx.res, { ok: true, hasDept: true, dept, disabled: true, alerts: [] });
+  // v1.44.2：横幅是每个页面加载都会调的接口，顺带做一次「读时自愈」复核（内部 60s 限流）——
+  // 这样数值改合规后即使没有重新登录，陈旧预警也会自己消失，不必等下次保存。
+  reconcileEnvAlerts((u.name || u.username || '') + '(页面复核)', false);
   const rooms = kvget('rooms', []).filter(r => (r.dept || '').trim() === dept);
   if (!rooms.length) return sendJson(ctx.res, { ok: true, hasDept: true, dept, alerts: [] });
-  const roomMap = {}; rooms.forEach(r => roomMap[r.name] = r);
   const roomNames = new Set(rooms.map(r => r.name));
   // 最近两个月窗口：优先当月，否则上月（避免陈旧月份长期告警）
   const now = new Date();
@@ -2925,9 +3142,9 @@ async function handleEnvAlerts(ctx) {
   for (const rec of allEnvRecords()) {
     if (!roomNames.has(rec.room)) continue;
     if (rec.ym !== curYm && rec.ym !== prevYm) continue;
-    const room = roomMap[rec.room];
-    const lim = parseEnvLimits(room.thermo_requirement);
-    if (!lim) continue;
+    // 与落库预警同一套阈值（含后台按房间覆盖 / 多标准 / 全局兜底）
+    const lim = envAlertLimits(rec.room);
+    if (lim.tMin == null && lim.tMax == null && lim.hMin == null && lim.hMax == null) continue;
     const cells = rec.cells || {};
     for (const k of Object.keys(cells)) {
       const c = cells[k];
@@ -2935,21 +3152,18 @@ async function handleEnvAlerts(ctx) {
       const m = /^(\d{1,2})_(AM|PM|Night)$/.exec(k);
       const day = m ? m[1] : '?';
       const period = m ? m[2] : '';
-      if (lim.tMin != null && lim.tMax != null) {
-        const tv = parseFloat(c.temp);
-        if (!isNaN(tv)) {
-          let ex = 0, boundType = null, boundVal = 0;
-          if (tv > lim.tMax) { ex = tv - lim.tMax; boundType = '上限'; boundVal = lim.tMax; }
-          else if (tv < lim.tMin) { ex = lim.tMin - tv; boundType = '下限'; boundVal = lim.tMin; }
-          if (ex > 0) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '温度', tv, '℃', boundType, boundVal, ex));
-        }
+      // 上下限各自独立判定：后台「按房间覆盖」允许只覆盖其中一端
+      const tv = parseFloat(c.temp);
+      if (!isNaN(tv)) {
+        let ex = 0, boundType = null, boundVal = 0;
+        if (lim.tMax != null && tv > lim.tMax) { ex = tv - lim.tMax; boundType = '上限'; boundVal = lim.tMax; }
+        else if (lim.tMin != null && tv < lim.tMin) { ex = lim.tMin - tv; boundType = '下限'; boundVal = lim.tMin; }
+        if (ex > 0) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '温度', tv, '℃', boundType, boundVal, ex));
       }
-      if (lim.hMax != null) {
-        const hv = parseFloat(c.humidity);
-        if (!isNaN(hv)) {
-          if (hv > lim.hMax) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '上限', lim.hMax, hv - lim.hMax));
-          else if (lim.hMin != null && hv < lim.hMin) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '下限', lim.hMin, lim.hMin - hv));
-        }
+      const hv = parseFloat(c.humidity);
+      if (!isNaN(hv)) {
+        if (lim.hMax != null && hv > lim.hMax) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '上限', lim.hMax, hv - lim.hMax));
+        else if (lim.hMin != null && hv < lim.hMin) alerts.push(mkEnvAlert(rec.room, rec.ym, day, period, '湿度', hv, '%RH', '下限', lim.hMin, lim.hMin - hv));
       }
     }
   }
@@ -3065,11 +3279,11 @@ const LIMS_DEFAULTS = {
   // 别名 = LIMS源房间名 → 点检房间名。同名房间无需别名（同名直配）。
   // 注：'测试室05' 经核查 LIMS 侧房间名就是「测试室05」、点检房间同名，无需别名；
   //     旧默认 '室拉，高拉室' 是错误映射（会路由到不存在的房间），已移除。
-  roomAlias: { '测试室04': '测试室04', '测试室08': '测试室09' },
-  limsRooms: ['测试室07', '测试室05', '测试室02', '测试室01', '测试室06', '测试室08', '测试室16',
-    '测试室13', '测试室14', '测试室15', '测试室10', '测试室04', '测试室11', '测试室12', '测试室17'],
+  roomAlias: { '金相分析': '测试室04', '金相制样间': '金相试样间' },
+  limsRooms: ['冲击室', '测试室05', '测试室02', '测试室01', '测试室06', '金相制样间', 'ICP-MS',
+    '直读光谱（OES）', '碳硫分析（C、S）', 'ICP-OES', '金相分析（办公）', '金相分析', '化学制样', '化学分析', '氧氮氢（O、N、H）'],
   // allowShare：**显式允许**「与别的点检房间共用同一个 LIMS 数据源」的点检房间名。
-  //   背景：别名若指向一个「本身也是点检房间名」的 LIMS 源（如 测试室21 → 测试室07），
+  //   背景：别名若指向一个「本身也是点检房间名」的 LIMS 源（如 疲劳，弯曲室 → 冲击室），
   //   那个源已被同名房间占用，两个房间会自动填成同一份数据（工厂 9 月实锤：两房间逐格相同）。
   //   默认不生效（需人工确认）；用户认为"共用一份数据本来就应该允许"时，把房间名放这里即可放行。
   allowShare: [],
@@ -3079,14 +3293,14 @@ const LIMS_DEFAULTS = {
   noFetch: [],
   // tempSource（v1.26.0）：**温度**的数据来源映射，点检房间名 → 'auto' | 'off' | LIMS 房间名。
   //   为什么单独一张表：湿度与温度在 LIMS 里不是一张传感器表。湿度走 humidityChart（每间都能有），
-  //   温度只有「温湿同点」的房间才有（temperatureHumidityList）。实测测试室04 / 测试室09
+  //   温度只有「温湿同点」的房间才有（temperatureHumidityList）。实测测试室04 / 金相试样间
   //   湿度满格但温度只有几格 —— 它们的 LIMS 源房间没挂温湿同点传感器。
   //   'auto'（默认，不必写）= 温度跟随湿度源（原来唯一的行为）；'off' = 这间不抓温度（留空手填）；
-  //   写具体 LIMS 房间名 = 温度改从那一间取（例如多间统一指向有温湿同点传感器的「测试室07」）。
+  //   写具体 LIMS 房间名 = 温度改从那一间取（例如多间统一指向有温湿同点传感器的「冲击室」）。
   //   注意：这张表是「点检房间 → 源」，与 roomAlias（源 → 房间）方向相反，因为一个源要能给多个房间用。
   tempSource: {},
   // unmapped（v1.26.0）：用户显式点了「（未映射 · 不抓取）」的点检房间名。
-  //   为什么必须有：limsSourceRoomDetail 的第①条「同名直配」会让点检「测试室07」无条件占用 LIMS「测试室07」，
+  //   为什么必须有：limsSourceRoomDetail 的第①条「同名直配」会让点检「冲击室」无条件占用 LIMS「冲击室」，
   //   于是用户想在后台把它改成「未映射」时会被顶回原值（改了 → 保存 → 刷新又回来了），
   //   而且那个源一直算「被同名房间占用」，别的房间想用它就得先勾「允许共用同一数据源」。
   //   显式进这张表 = 用户说了「这间不用任何 LIMS 源」，优先级最高，同名直配也要让路（源随之变为空闲，可自由给别的房间）。
@@ -3121,7 +3335,12 @@ function limsConfig() {
 }
 
 // ---- LIMS HTTP 客户端（零依赖） ----
-function limsHttp(url, { method = 'GET', headers = {}, body = null, timeout = 30000 } = {}) {
+// LIMS 接口单次超时（毫秒）。2026-10-12 实测（工厂直连 LIMS 服务地址 + 反代 example.com/lims）：
+//   temperatureHumidityList 单次 44~49 秒、humidityChart 单次 44~68 秒 —— 原写死的 30 秒**必然**超时。
+//   后果：温度永远取不回来（/api/lims/test 恒报「LIMS 请求超时（30000ms）」，自动填充 temp_from_lims 恒 false），
+//   湿度也常靠重试勉强撞上。故放宽到 120 秒（≈实测的 2 倍余量）。改这里即可，所有 LIMS 调用共用该默认值。
+const LIMS_HTTP_TIMEOUT = 120000;
+function limsHttp(url, { method = 'GET', headers = {}, body = null, timeout = LIMS_HTTP_TIMEOUT } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const lib = u.protocol === 'https:' ? require('https') : http;
@@ -3356,8 +3575,8 @@ function limsPickPoint(pts, strategy, refTm) {
 //   shared  = 该房间正在**共用**另一个点检房间的同名数据源（用户已在 allowShare 里显式允许）
 // 判定顺序：① 同名直配优先 ② 别名（roomAlias：LIMS源 → 点检房间）
 // ★ 防串：若别名要借用的 LIMS 源，同时又是另一个点检房间的名字（那个房间已"同名直配"占用它），
-//   默认**暂停**这条别名 —— 否则两个点检房间会自动填充到同一份数据。工厂实测：点检「测试室21」的
-//   温湿度与点检「测试室07」逐格完全相同（都以 LIMS「测试室07」为源），即由此产生。
+//   默认**暂停**这条别名 —— 否则两个点检房间会自动填充到同一份数据。工厂实测：点检「疲劳，弯曲室」的
+//   温湿度与点检「冲击室」逐格完全相同（都以 LIMS「冲击室」为源），即由此产生。
 //   但「引用同一个数据源」本身是合理需求（现场可能就没给那间装温湿度计）—— 把房间名加进
 //   cfg.allowShare 即可放行，放行后两个房间会拿到同一份读数（界面会明确标出"共用"）。
 function limsSourceRoomDetail(cfg, roomName) {
@@ -3365,8 +3584,8 @@ function limsSourceRoomDetail(cfg, roomName) {
   const isInspect = (n) => kvget('rooms', []).some(r => r.name === n);
   const allowShare = Array.isArray(cfg.allowShare) ? cfg.allowShare : [];
   // ⓿（v1.26.0）用户显式设成「（未映射 · 不抓取）」的房间 —— 优先级最高，连同名直配都要让路。
-  //   修的就是这个死结：点检「测试室07」原本被同名直配无条件绑住 LIMS「测试室07」，既关不掉，
-  //   又一直占着那个源，导致别的房间想用 LIMS「测试室07」必须先勾「允许共用」。
+  //   修的就是这个死结：点检「冲击室」原本被同名直配无条件绑住 LIMS「冲击室」，既关不掉，
+  //   又一直占着那个源，导致别的房间想用 LIMS「冲击室」必须先勾「允许共用」。
   if ((cfg.unmapped || []).includes(roomName)) return { source: null, via: 'unmapped', blocked: '', shared: '' };
   if (isLims(roomName)) return { source: roomName, via: 'same', blocked: '', shared: '' };   // ① 同名直配
   for (const [lr, tr] of Object.entries(cfg.roomAlias || {})) {                              // ② 别名
@@ -3596,7 +3815,13 @@ async function limsSyncRoomUnlocked(opts) {
       if (!overwrite && envCellHasData(exist)) { skippedExist.push(k); continue; }
       need.push({ day, period, k });
       if (!withTemp) continue;
-      if (hasHum && !(buckets[k] || []).length) continue;   // 湿度主源该格无点 → LIMS 该时段根本没采，温度窗口必然也空，省预算
+      // 湿度主源该格无点 → 一般是 LIMS 该时段根本没采，温度窗口必然也空，省预算跳过。
+      // ⚠️ 例外（v1.44.5，2026-10-12 实测）：湿度接口 humidityChart 比「温湿同点」滞后约 1 天
+      //    （humidityChart 末点停在昨天 23:55，而 temperatureHumidityList 已有今天 07:50 的读数）。
+      //    若对「今天」的格子也照此跳过，就会出现「温度明明有、却因湿度没跟上而不填」——
+      //    这是「LIMS 恢复后工厂仍不自动填充（尤其填不出今天）」的第二个原因。故今天不省这个预算。
+      const isTodayCell = (ym === cur && day === Number(today.slice(8, 10)));
+      if (hasHum && !(buckets[k] || []).length && !isTodayCell) continue;
       // （只借温度的房间没有湿度主源可参照，不做这个省预算的跳格判断）
       const ds = ym + '-' + String(day).padStart(2, '0');
       if (ds === today && ENV_PERIODS.indexOf(period) > ENV_PERIODS.indexOf(curPeriod)) continue;   // 今天未来时段
@@ -3735,7 +3960,7 @@ async function limsSyncRoomUnlocked(opts) {
   if (filled.length) {
     const amap = {};
     filled.forEach(f => { amap[f.key] = { temp: f.temp, humidity: f.humidity }; });
-    evalEnvAlerts(room, ym, amap, 'LIMS抓取');
+    evalEnvAlerts(room, ym, amap, 'LIMS抓取', null);   // 非人工操作：无登录上下文，记「系统」
   }
   if (onProgress) onProgress('完成：填充 ' + filled.length + ' 格' + (filledTemp.length ? '，补温度 ' + filledTemp.length + ' 格' : ''));
   return {
@@ -5232,7 +5457,8 @@ async function handleExportCsv(ctx) {
       }
     }
     const ngCount = r.bySn ? Object.values(r.bySn).filter(v => v === 'ng').length : 0;
-    const result = ngCount > 0 ? ('异常 ' + ngCount + ' 项') : (r.status === 'ok' ? '正常' : (r.status || ''));
+    const result = ngCount > 0 ? ('异常 ' + ngCount + ' 项')
+      : (r.status === 'ok' ? '正常' : r.status === 'holiday' ? '本日无需点检' : (r.status || ''));
     lines.push([d.no || r.device_id, d.name || '', d.location || '', r.inspect_date || '', t, result, r.abnormal_note || ''].map(csvCell).join(','));
   });
   const body = '\uFEFF' + lines.join('\r\n');
@@ -6020,7 +6246,7 @@ const ENV_ALERT_DEFAULTS = {
   cooldownHours: 12,
   // v1.25.0：阈值默认「跟着房间的温湿度要求走」，后台不必再逐个房间手配
   useRoomReq: true,
-  // 一个房间列了多条温度标准时（如测试室07 ASTM E23-25 与 GB/T229-2020 各一个范围）怎么合：
+  // 一个房间列了多条温度标准时（如冲击室 ASTM E23-25 与 GB/T229-2020 各一个范围）怎么合：
   //   union = 并集（宽，只要有一条标准容得下就不报）/ intersect = 交集（严，要同时满足所有标准）
   multiStd: 'union',
   channels: { inApp: true, banner: true },
@@ -6042,7 +6268,7 @@ function envReqText(roomName) {
 //   ① 后台「按房间覆盖」里手填的数字（最高优先，只覆盖填了的那一项）
 //   ② 房间自己的「温湿度要求」自动解析（默认走这条，后台无需配置）
 //   ③ 全局默认阈值（仅当该房间压根没写要求时兜底）
-// 房间要求里没写的指标（如测试室06没写湿度、测试室09温度写「—」）= 不判定（null），
+// 房间要求里没写的指标（如测试室06没写湿度、金相试样间温度写「—」）= 不判定（null），
 // 不再拿全局默认去凑——否则会给没有依据的指标报预警。
 function envAlertLimits(room) {
   const cfg = envAlertCfgRaw();
@@ -6062,8 +6288,21 @@ function envAlertLimits(room) {
     reqText: txt
   };
 }
-// 对刚写入/保存的格子做阈值判定并生成预警+站内通知（去重：同房+同格+同指标 未确认的不重报；已确认的在冷却期内不重报）
-function evalEnvAlerts(room, ym, cells, source) {
+// 对刚写入/保存的格子做阈值判定：该升的升、该降的降，并同步站内通知。
+//
+// 【为什么要「降」】v1.44.1 修：原来只创建、从不关闭 —— 用户把超限数值改成合规后，
+//   登录横幅、铃铛未读、后台「未确认」三处都还挂着，看起来像「改了也不管用」；
+//   更糟的是下面去重判据认 `status==='open'`，于是那条永不关闭的旧记录会把这个格子
+//   之后**所有**新预警一起吞掉（数值再次越限也不再报）—— 与「未满足条件时必须报警」正相反。
+//
+// 判定口径（逐格）：
+//   ① 先降：该格当前不再越限（或越限方向已翻转）的 open 预警 → 就地 resolved。
+//      只有「该预警对应的指标当前仍是数值」才降 —— 把数值删空**不算**改合规，
+//      绝不允许用「删数据」消掉一条真实发生过的超限记录。
+//   ② 再升：当前仍在越限的指标照常报警。去重只认两种情形：
+//      仍 open（已经在报警，不重复刷屏）/ 已 acked 且在冷却期内（用户刚确认过，不马上再骚扰）；
+//      resolved 的**不抑制** —— 条件重新出现就必须重新报警。
+function evalEnvAlerts(room, ym, cells, source, actor) {
   try {
     const cfg = Object.assign({}, ENV_ALERT_DEFAULTS, envAlertCfgRaw());
     if (!cfg.enabled) return { skipped: 'disabled' };
@@ -6080,7 +6319,11 @@ function evalEnvAlerts(room, ym, cells, source) {
     ((cfg.recipients && cfg.recipients.byDept && cfg.recipients.byDept[dept]) || []).forEach(push);
     const now = Date.now();
     const cooldownMs = (Number(cfg.cooldownHours) > 0 ? Number(cfg.cooldownHours) : 12) * 3600 * 1000;
-    let raised = 0, suppressed = 0;
+    // 谁把这格改合规的（= 当前登录用户）；LIMS 自动抓取时无 actor，记「系统」
+    const actorName = actor ? (actor.name || actor.username || '') : '系统';
+    const atIso = new Date().toISOString();
+    let raised = 0, suppressed = 0, resolved = 0, notifDirty = false;
+    const resolvedIds = [];
     for (const k of Object.keys(cells || {})) {
       const c = cells[k] || {};
       if (c.strike) continue;
@@ -6095,11 +6338,24 @@ function evalEnvAlerts(room, ym, cells, source) {
         if (L.hMax != null && h > L.hMax) checks.push(['hum_high', h]);
         if (L.hMin != null && h < L.hMin) checks.push(['hum_low', h]);
       }
+      const nowKinds = new Set(checks.map(x => x[0]));
+      // ① 降：该格已恢复合规（或越限方向翻转）的未确认预警
+      for (const a of alerts) {
+        if (a.room !== room || a.ym !== ym || a.key !== k || a.status !== 'open') continue;
+        const metric = a.kind.indexOf('temp') === 0 ? t : h;
+        if (!Number.isFinite(metric)) continue;   // 数值被清空 → 无从判定，保持原状
+        if (nowKinds.has(a.kind)) continue;       // 同类仍越限 → 留给下方去重，不关
+        a.status = 'resolved';
+        a.resolved_at = atIso; a.resolved_by = actorName; a.resolved_value = metric;
+        resolvedIds.push(a.id); resolved++;
+      }
+      // ② 升：当前仍越限的指标
       for (const [kind, val] of checks) {
         const prev = alerts.find(a => a.room === room && a.ym === ym && a.key === k && a.kind === kind);
-        if (prev && (prev.status === 'open' || (now - new Date(prev.at).getTime()) < cooldownMs)) { suppressed++; continue; }
+        const ackedWithinCooldown = prev && prev.status === 'acked' && (now - new Date(prev.at).getTime()) < cooldownMs;
+        if (prev && (prev.status === 'open' || ackedWithinCooldown)) { suppressed++; continue; }
         const alert = { id: 'al_' + now.toString(36) + Math.random().toString(36).slice(2, 6), room, dept, ym, key: k, day: parseInt(m[1], 10), period: m[2], kind, value: val,
-          limits: { tMin: L.tMin, tMax: L.tMax, hMin: L.hMin, hMax: L.hMax, src: L.src }, source: source || '', at: new Date().toISOString(), status: 'open', ack_by: null, ack_at: null };
+          limits: { tMin: L.tMin, tMax: L.tMax, hMin: L.hMin, hMax: L.hMax, src: L.src }, source: source || '', at: atIso, status: 'open', ack_by: null, ack_at: null };
         alerts.push(alert);
         raised++;
         const limTxt = (kind.indexOf('temp') === 0) ? (kind === 'temp_high' ? '≤' + L.tMax : '≥' + L.tMin) : (kind === 'hum_high' ? '≤' + L.hMax : '≥' + L.hMin);
@@ -6110,9 +6366,22 @@ function evalEnvAlerts(room, ym, cells, source) {
         }
       }
     }
-    if (raised) kvset('envAlerts', alerts.slice(-2000));
-    if (raised && ids.length) kvset('notifs', notifs.slice(-4000));
-    return { raised, suppressed, notified: ids.length };
+    // 预警一旦关闭，引用它的站内通知也一并「已恢复合规 + 已读」——
+    // 否则铃铛未读数不会回落，用户仍觉得「报警还在」。
+    // 只改状态、不删行：超限发生过就是发生过，历史必须可追溯（合规记录的红线）。
+    if (resolvedIds.length) {
+      const done = new Set(resolvedIds);
+      for (const nt of notifs) {
+        if (!done.has(nt.alert_id) || nt.resolved) continue;
+        nt.resolved = 1; nt.resolved_at = atIso; nt.read = 1;
+        notifDirty = true;
+      }
+    }
+    if (raised || resolved) kvset('envAlerts', alerts.slice(-2000));
+    if ((raised && ids.length) || notifDirty) kvset('notifs', notifs.slice(-4000));
+    if (resolved) logI('预警', '自动关闭 ' + resolved + ' 条已恢复合规的预警 [' + room + '@' + ym +
+      ' · ' + (source || '') + ' · ' + actorName + ']');
+    return { raised, suppressed, resolved, notified: ids.length };
   } catch (e) { logE('预警', '判定失败: ' + (e && e.message || e)); return { error: String(e && e.message || e) }; }
 }
 // GET /api/admin/env-alert-cfg —— 读配置（管理员）
@@ -6234,6 +6503,7 @@ const routes = [
   { method: 'GET', path: '/api/templates', handler: handleListTemplates },
   { method: 'GET', path: '/api/devices', handler: handleListDevices },
   { method: 'GET', path: '/api/monthly', handler: handleMonthly },
+  { method: 'GET', path: '/api/dashboard/bootstrap', handler: handleDashboardBootstrap },
   { method: 'GET', path: '/api/dashboard', handler: handleDashboard },
   { method: 'GET', path: '/api/env/alerts', handler: handleEnvAlerts },
 
@@ -6290,6 +6560,7 @@ const routes = [
   // ---- 点检操作 ----
   { method: 'POST', path: '/api/inspect/batch', handler: handleInspectBatch, adminOnly: true, perm: 'demo_mode', demoGated: true },
   { method: 'POST', path: '/api/inspect/day-sig', handler: handleDaySign },
+  { method: 'POST', path: '/api/inspect/strike-day', handler: handleStrikeDay },
   { method: 'POST', path: '/api/inspect/month', handler: handleInspectMonth },
   { method: 'POST', path: '/api/inspect/delete', handler: handleInspectDelete, adminOnly: true, perm: 'demo_mode', demoGated: true },
   { method: 'GET', pattern: /^\/api\/inspect\/device\/([^/]+)$/, paramNames: ['id'], handler: handleDeviceDetail },
@@ -6521,9 +6792,35 @@ function serveStatic(req, res) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
-    // HTML/CSS/JS 不缓存（避免修改后浏览器看不到更新）
     const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
-    if (ext === '.html' || ext === '.css' || ext === '.js') {
+    if (ext === '.html') {
+      /* v1.44.8：给 HTML 里的 /assets 引用统一打版本戳 ?v=APP_VERSION。
+         为什么：原来 CSS/JS 一律 no-store —— 「改了看不到更新」的问题解决了，
+         代价是每次翻页都要重下全部样式与脚本，而且 no-store 还会**禁用 bfcache**（回退不恢复页面）。
+         现在：HTML 仍然永远 no-store（保证一升级就拿到新 ?v=），而带 ?v= 的 /assets 走一年 immutable。
+         升级时 APP_VERSION 一变 → 所有 ?v= 变 → 浏览器自动拉新资源，旧的自然作废。
+         不改任何页面文件，只在响应里加戳 —— 页面上看到的地址也会是带 ?v= 的，便于现场核对版本。 */
+      let html = data.toString('utf8');
+      html = html.replace(/((?:href|src)=")(\/assets\/[^"]+)"/g, (m, pre, val) => {
+        if (val.indexOf('?') >= 0) return m;      // 已带查询串（如 ?raw=）不重复加
+        return pre + val + '?v=' + APP_VERSION + '"';
+      });
+      headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0';
+      headers['Pragma'] = 'no-cache';
+      headers['Expires'] = '0';
+      res.writeHead(200, headers);
+      res.end(html);
+      return;
+    }
+    if (p.startsWith('/assets/') && /[?&]v=/.test(String(req.url || ''))) {
+      // 带版本戳的静态资源：可以放心长期缓存（内容随版本变，URL 变则必然重新拉取）
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+      res.writeHead(200, headers);
+      res.end(data);
+      return;
+    }
+    // 其余仍不缓存：未打戳的 CSS/JS（直接访问 / 旧书签）继续保证「改了立刻生效」
+    if (ext === '.css' || ext === '.js') {
       headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0';
       headers['Pragma'] = 'no-cache';
       headers['Expires'] = '0';

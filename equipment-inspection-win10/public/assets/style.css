@@ -30,15 +30,17 @@ button{font-family:inherit;cursor:pointer}
 /* nav */
 .nav{display:flex;align-items:center;gap:14px;padding:12px 22px;position:sticky;top:0;z-index:30;
   background:rgba(10,17,32,.6);backdrop-filter:blur(12px);border-bottom:1px solid var(--glass-bd)}
-/* 顶栏标识（v1.36.2）：登录后不再放公司大图标，改「方块标记 + 文字」，中性色不刺眼 */
+/* 顶栏标识（v1.44.6 重绘）：渐变徽章 + 「点检记录」（板夹 + 对勾）线性图标。
+   图标用 SVG data-URI 作 mask 绘制 —— 零图片、零 emoji、任意分辨率都清晰；
+   笔画颜色由 background-color 决定（深墨 #0a1120 压在亮渐变徽章上，对比 ≈ 9:1）。
+   与 v2（assets/v2/theme.css）的同名规则保持同一图形，两个体系观感一致。 */
 .brand{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:16.5px;letter-spacing:.4px;color:var(--txt)}
 .brand .mark{width:24px;height:24px;flex:none;border-radius:7px;position:relative;
-  background:linear-gradient(135deg,#4f8cff,#22c1dc)}
-.brand .mark::after{content:'';position:absolute;left:5px;right:5px;top:6px;bottom:6px;
-  background:
-    linear-gradient(#0a1120,#0a1120) 0 0/100% 2px no-repeat,
-    linear-gradient(#0a1120,#0a1120) 0 50%/72% 2px no-repeat,
-    linear-gradient(#0a1120,#0a1120) 0 100%/48% 2px no-repeat}
+  background:linear-gradient(135deg,#4f8cff,#22c1dc);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+.brand .mark::after{content:'';position:absolute;inset:0;background-color:#0a1120;
+  -webkit-mask:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.6' y='5.4' width='14.8' height='14.8' rx='2.6'/%3E%3Cpath d='M9.7 3.2h4.6a1 1 0 0 1 1 1v2.2H8.7V4.2a1 1 0 0 1 1-1z'/%3E%3Cpath d='M8.9 12.8l2.4 2.4 4.2-4.6'/%3E%3C/svg%3E") center/16px 16px no-repeat;
+          mask:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.6' y='5.4' width='14.8' height='14.8' rx='2.6'/%3E%3Cpath d='M9.7 3.2h4.6a1 1 0 0 1 1 1v2.2H8.7V4.2a1 1 0 0 1 1-1z'/%3E%3Cpath d='M8.9 12.8l2.4 2.4 4.2-4.6'/%3E%3C/svg%3E") center/16px 16px no-repeat}
 .nav .sp{flex:1}
 .nav a,.nav button{font-size:14px;padding:8px 14px;border-radius:11px;border:1px solid var(--glass-bd);
   background:var(--glass);color:var(--txt);transition:.2s}
@@ -162,5 +164,58 @@ tbody tr:hover{background:rgba(255,255,255,.04)}
 .dept-bar.admin a:hover{text-decoration:underline}
 @media print{.dept-bar{display:none!important}}
 
-/* v1.27.0 左上角品牌图（白底片保证黑字在深色导航上可读） */
 /* .brand-logo 已废弃（v1.36.2）：登录页 logo 用 login.html 自己的 .login-brand 样式 */
+
+/* === 交互与可访问性打磨（v1.44.6 · 全部为叠加规则，不改动既有视觉语言与功能） === */
+/* 键盘焦点环：只在键盘 Tab 操作时出现，鼠标点击不打扰 */
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+/* 文本选中态（原来用系统默认，深底上几乎看不见选了什么） */
+::selection{background:rgba(34,193,220,.30);color:#fff}
+/* 滚动条统一（与 v2 一致，避免默认浅色条割裂深色面板） */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:999px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28);background-clip:content-box}
+/* 按钮 / 导航项：补齐「按下」反馈，并把 transform 纳入过渡（原来只有 hover，按下无回馈） */
+.btn,.nav a,.nav button,.tabs button{transition:background .2s,border-color .2s,color .2s,box-shadow .2s,transform .12s}
+.btn:active,.btn.primary:active,.btn.cyan:active,.btn.danger:active,
+.nav a:active,.nav button:active,.tabs button:active{transform:translateY(1px)}
+
+/* === 响应式（v1.44.8）===
+   v1 的三页（admin / env / check）在窄屏会把导航挤成一条并溢出 —— 这是它们唯一的 P0 响应式问题。
+   这里选「两列换行」而不是汉堡菜单：v1 的导航是 a/button 直接挂在 .nav 下、没有 .links 容器，
+   做汉堡要改 3 处标记 + 3 处 JS，风险面远大于收益；而两列换行只需一条媒体查询就能
+   彻底解决「小屏溢出」，且桌面端（>860px）完全不受影响。 */
+@media (max-width:860px){
+  .nav{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  .nav .sp{display:none}
+  .nav .brand{flex:1 0 100%;font-size:15px}
+  .nav a,.nav button{flex:1 1 calc(50% - 4px);text-align:center;padding:9px 10px;font-size:13.5px}
+  .wrap{padding:14px 12px 60px}
+  .topbar h1{font-size:21px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
+  .modal{padding:18px;max-height:92vh}
+}
+@media (max-width:520px){
+  .nav a,.nav button{flex:1 1 100%}
+  .kpis{grid-template-columns:1fr}
+}
+/* 链接下划线留出偏移，长文里更易读 */
+a{text-underline-offset:3px}
+/* 尊重系统「减少动效」偏好 */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+
+/* === 统一线性图标（v1.44.7）===
+   与 v2（assets/v2/theme.css）的 svg.ic 规则逐字一致 —— 这样同一枚图标
+   在 env / admin / check / login（v1）与 rooms / index / inspect（v2）里
+   线宽、圆头、垂直对齐、随文字取色全都一样，跨页翻过去不会有「换了套皮」的割裂感。 */
+svg.ic{flex:none;display:inline-block;vertical-align:-.16em;
+  fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+/* 图标与文字之间的间距（data-ic 自动注入时紧跟其后） */
+[data-ic] > svg.ic{margin-right:5px}
+/* 按钮/链接里的图标不参与文字基线，避免和中文基线打架 */
+.btn > svg.ic, .nav a > svg.ic, .nav button > svg.ic{margin-right:5px}

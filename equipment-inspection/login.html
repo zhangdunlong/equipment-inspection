@@ -21,9 +21,14 @@ body{ background:radial-gradient(900px 500px at 15% -10%, rgba(79,140,255,.22), 
 .login-card input{ width:100%; padding:10px 12px; font-size:14px; border:1px solid #ccd4e0; border-radius:8px; box-sizing:border-box; outline:none; background:#f7f9fc; color:#1a2436; }
 .login-card input:focus{ border-color:#22c1dc; box-shadow:0 0 0 3px rgba(34,193,220,.18); }
 .login-card .err{ color:#d11; font-size:12px; min-height:16px; margin-bottom:8px; text-align:center; }
-.btn-login{ width:100%; padding:11px; border:none; border-radius:10px; background:linear-gradient(135deg,#4f8cff,#22c1dc); color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
-.btn-login:hover{ filter:brightness(1.06); }
-.btn-login:disabled{ opacity:.6; cursor:not-allowed; }
+.btn-login{ width:100%; padding:11px; border:none; border-radius:10px; background:linear-gradient(135deg,#4f8cff,#22c1dc); color:#fff; font-size:15px; font-weight:700; cursor:pointer; transition:filter .15s ease, transform .12s ease, box-shadow .15s ease; }
+.btn-login:hover{ filter:brightness(1.06); box-shadow:0 6px 18px rgba(79,140,255,.35); }
+.btn-login:active{ transform:translateY(1px); }
+.btn-login:disabled{ opacity:.6; cursor:not-allowed; transform:none; }
+/* 交互与可访问性打磨（v1.44.6）：键盘焦点环 + 尊重系统「减少动效」偏好 */
+.btn-login:focus-visible{ outline:2px solid #22c1dc; outline-offset:2px; }
+.login-card input:focus-visible{ outline:none; }
+@media (prefers-reduced-motion:reduce){ *{ transition-duration:.001ms!important; animation-duration:.001ms!important } }
 .login-foot{ text-align:center; color:#aaa; font-size:11px; margin-top:16px; }
 .login-foot a.gh{ display:inline-block; margin-top:6px; color:#6b7a99; text-decoration:none; }
 .login-foot a.gh:hover{ color:#4f8cff; text-decoration:underline; }
@@ -40,7 +45,7 @@ body{ background:radial-gradient(900px 500px at 15% -10%, rgba(79,140,255,.22), 
   <div class="field" data-page-node-id="p4zFNnOEak2iNIl11qqYKs"><label data-page-node-id="SnWwho1u5SahFyInnNg2BD">密码 Password</label><input id="p" type="password" autocomplete="current-password" placeholder="请输入密码" data-page-node-id="Qu0Y39Oqat5SkNQyJQeGCt"></div>
   <div class="err" id="err" data-page-node-id="1MgD8YzXVFuj6mNHoAt7jN"></div>
   <button class="btn-login" id="go" data-page-node-id="BEkpaDusYe1zERwCCSkZtt">登 录</button>
-  <div class="login-foot" data-page-node-id="AkxUA6Y38Nf1ijJNrs1QbU">内网系统 · 登录后访问全部功能<br><a class="gh" href="https://github.com/zhangdunlong" target="_blank" rel="noopener">🐙 开源仓库 GitHub</a></div>
+  <div class="login-foot" data-page-node-id="AkxUA6Y38Nf1ijJNrs1QbU">内网系统 · 登录后访问全部功能<br><a class="gh" href="https://github.com/zhangdunlong" data-ic="link" data-ic-size="14" target="_blank" rel="noopener">开源仓库 GitHub</a></div>
 </div>
 <script>
 const $=s=>document.querySelector(s);
@@ -70,6 +75,7 @@ $('#u').focus();
 // 版本号显示（单一信息源在 server.js 的 APP_VERSION，经 /api/version 下发）
 fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelectorAll('[data-appver]').forEach(e=>e.textContent=v.version);}).catch(()=>{});
 </script>
+<script src="/assets/icons.js"></script>
 
 <script>
 /* 演示站只读模式：可登录浏览，但一切写入被服务端拒绝；此处负责提示与隐藏入口 */

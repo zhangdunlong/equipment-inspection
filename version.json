@@ -1,8 +1,8 @@
 {
   "name": "设备点检巡检系统",
   "name_en": "Equipment Inspection & Patrol System",
-  "version": "v1.46.0",
-  "date": "2026-10-02",
+  "version": "v1.47.0",
+  "date": "2026-11-08",
   "edition": "开源脱敏版 / Open-Source Desensitized Edition",
   "repo": "https://github.com/zhangdunlong/equipment-inspection",
   "demo": "https://equipment-inspection-cp0.pages.dev",
@@ -16,7 +16,7 @@
     "templates": 17,
     "signers": 4,
     "programs": 4,
-    "note": "跟随上游 v1.43.10：LIMS 窗口钳到今天（不查未来日期）、温度窗口有界并发（lims.tempConcurrency，默认 4）、备份可写性探测改覆盖写（28.9x 提速）、同步结果自证 LIMS 断流（last_point / points_total）；演示站开启 demoGate 总开关展示完整功能界面，写操作仍只读"
+    "note": "跟随上游 v1.43.11~v1.45.0（共 15 个版本）：打印线宽统一 2.5pt、温湿度表整日/按时段划杠「无需记录」、点检表「本日无需点检」、输入即存与签名右键菜单、全站统一线性图标、首屏一次取齐 /api/dashboard/bootstrap、静态资源长期缓存、保存整月签名人修复；演示种子按基准日推导备份判重台账；演示站开启 demoGate 展示完整界面，写操作仍只读"
   },
   "features": [
     "设备台账与模板管理",
@@ -39,7 +39,11 @@
     "操作手册入口（顶栏可配显示，手册本体随系统托管，开源版为中性说明页）",
     "大屏状态徽章与图例、一键点检整行滑块、后台页签分组、温湿度工具栏「更多操作 ▾」",
     "LIMS 对接（湿度抓取按 ≤20 天分段串行拉取，绕过 LIMS 单次跨度 23 天上限）/ 局域网远程升级（接口保留、默认关闭、占位配置）",
-    "三套发布形态：Cloudflare Pages 只读演示站（可登录浏览）/ Node 服务版 / Windows 便携版"
+    "三套发布形态：Cloudflare Pages 只读演示站（可登录浏览）/ Node 服务版 / Windows 便携版",
+    "温湿度表支持整日或只划某个时段「无需记录」（部分时段带角标），点检表支持「本日无需点检」",
+    "打印线宽统一 2.5pt（外框 = 内线 = 划线），消除预览里外框发黑与线段发灰",
+    "全站统一线性图标（assets/icons.js）与大屏首屏一次取齐接口 /api/dashboard/bootstrap",
+    "静态资源长期缓存、v1 页窄屏导航、大屏 KPI 兼作筛选、保存整月不再覆盖签名人"
   ],
-  "upstream": "v1.43.10"
+  "upstream": "v1.45.0"
 }

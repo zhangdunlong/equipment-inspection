@@ -19,6 +19,15 @@
 .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--s-3); margin-bottom:var(--s-5); }
   .kpi { padding:var(--s-4) var(--s-5); background:var(--bg-2); border:1px solid var(--line-1);
     border-left:3px solid var(--line-2); border-radius:var(--r-lg); }
+  /* KPI 兼作筛选快捷键（v1.44.7）：点卡片直接套用对应状态筛选，省掉再去工具条找一次。
+     用真 <button> 而不是 div[role]，键盘用户才能 Tab 到并回车触发。 */
+  button.kpi { appearance:none; width:100%; font:inherit; color:inherit; text-align:left; cursor:pointer;
+    transition:background var(--t-fast), border-color var(--t-fast), transform var(--t-fast); }
+  button.kpi:hover { background:var(--bg-3); transform:translateY(-2px); }
+  button.kpi[aria-pressed="true"] { box-shadow:inset 0 0 0 2px var(--accent); background:var(--bg-3); }
+  button.kpi[aria-pressed="true"]::after { content:'筛选中'; font-size:10px; color:var(--accent-hi);
+    position:absolute; top:6px; right:8px; }
+  button.kpi { position:relative; }
   .kpi.ok{border-left-color:var(--ok)} .kpi.ng{border-left-color:var(--ng)} .kpi.warn{border-left-color:var(--warn)}
   .kpi .l { font-size:var(--fs-sm); color:var(--tx-3); }
   .kpi .v { font-size:var(--fs-4xl); font-weight:800; line-height:1.1; margin-top:6px; font-variant-numeric:tabular-nums; }
@@ -144,23 +153,23 @@
     <div class="sp"></div>
     <div class="flex">
       <span class="mono sm muted" id="clock">--:--:--</span>
-      <button class="btn btn-sm btn-ghost" id="refresh" title="立即刷新">🔄 刷新</button>
-      <button class="btn btn-sm btn-ghost" id="fs" title="全屏显示">⛶ 全屏</button>
+      <button class="btn btn-sm btn-ghost" id="refresh" data-ic="refresh" data-ic-size="15" title="立即刷新">刷新</button>
+      <button class="btn btn-sm btn-ghost" id="fs" data-ic="expand" data-ic-size="15" title="全屏显示"><span id="fs_lbl">全屏</span></button>
     </div>
   </div>
 
   <div id="alert"></div>
 
   <div class="kpis">
-    <div class="kpi"><div class="l">设备总数</div><div class="v" id="k_total">–</div><div class="s">台在册设备</div></div>
-    <div class="kpi ok"><div class="l">今日已点检</div><div class="v" id="k_insp">–</div><div class="s" id="k_insp_sub">—</div>
-      <div class="prog"><i id="k_bar"></i></div></div>
-    <div class="kpi ng"><div class="l">今日异常</div><div class="v" id="k_ng">–</div><div class="s">需跟进处理</div></div>
+    <button class="kpi" data-kf="all" title="点击筛选：全部检查表"><div class="l">设备总数</div><div class="v" id="k_total">–</div><div class="s">台在册设备</div></button>
+    <button class="kpi ok" data-kf="ok" title="点击筛选：只看已点检（正常）"><div class="l">今日已点检</div><div class="v" id="k_insp">–</div><div class="s" id="k_insp_sub">—</div>
+      <div class="prog"><i id="k_bar"></i></div></button>
+    <button class="kpi ng" data-kf="ng" title="点击筛选：只看异常"><div class="l">今日异常</div><div class="v" id="k_ng">–</div><div class="s">需跟进处理</div></button>
     <div class="kpi warn"><div class="l">本月累计点检</div><div class="v" id="k_month">–</div><div class="s">次记录</div></div>
   </div>
 
   <div class="toolbar">
-    <span class="sm muted nowrap">📍 当前房间</span>
+    <span class="sm muted nowrap" data-ic="pin" data-ic-size="14">当前房间</span>
     <b id="cur_room">–</b>
     <div class="sep"></div>
     <div class="seg" id="seg_status" role="group" aria-label="按状态筛选">
@@ -176,9 +185,9 @@
     </div>
     <input type="text" id="q" placeholder="🔍 编号 / 名称 / 型号" aria-label="筛选设备">
     <div class="sp" style="flex:1"></div>
-    <a class="btn btn-sm btn-ghost" id="go_env">🌡 温湿度表</a>
-    <a class="btn btn-sm btn-ghost" id="go_print">🖨 设备点检表</a>
-    <button class="btn btn-sm btn-ghost" id="switch_room">🔄 切换房间</button>
+    <a class="btn btn-sm btn-ghost" id="go_env" data-ic="thermo" data-ic-size="15">温湿度表</a>
+    <a class="btn btn-sm btn-ghost" id="go_print" data-ic="print" data-ic-size="15">设备点检表</a>
+    <button class="btn btn-sm btn-ghost" id="switch_room" data-ic="swap" data-ic-size="15">切换房间</button>
   </div>
 
   <div class="sect">
@@ -210,9 +219,10 @@
   </div></div>
 
   <div class="sect"><h2>历史点检查询</h2>
+    <span class="sm dim" id="h_cnt">—</span>
     <span class="sp"></span>
-    <span class="sm dim" id="h_cnt">—</span></div>
-  <div class="panel panel-pad">
+    <button class="btn btn-sm btn-ghost" id="h_toggle" aria-expanded="false" aria-controls="h_panel">展开 ▾</button></div>
+  <div class="panel panel-pad" id="h_panel" hidden>
     <div class="row">
       <div class="field" style="max-width:130px"><label>年份</label><select id="h_year"></select></div>
       <div class="field" style="max-width:110px"><label>月份</label><select id="h_month"></select></div>
@@ -227,7 +237,7 @@
           <div class="h-dd" id="h_dd" role="listbox" aria-label="检查表候选" hidden></div>
         </div>
       </div>
-      <button class="btn btn-primary" id="h_go">🔍 查询点检表</button>
+      <button class="btn btn-primary" id="h_go" data-ic="search" data-ic-size="15">查询点检表</button>
     </div>
     <div class="row mt-3">
       <div class="field" style="flex:0 0 auto">
@@ -247,6 +257,7 @@
   </div>
 </div>
 
+<script src="/assets/icons.js"></script>
 <script src="/assets/v2/core.js"></script>
 <script src="/assets/dept.js"></script>
 <script src="/assets/notify.js"></script>
@@ -255,6 +266,16 @@ const { $, $$, esc, api, toast, mountNav, isGroupTok, tokGroup } = CORE;
 
 let ROOMS = [], ROOM_META = {}, GROUP_ROOMS = {}, CURR_ROOM = '';
 let FILTER = 'all', KIND = 'all', QUERY = '', LAST = null, TIMER = null, LOADING = false;
+/* v1.44.7 首屏一次取齐：/api/dashboard/bootstrap 把 rooms / devices / programs / templates 合成一个响应。
+   取不到就返回 null，两个调用方各自落回原来的逐个接口 —— 任何情况下功能都与改动前一致。
+   BOOT_P 缓存的是 Promise，所以 initRoom 与 fillHist 并发调用也只会打一次。 */
+let BOOT = null, BOOT_P = null, DASH_SIG = '';
+function bootstrap(){
+  if (!BOOT_P) BOOT_P = api('/api/dashboard/bootstrap')
+    .then(b => { if (b && !b.__error && Array.isArray(b.rooms) && Array.isArray(b.devices)) BOOT = b; return BOOT; })
+    .catch(() => { BOOT = null; });
+  return BOOT_P;
+}
 
 /* ---------- 时钟 ---------- */
 function clock() {
@@ -271,11 +292,13 @@ function roomLabel(n) {
 
 async function initRoom() {
   let me = { ok: false };
+  const bootP = bootstrap();              // 与 /api/admin/me 并行发出，不互相串行等
   try { me = await CORE.me(); } catch (e) { }
   mountNav({ me });
 
   if (window.DEPT) { try { await DEPT.load(); } catch (e) { } }
-  const rooms = await api('/api/rooms');
+  const boot = await bootP;
+  const rooms = boot ? boot.rooms : await api('/api/rooms');
   if (!rooms.__error && Array.isArray(rooms)) {
     const list = (window.DEPT ? DEPT.filterRooms(rooms) : rooms) || [];
     ROOMS = []; GROUP_ROOMS = {};
@@ -316,8 +339,11 @@ async function initRoom() {
 // 一张卡片 = 一张检查表（不是一台设备）：冲击机有「设备点检 + 摩擦和风阻损耗」两张，
 // 显微镜头只有「显微镜维护记录」一张。用 <a> 原生跳转，不再靠 JS 挂 click —— 少一层出错面。
 function jobCardHtml(j) {
-  const cls = j.status === 'ng' ? 'is-ng' : j.status === 'none' ? 'is-none' : 'is-ok';
-  const label = j.status === 'ok' ? '正常' : j.status === 'ng' ? '异常' : '未点检';
+  // v1.44.0：'holiday' = 当天整日划杠（本日无需点检），单列一档 —— 既不是「正常」也不是「未点检」，
+  // 用中性样式且不显示签署时间，避免把「不需要点检」误报成已完成。
+  const isHoliday = j.status === 'holiday';
+  const cls = isHoliday ? 'is-none' : (j.status === 'ng' ? 'is-ng' : j.status === 'none' ? 'is-none' : 'is-ok');
+  const label = isHoliday ? '无需点检' : (j.status === 'ok' ? '正常' : j.status === 'ng' ? '异常' : '未点检');
   const dot = j.status === 'ok' ? 'dot-ok' : j.status === 'ng' ? 'dot-ng' : 'dot-idle';
   const isProg = j.job_kind === 'program';
   const href = isProg
@@ -325,7 +351,7 @@ function jobCardHtml(j) {
     : '/inspect.html?device=' + encodeURIComponent(j.no);
   const ttl = isProg ? (j.job_name || '专项检查') : (j.name || '设备点检');
   const sub = isProg ? (j.name || '') + (j.model ? ' · ' + j.model : '') : (j.model || '');
-  const when = j.status !== 'none' && j.signed_at ? CORE.fmtHM(j.signed_at) : '';
+  const when = (j.status !== 'none' && !isHoliday && j.signed_at) ? CORE.fmtHM(j.signed_at) : '';
   return `<a class="card ${cls}" href="${href}" data-no="${esc(j.no)}" data-kind="${esc(j.job_kind)}"
       title="${esc(ttl)}｜No.${esc(j.no)} ${esc(j.name)}｜${label}">
     <div class="hd"><span class="loc">${esc(j.location) || '—'}</span>
@@ -336,7 +362,7 @@ function jobCardHtml(j) {
     <div class="md">${esc(sub)}</div>
     <div class="ft">
       ${j.signature_image ? `<img class="sig" src="${j.signature_image}" alt="签名">` : ''}
-      <span class="who">${esc(j.signed_by) || '未点检'}</span>
+      <span class="who">${esc(j.signed_by) || (isHoliday ? '本日无需点检' : '未点检')}</span>
       <span class="sp" style="flex:1"></span>
       <span class="tm">${when}</span>
     </div>
@@ -390,7 +416,7 @@ function paintRecent(data) {
   rb.innerHTML = data.recent.map(r => `<tr>
     <td class="mono tiny">${CORE.fmtTime(r.signed_at)}</td>
     <td>${esc(r.no)}</td><td>${esc(r.name)}</td>
-    <td><span class="pill pill-${r.status === 'ok' ? 'ok' : r.status === 'ng' ? 'ng' : 'idle'}">${r.status === 'ok' ? '正常' : r.status === 'ng' ? '异常' : '—'}</span></td>
+    <td><span class="pill pill-${r.status === 'ok' ? 'ok' : r.status === 'ng' ? 'ng' : 'idle'}">${r.status === 'ok' ? '正常' : r.status === 'ng' ? '异常' : r.status === 'holiday' ? '无需点检' : '—'}</span></td>
     <td>${esc(r.signer_name) || '—'}</td>
     <td>${r.signature_image ? `<img src="${r.signature_image}" style="height:22px;background:#fff;border-radius:3px;padding:0 2px" alt="签名">` : '—'}</td>
     <td class="tiny">${esc(r.abnormal_note) || ''}</td></tr>`).join('');
@@ -403,7 +429,10 @@ async function load(manual) {
   const scope = isGroupTok(CURR_ROOM)
     ? '&group=' + encodeURIComponent(tokGroup(CURR_ROOM))
     : '&location=' + encodeURIComponent(CURR_ROOM);
-  const data = await api('/api/dashboard?date=' + CORE.localToday() + scope);
+  // v1.44.7 条件请求：带上上次服务端给的 sig；没变化时服务端只回 {unchanged:1, sig}（几十字节），
+  // 不再每 20 秒把 130+ 张卡片的手写签名图（base64）重传一遍。
+  const sq = DASH_SIG ? '&sig=' + encodeURIComponent(DASH_SIG) : '';
+  const data = await api('/api/dashboard?date=' + CORE.localToday() + scope + sq);
   LOADING = false;
   if (data.__error) {
     if (manual) toast(data.__error, 'err');
@@ -411,6 +440,8 @@ async function load(manual) {
       <button class="btn btn-sm" onclick="location.reload()">重试</button></div>`;
     return;
   }
+  if (data.unchanged) { $('#stamp').textContent = '更新于 ' + CORE.fmtHM(new Date().toISOString()); return; }
+  DASH_SIG = data.sig || '';
   $('#alert').innerHTML = '';
   paint(data); paintRecent(data);
 }
@@ -427,7 +458,7 @@ $('#refresh').onclick = () => load(true);
 function syncFsUI(active){
   document.documentElement.classList.toggle('fs-mode', !!active);
   if(!active) document.documentElement.classList.remove('fs-reveal');
-  const b=$('#fs'); if(b) b.textContent = active ? '⛶ 退出全屏' : '⛶ 全屏';
+  const bl=$('#fs_lbl'); if(bl) bl.textContent = active ? '退出全屏' : '全屏';
 }
 let FS_TIMER=null;
 function fsReveal(){
@@ -447,12 +478,16 @@ $('#fs').onclick = () => {
   } else document.exitFullscreen();
 };
 $('#switch_room').onclick = () => { location.href = '/rooms.html'; };
-$$('#seg_status button').forEach(b => b.onclick = () => {
-  $$('#seg_status button').forEach(x => x.setAttribute('aria-pressed', 'false'));
-  b.setAttribute('aria-pressed', 'true');
-  FILTER = b.dataset.f;
+/* KPI 卡片与状态筛选双向联动（v1.44.7）：点 KPI = 点分段按钮，反之亦然。
+   大屏是投屏看板，操作员往往只站在屏幕前 —— 少去工具条找一次筛选是实打实的省事。 */
+function setFilter(f){
+  FILTER = f;
+  $$('#seg_status button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.f === f)));
+  $$('.kpi[data-kf]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.kf === f)));
   if (LAST) paint(LAST);
-});
+}
+$$('#seg_status button').forEach(b => b.onclick = () => setFilter(b.dataset.f));
+$$('.kpi[data-kf]').forEach(b => b.onclick = () => setFilter(b.dataset.kf));
 $$('#seg_kind button').forEach(b => b.onclick = () => {
   $$('#seg_kind button').forEach(x => x.setAttribute('aria-pressed', 'false'));
   b.setAttribute('aria-pressed', 'true');
@@ -599,7 +634,11 @@ async function fillHist() {
   mm.value = CORE.p2(now.getMonth() + 1);
 
   // 选项 = 「一张检查表」，而不是一台设备：冲击机的点检表和摩擦风阻表要分开查
-  const [devs, prgs, tpls] = await Promise.all([api('/api/devices'), api('/api/programs'), api('/api/templates')]);
+  // v1.44.7：优先复用首屏合并接口拿到的数据；拿不到才回落到三个独立接口。
+  const boot = await bootstrap();
+  let devs, prgs, tpls;
+  if (boot) { devs = boot.devices; prgs = boot.programs; tpls = boot.templates; }
+  else [devs, prgs, tpls] = await Promise.all([api('/api/devices'), api('/api/programs'), api('/api/templates')]);
   // 设备的「表单编号」不在 /api/devices 里，要从模板的 source_file 里摘（DEMO-QR-032 …）
   const codeOf = {};
   (Array.isArray(tpls) ? tpls : []).forEach(t => { codeOf[t.id] = histFormCode(t.source_file); });
@@ -654,6 +693,16 @@ $('#h_kind').addEventListener('click', e => {
   $('#h_q').focus();
 });
 document.addEventListener('mousedown', e => { if (!$('#h_box').contains(e.target)) histOpen(false); });
+
+/* 历史点检查询是低频任务，默认折叠：首屏只留「今日待检」，需要时一键展开。
+   面板内容始终在 DOM 里（只是 hidden），所以下面的查询逻辑一行都不用改。 */
+$('#h_toggle').onclick = () => {
+  const p = $('#h_panel'), open = p.hidden;
+  p.hidden = !open;
+  $('#h_toggle').setAttribute('aria-expanded', String(open));
+  $('#h_toggle').textContent = open ? '收起 ▴' : '展开 ▾';
+  if (open) { histOpen(false); $('#h_q').focus(); }
+};
 
 $('#h_go').onclick = () => {
   const yr = $('#h_year').value, mo = $('#h_month').value, v = $('#h_dev').value;

@@ -6,9 +6,11 @@
 <title>点检作业</title>
 <link rel="stylesheet" href="/assets/v2/theme.css">
   <link rel="icon" type="image/png" sizes="64x64" href="data:image/svg+xml,generic">
+<script src="/assets/icons.js"></script>
 <script src="/assets/v2/core.js"></script>
 <script src="/assets/dept.js"></script>
 <script src="/assets/sig.js"></script>
+<script src="/assets/sig-menu.js"></script>
 <style>
 /* ==========================================================================
    屏幕态：v2 设计系统（深蓝灰工业风）
@@ -69,7 +71,11 @@
 .mtable thead th{ background:#f3f3f3; font-weight:700; color:#222; font-size:10.5px; }
 .mtable .c-sn{ width:34px; }
 .mtable .c-content{ width:170px; text-align:left !important; white-space:pre-line; line-height:1.15; font-size:11.5px; }
-.mtable .c-content-monthly{ text-align:center !important; }
+/* v1.44.2：原来这里给月度行单独加了 `text-align:center !important`，导致「检查内容」列
+   在月度行居中、每日行左对齐 —— 同一个表格里两种排版，用户一眼就看出不一致。
+   月度内容与每日内容本来就是同一列语义，**不该有两种格式** → 删掉这条，让它继承上面的
+   .c-content（左对齐 + 同宽度/字号/行高）。
+   ⚠️ 状态格（.mcell-monthly）的居中是√/×记号的对齐方式，属另一回事，保持不变。 */
 .mtable .c-freq{ width:46px; font-size:10px; color:#666; }
 .mtable .c-day{ width:30px; font-size:10px; }
 .mtable .c-day .dow{ display:block; font-size:8px; color:#aaa; font-weight:400; }
@@ -100,6 +106,19 @@
 .sigcell.struck{ cursor:default; background:#fafafa; }
 .sigcell.struck:hover{ background:#fafafa; }
 .sigslash{ font-size:15px; font-weight:700; color:#b8860b; }
+/* ---------- 「本日无需点检」（整日划杠）---------- v1.44.0
+   与 env.html 的「划线模式」同一套心智：先打开开关，再点某一天 → 该日**全部检查项**变「/」、
+   签名行同步杠掉（dayStruck 判据 = 当日所有日检项都是 holiday）；再点一次即取消。
+   线上表格本来的口径就是「非检查日 / 节假日划『/』」，所以这里不另造符号、不另存字段，
+   直接复用既有的 holiday 状态 —— 打印页 print-all.html 会同步打「/」。 */
+body.strike-mode .mcell[data-day]{ cursor:crosshair; }
+body.strike-mode .mcell[data-day]:hover{ background:#fff1c2; }
+body.strike-mode .sigcell{ cursor:crosshair; }
+body.strike-mode .sigcell.struck{ cursor:crosshair; }
+#s_strike.strike-on{ background:#b8860b !important; border-color:#b8860b !important; color:#fff !important; }
+.strike-tip{ font-size:11.5px; color:#8a6d1b; background:#fff8e1; border:1px solid #f0e0a8;
+  border-radius:6px; padding:5px 9px; margin-top:8px; }
+.strike-tip b{ color:#6b5200; }
 .sigdel{ position:absolute; top:1px; right:2px; z-index:3; width:15px; height:15px; line-height:14px;
   border-radius:50%; background:#e57373; color:#fff; font-size:11px; font-weight:700; text-align:center;
   cursor:pointer; opacity:.55; transition:opacity .12s,transform .12s; user-select:none; }
@@ -112,8 +131,19 @@
 .so-title{ font-weight:700; margin-bottom:var(--s-3); font-size:var(--fs-md); color:var(--tx-1); }
 .so-meta{ display:flex; gap:var(--s-3); flex-wrap:wrap; align-items:center; }
 .so-meta select, .so-meta input { max-width:240px; }
+/* v1.44.2 自动保存状态：划杠/取消划线后不再需要手动点「保存整月」，这里如实回报结果 */
+.savestat{ font-size:12px; color:var(--muted,#667085); margin-left:auto; }
+.savestat.busy{ color:#8a6d00; }
+.savestat.ok{ color:#067647; }
+.savestat.err{ color:#b42318; font-weight:700; }
+.sigcell.ctx-hint{ outline:1px dashed transparent; }
 .so-prev{ margin-top:var(--s-3); }
 .so-prev img{ max-height:44px; border:1px solid var(--line-2); border-radius:var(--r-sm); background:#fff; padding:2px 6px; vertical-align:middle; }
+/* v1.44.9 签名归属提示：告诉操作员「保存整月」会不会改掉已签的日期，避免误以为全月都被当前签名人签了 */
+.so-note{ margin-top:var(--s-2); font-size:12px; line-height:1.65; color:var(--tx-3);
+  background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:var(--r-md); padding:7px 11px; }
+.so-note b{ color:var(--tx-1); }
+.so-note.keep{ color:#1c5b3a; background:#e6f6ec; border-color:#9fd8b6; }
 .sig-line{ margin-top:var(--s-3); padding-top:var(--s-3); border-top:1px dashed var(--line-1); font-size:var(--fs-md); color:var(--tx-2); }
 #s_sigprev img{ height:38px; }
 
@@ -219,7 +249,10 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
 .mcell{ font-size:8pt!important; }
 .mcell.ok{ color:#000!important; } .mcell.ng{ color:#000!important; font-weight:bold!important; }
 .mcell.holiday{ color:#000!important; } .mcell-monthly{ text-align:center!important; }
-.mtable .c-content-monthly{ text-align:center !important; }
+/* 整日划杠的日子：签名行打「/」（原来没给打印态定色，页面上是暗金色，打印偏淡） */
+.mtable .sigrow .sigslash{ color:#000!important; font-size:9pt!important; font-weight:700!important; }
+/* v1.44.2：打印态原来也把月度「检查内容」单独居中（与屏幕态同一个毛病）→ 已删除，
+   与上面的 .c-content 保持同一格式。 */
 .sig-ops{ display:none !important; }
 .sig-line{ display:none !important; }
 #abn_zone{ display:none !important; }
@@ -267,8 +300,8 @@ html{ margin:0!important; padding:0!important; min-height:0!important; height:au
       <input type="month" id="f_month">
     </div>
     <div class="sep"></div>
-    <a class="btn btn-sm btn-ghost" id="go_env">🌡 温湿度表</a>
-    <a class="btn btn-sm btn-ghost" id="go_all">🖨 批量打印</a>
+    <a class="btn btn-sm btn-ghost" id="go_env" data-ic="thermo" data-ic-size="15">温湿度表</a>
+    <a class="btn btn-sm btn-ghost" id="go_all" data-ic="print" data-ic-size="15">批量打印</a>
   </div>
 
   <div id="alert"></div>
@@ -437,6 +470,7 @@ function renderMonth(dev, month, dmon){
   const monthlyItems = items.filter(it=>it.frequency==='每月');
   STATE.items=items; STATE.dailyItems=dailyItems; STATE.monthlyItems=monthlyItems;
   STATE.days=days; STATE.matrix={}; STATE.monthlyStatus={}; STATE.autoSlash={};
+  STATE.toClear={};      // v1.44.0：撤销过划线的日子（要显式让服务端删掉 placeholder 记录）
   STATE.touched=STATE.touched||{};
   STATE.abnormal=(dmon.abnormal||[]).map(a=>Object.assign({key:a.freq==='每月'?'M#'+a.sn:a.date+'#'+a.sn}, a));
   STATE.abnormalSaved=STATE.abnormal.map(a=>Object.assign({},a));
@@ -547,7 +581,7 @@ function renderMonth(dev, month, dmon){
     </div>
     ${isWeekly?`<div class="wk-hint">📅 本设备为<b>周检</b>（检查日固定为<b>周一</b>）：非检查日已自动划「/」，签名行同步杠掉，这些日期不写入数据；如需在非检查日补点检，直接点击该格改为 √/× 即可。</div>`:''}
     ${CAN_DELETE?`<div class="del-hint">🗑 删除：签名格右上角的 <span class="sigdel-demo">✕</span> 删掉<b>该日</b>的点检内容与电子签名；下方「🗑 删除本月点检」清空<b>整月</b>。两项都不可恢复。</div>`:''}
-    <div class="mlegend">🖱 点击状态格切换：<b>√正常</b> → <b>×异常</b> → <b>/节假日</b> → <b>空</b> → √　|　底部选好<b>签名人+密码</b>后，点签名行任意「＋」即<b>电子签名到该日</b></div>
+    <div class="mlegend">🖱 点击状态格切换：<b>√正常</b> → <b>×异常</b> → <b>/节假日</b> → <b>空</b> → √　|　底部选好<b>签名人+密码</b>后，点签名行任意「＋」即<b>电子签名到该日</b>　|　整天不点检时，用下方 <b>🚫 本日无需点检</b> 把那一日整日划杠</div>
 
     <div class="sig-ops">
       <div class="so-title">🔐 本月签名 Signature（${SIGN_NO_PW?'已开启免密：选好签名人，点签名行的「＋」即签':'登记签名人 + 密码，电子签名由后台统一上传'}）</div>
@@ -555,8 +589,12 @@ function renderMonth(dev, month, dmon){
         <select id="s_signer">${so}</select>
         <input type="password" id="s_pw" placeholder="签名人密码"${SIGN_NO_PW?' hidden':''}>
         ${SIGN_NO_PW?'<span class="sm muted">免密已开启</span>':''}
+        <button class="btn btn-ghost" id="s_strike"
+          title="打开后，点某一天的任意格子（或该日签名格）＝ 这一日整日无需点检：当日全部检查项划「/」、签名行同步杠掉；再点一次取消">🚫 本日无需点检：关</button>
       </div>
+      <div class="strike-tip" id="s_strike_tip" style="display:none"></div>
       <div class="so-prev" data-so="prev"></div>
+      <div class="so-note" id="s_signote"></div>
       <div class="sig-line">维护人员 Maintainer：<span id="s_sigprev"><span class="muted">未签名</span></span></div>
     </div>
 
@@ -574,6 +612,7 @@ function renderMonth(dev, month, dmon){
       <button class="btn btn-primary" id="s_save">💾 保存整月</button>
       <button class="btn btn-ghost" id="s_print">🖨 打印本月</button>
       ${CAN_DELETE?`<button class="btn btn-danger" id="s_delmonth">🗑 删除本月点检</button>`:''}
+      <span class="savestat" id="s_savestat"></span>
     </div>
   </div>`;
 
@@ -582,6 +621,131 @@ function renderMonth(dev, month, dmon){
   syncAbnormalList();
   updateSigPreview();
   updateSummary();
+}
+
+/* ================= 本日无需点检（整日划杠） ================= v1.44.0
+   与 env.html 的「划线模式」同一套做法：开关打开后，点某一天的任意格子（或该日签名格）
+   → 该日**全部**日检项置为 holiday；表格本来的口径就是「非检查日 / 节假日划『/』」，
+   所以不另造符号、也不新增数据字段：holiday 会随「保存整月」落库，
+   前端 dayStruck() 与打印页 print-all.html 都按同一判据把签名行显示为「/」。
+   再点一次 = 取消划线（该日恢复为空）。 */
+let STRIKE_MODE=false;
+
+function setStrikeMode(on){
+  STRIKE_MODE=!!on;
+  document.body.classList.toggle('strike-mode',STRIKE_MODE);
+  const b=document.getElementById('s_strike');
+  if(b){ b.textContent='🚫 本日无需点检：'+(STRIKE_MODE?'开':'关'); b.classList.toggle('strike-on',STRIKE_MODE); }
+  const t=document.getElementById('s_strike_tip');
+  if(t){
+    t.style.display=STRIKE_MODE?'':'none';
+    if(STRIKE_MODE) t.innerHTML='划线模式已开：点某一天的<b>任意格子</b>（或该日签名格）＝ 这一日整日无需点检'
+      +'（当日全部检查项划「/」、签名行同步杠掉）；<b>再点一次</b>取消。改完记得点「💾 保存整月」。';
+  }
+}
+
+// 整日划杠 / 取消划线；返回本次之后该日是否处于「已划杠」
+function strikeDay(dd){
+  const row=STATE.matrix&&STATE.matrix[dd]; if(!row) return false;
+  const items=STATE.dailyItems||[];
+  if(!items.length){ toast('该设备没有日检项目','err'); return false; }
+  const on=!dayStruck(dd);                       // 已划杠 → 这次是取消
+  // 该日是不是「已经从服务端读回来的、已保存的划线」？是的话，撤销时必须显式告知服务端删掉那条占位记录
+  const wasSavedStrike = !on && !STATE.autoSlash[dd] && !!(STATE.days && STATE.days[dd]);
+  if(!STATE.toClear) STATE.toClear={};
+  if(on) delete STATE.toClear[dd];
+  else if(wasSavedStrike) STATE.toClear[dd]=1;
+  if(on){
+    const signed=!!(STATE.days&&STATE.days[dd]);
+    const done=items.some(it=>{ const s=row[it.sn]||'none'; return s!=='none'&&s!=='holiday'; });
+    if(signed||done){
+      if(!confirm(`第 ${Number(dd.slice(-2))} 日${signed?'已有电子签名':''}${done?'并已点检':''}。\n\n`
+        +'「本日无需点检」会把这一日整日划杠（当日全部检查项划「/」、签名行同步杠掉），'
+        +'并清掉该日电子签名。确定吗？')) return false;
+    }
+  }
+  STATE.touched[dd]=true; delete STATE.autoSlash[dd];
+  items.forEach(it=>{ row[it.sn]= on?'holiday':'none'; });
+  if(on && STATE.days) delete STATE.days[dd];    // 划杠的日子不留签名
+  const st=on?'holiday':'none';
+  $$('#s_body .mcell[data-day="'+dd+'"]').forEach(c=>{
+    if(c.dataset.monthly) return;
+    c.dataset.st=st; c.className='mcell '+ST[st].cls; c.textContent=ST[st].mark;
+    if(c.dataset.auto){ c.dataset.auto=''; c.classList.remove('auto-slash'); }
+  });
+  refreshSigCell(dd); syncAbnormalList(); updateSummary(); markDirty();
+  const n=Number(dd.slice(-2));
+  toast(on?`第 ${n} 日已整日划杠（本日无需点检）`:`已取消第 ${n} 日的划线`,'ok');
+  autoSaveStrike(dd, on);          // v1.44.2：选完即存，不必再点「保存整月」
+  return on;
+}
+
+/* v1.44.2 · 「本日无需点检」自动保存
+   为什么走专用单日接口、而不是直接调 saveMonth()：
+     ① saveMonth 要求「签名人 + 密码」，而「本日无需点检」的日子按 v1.44.0 的设计**本来就不含签名** ——
+        为了划掉一天先要一个签名是自相矛盾的，自动保存也就没法免交互；
+     ② 只提交这一天，用户手里其它没保存完的编辑不会被顺手写库（更安全）。
+   成功后把该日从「未保存」里摘掉：整体脏标记只在**别的天**还有改动时才保留。 */
+let _strikeSaveTimer=null;
+function autoSaveStrike(dd,on){
+  const bar=$('#s_savestat');
+  const say=(t,cls)=>{ if(bar){ bar.textContent=t; bar.className='savestat '+(cls||''); } };
+  say('自动保存中…','busy');
+  if(_strikeSaveTimer) clearTimeout(_strikeSaveTimer);
+  _strikeSaveTimer=setTimeout(async()=>{
+    _strikeSaveTimer=null;
+    if(!CUR){ say('',''); return; }
+    let r=null;
+    try{
+      r=await api('/api/inspect/strike-day',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({device_id:CUR.id,date:dd,on:!!on})});
+    }catch(e){ r={__error:(e&&e.message)||String(e)}; }
+    const err=r&&(r.__error||r.error);
+    if(err){ say('自动保存失败：'+err,'err'); toast('自动保存失败：'+err,'err'); return; }
+    // 本地状态与服务端对齐：划杠日不再算「待保存」；撤销划杠已由服务端删记录，也不必再走 {clear:true}
+    delete STATE.touched[dd];
+    if(on){
+      if(!STATE.days) STATE.days={};
+      if(!STATE.days[dd]) STATE.days[dd]={bySn:{}};
+    }else{
+      if(STATE.days) delete STATE.days[dd];
+      if(STATE.toClear) delete STATE.toClear[dd];
+    }
+    setDirty(Object.keys(STATE.touched||{}).length>0);
+    MONTH_CACHE.delete(CUR_MONTH);      // 下次进该月重新拉，避免缓存里还留着旧天数
+    updateSummary();
+    const t=new Date(), p=n=>String(n).padStart(2,'0');
+    say('已自动保存 '+p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds()),'ok');
+  }, 350);                            // 350ms 去抖：连点「划杠/取消」只发最后一次
+}
+
+// 签名格只绑一次监听。⚠️ 原来 bindSheet 用 addEventListener、refreshSigCell 又赋 td.onclick，
+// 同一格同时挂两个处理器 → 点一次会触发两次（重复提交签名）。这里统一走标记位，只绑一次。
+function bindSigCell(td){
+  if(td.dataset.sigBound) return; td.dataset.sigBound='1';
+  const dd = td.dataset.day;
+  td.addEventListener('click', ()=>onSigCellClick(dd));
+  td.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onSigCellClick(dd); } });
+  // v1.44.2：签名格右键菜单 —— 与温湿度表（env.html）签名区**完全一致**（同一个 SigMenu 组件）。
+  // 两项：选择签名（= 为该日办理电子签名）/ 删除签名（= 删掉该日点检内容与签名）。
+  // 划线模式下右键仍是「划线开关」，与左键一致，避免同一个格在两种模式下行为打架。
+  td.addEventListener('contextmenu', e=>{
+    e.preventDefault();
+    if(STRIKE_MODE){ onSigCellClick(dd); return; }
+    if(!window.SigMenu) return;
+    const struck = dayStruck(dd);
+    const hasSig = !!(STATE.days && STATE.days[dd] && !struck);
+    const items = [
+      { icon:'🖊', label:'选择签名', disabled: struck,
+        disabledTip: struck ? '该日已整日划杠（本日无需点检），不需要签名' : '',
+        run: ()=>onSigCellClick(dd) },
+      { icon:'🗑', label:'删除签名', danger:true,
+        disabled: !CAN_DELETE || !hasSig,
+        disabledTip: !CAN_DELETE ? '删除点检内容与签名属合规演示功能，默认关闭（后台可开）' : (struck ? '该日无签名' : '该日还没有电子签名'),
+        run: ()=>deleteDay(dd) }
+    ];
+    SigMenu.show(e.clientX, e.clientY, items);
+  });
 }
 
 function dayStruck(dd){
@@ -597,12 +761,8 @@ function sigDelHTML(dd){
 
 function bindSheet(){
   $$('#s_body .mcell').forEach(c=>c.addEventListener('click',()=>onCellClick(c)));
-  $$('#s_body .sigcell').forEach(td=>{
-    if(td.classList.contains('struck')) return;
-    const dd = td.dataset.day;
-    td.addEventListener('click', ()=>onSigCellClick(dd));
-    td.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onSigCellClick(dd); } });
-  });
+  // 已划杠的签名格也要绑：划线模式下点它是「取消划线」
+  $$('#s_body .sigcell').forEach(bindSigCell);
   $$('#s_body .sigdel').forEach(el=>{
     if (el.dataset.bound) return; el.dataset.bound = '1';
     const dd = el.dataset.delday;
@@ -616,24 +776,60 @@ function bindSheet(){
     item[el.dataset.f] = el.value;
     markDirty();
   });
-  const ss=$('#s_signer'); if(ss) ss.addEventListener('change', updateSigPreview);
+  const ss=$('#s_signer'); if(ss) ss.addEventListener('change', ()=>{ updateSigPreview(); updateSignote(); });
   $('#s_save').onclick = saveMonth;
   $('#s_print').onclick = ()=>window.print();
   const dm=$('#s_delmonth'); if(dm) dm.onclick = deleteMonth;
+  const sb=$('#s_strike'); if(sb) sb.onclick = ()=>setStrikeMode(!STRIKE_MODE);
+  setStrikeMode(STRIKE_MODE);      // 切设备/切月后重绘了按钮，把开关键文案与页面类同步回来
 }
 
 function updateSummary(){
-  const sigN = Object.keys(STATE.days||{}).length;
+  // v1.44.0：整日划杠（本日无需点检）的日子，服务端也会返回一条 days 记录（bySn 全 holiday、签名空），
+  // 若直接数 Object.keys 会把它们算成「已签名」。这里按「未划杠」计数。
+  const signed = Object.keys(STATE.days||{}).filter(dd=>!dayStruck(dd));
+  const sigN = signed.length;
   let ngN = 0;
   for(const dd in STATE.matrix){ const r=STATE.matrix[dd]; for(const sn in r) if(r[sn]==='ng') ngN++; }
   for(const sn in STATE.monthlyStatus) if(STATE.monthlyStatus[sn]==='ng') ngN++;
   const e1=$('#sm_sig'), e2=$('#sm_ng');
   if(e1) e1.textContent = sigN;
   if(e2) e2.textContent = ngN;
+  updateSignote();
+}
+
+/* v1.44.9：把「保存整月」对签名归属的影响讲清楚 —— 已签过的日期保留原签名，未签的才由当前签名人签。 */
+function updateSignote(){
+  const el=$('#s_signote'); if(!el) return;
+  const signed = Object.keys(STATE.days||{}).filter(dd=>!dayStruck(dd));
+  // 本月里「有内容但还没签」的日期数（保存整月会给这些签）
+  const pending = Object.keys(STATE.matrix||{}).filter(dd=>{
+    if(dd>localToday()) return false;
+    if(dayStruck(dd)) return false;
+    const r=STATE.matrix[dd]||{};
+    return Object.keys(r).some(sn=>r[sn]!=='none'&&r[sn]!=='holiday');
+  }).filter(dd=>signed.indexOf(dd)<0).length;
+  if(!signed.length && !pending){
+    el.className='so-note'; el.innerHTML='本月还没有已签名/待签的日期。填好点检状态后再选签名人。';
+    return;
+  }
+  el.className = 'so-note' + (signed.length?' keep':'');
+  el.innerHTML = (signed.length
+      ? '本月已有 <b>'+signed.length+'</b> 天签过名：点「💾 保存整月」时这些日期<b>保留原签名人</b>，不会被改成当前选的人。'
+      : '')
+    + (pending
+      ? (signed.length?'<br>':'')+'尚未签名的 <b>'+pending+'</b> 天将用当前所选签名人签署。'
+      : '')
+    + '<br>要改某一天的签名：先删掉该日签名（签名格右上角 <b>✕</b> / 右键删除），再用新签名人重签。';
 }
 
 /* ================= 交互 ================= */
 function onCellClick(c){
+  // 划线模式：点任意日期格 = 该日整日划杠 / 取消（月检格不参与，它没有「某一天」的概念）
+  if(STRIKE_MODE && !c.dataset.monthly){
+    if(c.dataset.future){ toast('未来日期不需要划线','err'); return; }
+    strikeDay(c.dataset.day); return;
+  }
   if(c.dataset.future){ toast('未来日期不可点检','err'); return; }
   const cur=c.dataset.st||'none'; const nxt=ST[cur].next;
   c.dataset.st=nxt;
@@ -671,12 +867,15 @@ function refreshSigCell(dd){
     el.addEventListener('click', e=>{ e.stopPropagation(); deleteDay(dd); });
     el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); deleteDay(dd); } });
   });
-  if(!struck) td.onclick=()=>onSigCellClick(dd);
+  if(!struck) td.onclick=null;          // 点击走 bindSigCell 的监听，避免与它重复触发
+  bindSigCell(td);
   SIGFIT.fit(td);
 }
 
 async function onSigCellClick(day){
   if(!CUR){ toast('请先选择设备','err'); return; }
+  if(STRIKE_MODE){ strikeDay(day); return; }     // 划线模式：点签名格 = 该日整日划杠 / 取消
+  if(dayStruck(day)) return;                     // 已整日划杠的日期不需要签名
   if(day>localToday()){ toast('未来日期不能电子签名','err'); return; }
   const sid=$('#s_signer').value, pw=$('#s_pw')?$('#s_pw').value:'';
   if(!sid||(!SIGN_NO_PW&&!pw)){ toast(SIGN_NO_PW?'请先在下方选择签名人':'请先在下方选择签名人并输入密码','err'); return; }
@@ -805,12 +1004,16 @@ async function saveMonth(){
     STATE.monthlyItems.forEach(it=>{ const st=STATE.monthlyStatus[it.sn]||'none'; if(st!=='none'){bySn[it.sn]=st;any=true;} });
     if(any) days[dd]={bySn};
   }
+  // v1.44.0：撤销过划线的日子（且现在没有任何标记）→ 显式让服务端删掉那条「holiday 占位记录」，
+  // 否则保存时会跳过全空格的日子，记录留在库里、重载后划线会「复活」。
+  Object.keys(STATE.toClear||{}).forEach(dd=>{ if(dd<=today && !days[dd]) days[dd]={clear:true}; });
   const btn=$('#s_save'); btn.disabled=true; btn.textContent='保存中…';
   const r=await api('/api/inspect/month',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({device_id:CUR.id,month:CUR_MONTH,days,abnormal:STATE.abnormal,signer_id:sid,password:pw})});
   btn.disabled=false; btn.textContent='💾 保存整月';
   if(r.__error||r.error){ toast(r.__error||r.error,'err'); return; }
-  toast(`已保存整月：${r.created} 新建 / ${r.updated} 更新`,'ok');
+  toast(`已保存整月：${r.created} 新建 / ${r.updated} 更新${r.cleared?(' / '+r.cleared+' 条撤销划线'):''}` +
+    (r.kept?`；${r.kept} 天保留原签名（未改成当前签名人）`:''),'ok');
   MONTH_CACHE.delete(CUR_MONTH);
   await loadMonth();
 }
@@ -970,7 +1173,7 @@ async function init(){
   if(devParam){
     const pool=DEVICES.filter(d=>CUR_ROOM?(d.location===CUR_ROOM):(!ROOM_SCOPE||ROOM_SCOPE.has(String(d.location||'').trim())));
     // 精确编号/ID 视为深链接（大屏卡片就是按编号跳的），不受当前房间筛选影响，
-    // 否则会话房间停在测试室07时，点显微镜的编号链接会变成「未找到设备」；
+    // 否则会话房间停在冲击室时，点显微镜的编号链接会变成「未找到设备」；
     // 模糊匹配（整名/片段）仍只在当前房间内找，避免越房间乱跳。
     const d = DEVICES.find(x=>String(x.no)===devParam) || DEVICES.find(x=>String(x.id)===devParam)
            || pool.find(x=>(x.name||'')===devParam) || pool.find(x=>x.name&&x.name.includes(devParam));

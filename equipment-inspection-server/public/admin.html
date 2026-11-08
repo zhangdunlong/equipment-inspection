@@ -331,7 +331,7 @@ select option:disabled{color:var(--muted)}
       <span class="tiny muted">房间要求里没写的指标就不判定（例如只写了温度的房间不判湿度）；关掉则所有房间都用下面的全局默认</span>
     </label>
     <div class="flex" style="align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-      <span class="tiny">一个房间列了多条温度标准时（如测试室07 ASTM 15~25 + GB 18~28）：</span>
+      <span class="tiny">一个房间列了多条温度标准时（如冲击室 ASTM 15~25 + GB 18~28）：</span>
       <select id="al_multistd" style="width:250px">
         <option value="union">取并集（宽）→ 15~28℃</option>
         <option value="intersect">取交集（严）→ 18~25℃</option>
@@ -357,6 +357,7 @@ select option:disabled{color:var(--muted)}
       <select id="al_filter" style="width:140px">
         <option value="">全部</option>
         <option value="open">未确认</option>
+        <option value="resolved">已恢复合规</option>
         <option value="acked">已确认</option>
       </select>
       <button class="btn sm" id="al_reload">🔄 刷新</button>
@@ -613,7 +614,7 @@ select option:disabled{color:var(--muted)}
     <div style="margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.18)">
       <h3 style="margin:0 0 6px;font-size:15px">🛰 LIMS 实时数据源</h3>
       <p class="muted tiny" style="line-height:1.8">温湿度页的「⬇ LIMS 抓取」按钮和下面的同步，直接从 LIMS「环境监测管理」抓<b>真实温湿度</b>：湿度走整月图表（5 分钟一点，可取整月历史），温度走「温湿同点」逐时段窗口（同一点同时取温湿度，配对可信）。只补空格：已有内容 / 签名 / 划线的格子一律不动。<br>
-        <b>温度可以在下面单独指源</b>：只有挂了温湿同点传感器的房间才拿得到温度，没挂的房间（湿度满格、温度空着）可以让它的<b>温度改从别的 LIMS 房间取</b>，例如多间统一指向「测试室07」——湿度仍走各自的源，两边互不影响。</p>
+        <b>温度可以在下面单独指源</b>：只有挂了温湿同点传感器的房间才拿得到温度，没挂的房间（湿度满格、温度空着）可以让它的<b>温度改从别的 LIMS 房间取</b>，例如多间统一指向「冲击室」——湿度仍走各自的源，两边互不影响。</p>
       <div class="row">
         <div class="field"><label>启用 LIMS 数据源</label><select id="l_enabled"><option value="1">启用</option><option value="0">停用</option></select></div>
         <div class="field"><label>LIMS 地址</label><input id="l_base" placeholder="https://example.com/lims"></div>
@@ -644,7 +645,7 @@ select option:disabled{color:var(--muted)}
             建议先点「🔍 实测校验房间名」把每个名字拿到 LIMS 里问一遍，再用「🧹 清理无效房间名」清掉错的。</p>
           <div id="room_map_box" class="scroll glass" style="max-height:300px;padding:6px"></div>
           <div class="row" style="margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:8px">
-            <div class="field" style="flex:1;min-width:200px"><label>新增 LIMS 源房间（填一个加一个，建议加完实测校验）</label><input id="l_newlimroom" placeholder="如：测试室11"></div>
+            <div class="field" style="flex:1;min-width:200px"><label>新增 LIMS 源房间（填一个加一个，建议加完实测校验）</label><input id="l_newlimroom" placeholder="如：化学制样"></div>
             <button class="btn sm" id="l_addlimroom">＋ 加入数据源清单</button>
             <button class="btn sm" id="l_verify" title="逐个房间名向 LIMS 实测（名字不存在会秒回 code=5000）。每个约 8 秒，后台异步执行，不卡界面">🔍 实测校验房间名</button>
             <button class="btn sm" id="l_prune" title="把实测为「LIMS 中不存在」的名字从清单里删掉，并清空指向它们的映射">🧹 清理无效房间名</button>
@@ -904,7 +905,10 @@ async function loadAlertList(){
     const per={AM:'上午',PM:'下午',Night:'晚上'}[a.period]||a.period;
     return '<tr><td>'+esc(String(a.at).replace('T',' ').slice(0,16))+'</td><td>'+esc(a.room)+'</td><td>'+a.day+'日 '+per+'</td>'
       +'<td>'+AL_KIND[a.kind]+'：'+a.value+'</td><td>'+esc(a.source||'')+'</td>'
-      +'<td>'+(a.status==='open'?'<b style="color:#b42318">未确认</b>':'已确认（'+esc(a.ack_by||'')+'）')+'</td>'
+      +'<td>'+(a.status==='open'?'<b style="color:#b42318">未确认</b>'
+        :a.status==='resolved'?'<span style="color:#0a7c42" title="数值已被改成合规，'
+          +esc(String(a.resolved_at||'').replace('T',' ').slice(0,16))+' 由 '+esc(a.resolved_by||'')+' 自动关闭">已恢复合规</span>'
+        :'已确认（'+esc(a.ack_by||'')+'）')+'</td>'
       +'<td>'+(a.status==='open'?'<button class="btn sm" onclick="ackAlert(\''+a.id+'\')">确认</button>':'')+'</td></tr>';
   }).join('')||'<tr><td colspan="7" style="color:#98a2b3">暂无预警记录</td></tr>';
 }
@@ -2677,7 +2681,7 @@ $('#tpl_import').onclick=()=>{
       <div class="field"><label>签名密码</label><input type="password" id="it_pw" placeholder="签名人密码"></div>
     </div>
     <div class="field">
-      <label>上传文件（CSV / TSV；Excel 请先“另存为 CSV”）</label>
+      <label>上传文件（.xlsx / CSV / TSV，Excel 可直接上传）</label>
       <input type="file" id="it_file" accept=".csv,.tsv,.txt">
       <p class="muted tiny" id="it_file_hint" style="margin-top:4px"></p>
     </div>
@@ -2697,48 +2701,208 @@ $('#tpl_import').onclick=()=>{
       <button class="btn primary" id="it_go" onclick="genTpl()">生成模板</button>
     </div>`;
   $('#mask').classList.add('show');
-  $('#it_file').onchange=e=>{
+  $('#it_file').onchange=async e=>{
     const f=e.target.files[0]; if(!f)return;
     $('#it_src').value=f.name;
     const base=f.name.replace(/\.[^.]+$/,'');
     if(!$('#it_key').value) $('#it_key').value=base;
-    const rd=new FileReader();
-    rd.onload=()=>{
-      const txt=rd.result||'';
-      // xlsx 为 ZIP 包，二进制头 PK\x03\x04，浏览器无法按文本解析
-      if(txt.charCodeAt(0)===0x50 && txt.charCodeAt(1)===0x4B && txt.charCodeAt(2)===0x03 && txt.charCodeAt(3)===0x04){
-        const h=$('#it_file_hint'); h.textContent='⚠️ 检测到 .xlsx 二进制文件，浏览器无法直接解析。请先在 Excel / WPS 中「另存为 → CSV（逗号分隔）」，再上传 CSV。'; h.style.color='#e08a3c';
-        return;
+    const h=$('#it_file_hint');
+    const say=(t,color)=>{ h.textContent=t; h.style.color=color||''; };
+    const isZip=/\.xlsx?$/i.test(f.name);
+    try{
+      if(isZip){
+        // v1.44.2：.xlsx 直接在浏览器里解开（xlsx = zip + XML，用原生 DecompressionStream 即可），
+        // 不必再让用户手工「另存为 CSV」——少一步就少一次出错。
+        say('正在解析 Excel…');
+        const tsv=await xlsxToTsv(await f.arrayBuffer());
+        if(!tsv.trim()) throw new Error('这个 Excel 的第一个工作表里没有内容');
+        $('#it_text').value=tsv;
+        say('已从 Excel 读取并转成表格文本（'+tsv.split('\n').length+' 行），可调整后点「解析预览」。','');
+      }else{
+        const txt=await f.text();
+        // 兜底：有些文件的扩展名不对（其实还是 xlsx 二进制）——按魔数再判一次
+        if(txt.charCodeAt(0)===0x50 && txt.charCodeAt(1)===0x4B && txt.charCodeAt(2)===0x03 && txt.charCodeAt(3)===0x04){
+          const tsv=await xlsxToTsv(await f.arrayBuffer());
+          $('#it_text').value=tsv;
+          say('该文件其实是 Excel 格式，已自动解析（'+tsv.split('\n').length+' 行）。','');
+        }else{
+          $('#it_text').value=txt;
+          say('已读取文件内容到下方文本框，可调整后点「解析预览」。','');
+        }
       }
-      $('#it_text').value=txt;
-      const h=$('#it_file_hint'); h.textContent='已读取文件内容到下方文本框，可调整后点“解析预览”。'; h.style.color='';
-    };
-    rd.readAsText(f,'UTF-8');
+      previewTpl();                 // 读进来就顺手预览一次，省一次点击
+    }catch(err){
+      say('❌ 读取失败：'+((err&&err.message)||err)+'　（也可以把模板另存为 CSV 后上传）','#e08a3c');
+    }
   };
 };
-// 解析表格文本为检查项：自动选分隔符、跳过空行、列映射
+/* 解析表格文本为检查项（v1.44.2 重写）
+ *
+ * 【原来错在哪】旧版有两个致命点，用真实模板（设备维护保养记录）实测：
+ *   ① **分隔符只按「第一行」统计** —— 而标准模板的第一行是标题「设备维护保养记录」，
+ *      一个分隔符都没有 → 计数全 0 → delim 退化成 Tab → split 只得到 1 个元素 →
+ *      整行被当成一条「检查项」。实测该模板被解析成 **25 条垃圾**（连标题、表头、备注、
+ *      「维护人员」都成了检查项），序号列与频率列压根没拆开。
+ *   ② 频率取的是 `cells.slice(2).join(' / ')` —— 标准表里「内容」与「频率」之间还有 4~5 个空列、
+ *      频率后面又跟着 31 个日期列，拼出来是「 /  /  / 每天 /  …」这种长串；
+ *      更要命的是「每月」项因为整串 ≠「每月」被**误判成每天**，月度项会跑到每日行里去。
+ *   修复后同一份模板解析出正确的 10 条（9 个每天 + 1 个月度）。
+ *
+ * 【新版口径】
+ *   · 分隔符：统计**前 20 行**（标题行不再误导），全都没分隔符时再退回 Tab。
+ *   · 按需做 CSV 引号解析（模板里带逗号/换行的字段是被引号包起来的）。
+ *   · 只要表里存在「首列是纯数字」的行，就**只收这些行** —— 序号行才是检查项；
+ *     标题/表头/「维护人员」「异常情况…」「备注」这些行自然被排除。
+ *     没有序号行的表（简单两列 CSV）照旧全收。
+ *   · 频率：在内容之后按**频率词表**挑第一个命中的格（每天/每月/每周/每次…），
+ *     挑不到才退回「内容之后的第一个非空格」。每日→每天、每季度→每季 统一写法。
+ */
+const TPL_FREQ_WORDS=['每次试验前','每次开机前','每次使用前','每天','每日','每周','每旬',
+  '每月','每季','每季度','每半年','每年','每次','每班','不定期'];
+const TPL_HEADER_WORDS=/^(序号|编号|内容|检查内容|项目|检查项目|频率|周期|检查周期|sn|no\.?|contents?|frequency|备注|note|维护人员|maintainer)$/i;
+function tplNormFreq(s){
+  const t=String(s||'').trim();
+  if(!t) return '';
+  if(t==='每日') return '每天';
+  if(t==='每季度') return '每季';
+  const hit=TPL_FREQ_WORDS.find(w=>t.indexOf(w)>=0);
+  return hit?(hit==='每日'?'每天':(hit==='每季度'?'每季':hit)):t;
+}
+function tplUnquote(s){
+  let t=String(s==null?'':s).trim();
+  if(t.length>=2 && t[0]==='"' && t[t.length-1]==='"') t=t.slice(1,-1).replace(/""/g,'"').trim();
+  return t;
+}
+function tplSplitCsv(line,delim){
+  const out=[]; let cur='',q=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(q){ if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else if(ch==='"') q=true;
+    else if(ch===delim){ out.push(cur); cur=''; }
+    else cur+=ch;
+  }
+  out.push(cur);
+  return out;
+}
 function parseTplText(text){
-  const lines=(text||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
+  const lines=String(text||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
   if(!lines.length) return [];
-  const first=lines[0];
-  const counts={tb:(first.match(/\t/g)||[]).length, cm:(first.match(/,/g)||[]).length, sc:(first.match(/;/g)||[]).length};
+  const probe=lines.slice(0,20).join('\n');
+  const counts={tb:(probe.match(/\t/g)||[]).length, cm:(probe.match(/,/g)||[]).length, sc:(probe.match(/;/g)||[]).length};
   let delim='\t',best=-1;
   for(const k in counts){ if(counts[k]>best){best=counts[k];delim=k==='tb'?'\t':(k==='cm'?',':';');} }
+  if(best<=0) delim='\t';
+  const rows=lines.map(ln=>(ln.indexOf('"')>=0?tplSplitCsv(ln,delim):ln.split(delim)).map(tplUnquote));
+  const numbered=rows.filter(c=>/^\d{1,3}$/.test(c[0]||''));
+  const useRows=numbered.length?numbered:rows;      // 有序号 → 只认序号行
   const out=[];
-  for(const ln of lines){
-    const cells=ln.split(delim).map(c=>c.trim());
-    let content='',freq='';
-    if(cells.length<=1){ content=cells[0]||''; }
-    else if(cells.length===2){ content=cells[0]; freq=cells[1]; }
-    else {
-      // 三列及以上：首列若为纯数字序号则跳过
-      if(/^\d+$/.test(cells[0])){ content=cells[1]; freq=cells.slice(2).join(' / '); }
-      else { content=cells[0]; freq=cells.slice(1).join(' / '); }
-    }
-    if(content) out.push({content, frequency:freq});
+  for(const cells of useRows){
+    const isNum=/^\d{1,3}$/.test(cells[0]||'');
+    let content='',rest=[];
+    if(isNum){ content=cells[1]||''; rest=cells.slice(2); }
+    else if(cells.length<=1){ content=cells[0]||''; rest=[]; }
+    else { content=cells[0]||''; rest=cells.slice(1); }
+    content=String(content).replace(/\s+/g,' ').trim();
+    if(!content||TPL_HEADER_WORDS.test(content)||/^\d+$/.test(content)) continue;
+    const nonEmpty=rest.map(x=>String(x||'').trim()).filter(Boolean);
+    let freq='';
+    for(const x of nonEmpty){ if(TPL_FREQ_WORDS.some(w=>x.indexOf(w)>=0)){ freq=tplNormFreq(x); break; } }
+    if(!freq && !isNum && nonEmpty.length) freq=tplNormFreq(nonEmpty[0]);
+    out.push({content, frequency:freq});
   }
   return out;
 }
+/* ---------- v1.44.2：直接读 .xlsx（原来遇到 xlsx 直接拒绝，要求用户先另存为 CSV） ----------
+ * xlsx 本质是个 zip：中央目录 + 若干 deflate 条目。浏览器原生就能解：
+ *   DecompressionStream('deflate-raw') + Blob.stream()。不需要任何第三方库。
+ * 只取「第一个工作表」+ 共享字符串表，转成 TSV 文本喂给 parseTplText。
+ * 这样用户拿到的原始模板（.xlsx）可以直接导入，不必先手工另存为 CSV —— 少一步就少一次出错。 */
+function xlsxColIdx(letters){ let n=0; for(const ch of letters) n=n*26+(ch.toUpperCase().charCodeAt(0)-64); return n-1; }
+function xlsxDecodeXml(s){
+  return String(s)
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+    .replace(/&#(\d+);/g,(m,d)=>String.fromCharCode(+d))
+    .replace(/&#x([0-9a-fA-F]+);/g,(m,h)=>String.fromCharCode(parseInt(h,16)))
+    .replace(/&amp;/g,'&');            // &amp; 必须最后解，否则会把 &amp;lt; 二次解码
+}
+async function xlsxToTsv(buf){
+  if(typeof DecompressionStream!=='function') throw new Error('当前浏览器不支持原生解压，请改用 Chrome/Edge 最新版，或把模板另存为 CSV 再上传');
+  const u8=new Uint8Array(buf), dv=new DataView(buf), dec=new TextDecoder('utf-8');
+  // ① 从尾部找 EOCD（PK\x05\x06）
+  let eocd=-1;
+  const floor=Math.max(0,u8.length-66000);
+  for(let i=u8.length-22;i>=floor;i--){
+    if(u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x05&&u8[i+3]===0x06){ eocd=i; break; }
+  }
+  if(eocd<0) throw new Error('不是有效的 xlsx（找不到 zip 目录）');
+  const count=dv.getUint16(eocd+10,true), cdOff=dv.getUint32(eocd+16,true);
+  // ② 遍历中央目录，登记每个条目（用中央目录的尺寸，比本地头可靠：本地头在流式写入时可能是 0）
+  const entries={};
+  let p=cdOff;
+  for(let i=0;i<count;i++){
+    if(!(u8[p]===0x50&&u8[p+1]===0x4b&&u8[p+2]===0x01&&u8[p+3]===0x02)) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true);
+    const nameLen=dv.getUint16(p+28,true), extraLen=dv.getUint16(p+30,true), cmtLen=dv.getUint16(p+32,true);
+    const lho=dv.getUint32(p+42,true);
+    entries[dec.decode(u8.subarray(p+46,p+46+nameLen))]={method,csize,lho};
+    p+=46+nameLen+extraLen+cmtLen;
+  }
+  const readEntry=async name=>{
+    const e=entries[name]; if(!e) return null;
+    const nl=dv.getUint16(e.lho+26,true), el=dv.getUint16(e.lho+28,true);
+    const start=e.lho+30+nl+el;
+    const data=u8.subarray(start,start+e.csize);
+    if(e.method===0) return dec.decode(data);                 // 未压缩
+    if(e.method!==8) throw new Error('xlsx 内不支持的压缩方式：'+e.method);
+    const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return await new Response(stream).text();
+  };
+  // ③ 定位第一个工作表
+  let sheetName=entries['xl/worksheets/sheet1.xml']?'xl/worksheets/sheet1.xml':null;
+  if(!sheetName){
+    const ks=Object.keys(entries).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+      .sort((a,b)=>(+a.match(/(\d+)/)[1])-(+b.match(/(\d+)/)[1]));
+    if(ks.length) sheetName=ks[0];
+  }
+  if(!sheetName) throw new Error('xlsx 里找不到工作表');
+  const sheetXml=await readEntry(sheetName);
+  // ④ 共享字符串表
+  const shared=[];
+  const ssXml=await readEntry('xl/sharedStrings.xml');
+  if(ssXml){
+    const re=/<si\b[^>]*>([\s\S]*?)<\/si>/g; let m;
+    while((m=re.exec(ssXml))){
+      shared.push(xlsxDecodeXml([...m[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map(x=>x[1]).join('')));
+    }
+  }
+  // ⑤ 逐行逐格取値 → TSV（TSV 里把制表/换行替换成空格，避免破坏列结构）
+  const out=[];
+  const rowRe=/<row\b[^>]*?\/>|<row\b[^>]*>([\s\S]*?)<\/row>/g;
+  let rm;
+  while((rm=rowRe.exec(sheetXml))){
+    const body=rm[1]||'';
+    const cells={};
+    const cRe=/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g; let cm;
+    while((cm=cRe.exec(body))){
+      const attr=cm[1]||'', inner=cm[2]||'';
+      const col=(attr.match(/\br="([A-Za-z]+)\d+"/)||[])[1]; if(!col) continue;
+      const t=(attr.match(/\bt="([^"]+)"/)||[])[1]||'';
+      let v='';
+      if(t==='s'){ const vm=inner.match(/<v>([\s\S]*?)<\/v>/); if(vm) v=shared[+vm[1]]||''; }
+      else if(t==='inlineStr'){ const im=inner.match(/<is>([\s\S]*?)<\/is>/);
+        if(im) v=xlsxDecodeXml([...im[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map(x=>x[1]).join('')); }
+      else { const vm=inner.match(/<v>([\s\S]*?)<\/v>/); if(vm) v=xlsxDecodeXml(vm[1]); }
+      cells[xlsxColIdx(col)]=v;
+    }
+    const ks=Object.keys(cells); if(!ks.length) continue;
+    const max=ks.reduce((a,b)=>Math.max(a,+b),-1);
+    const arr=[]; for(let i=0;i<=max;i++) arr.push(cells[i]==null?'':cells[i]);
+    out.push(arr.map(x=>String(x).replace(/[\t\r\n]+/g,' ').trim()).join('\t'));
+  }
+  return out.join('\n');
+}
+
 async function previewTpl(){
   let lines=($('#it_text').value||'').replace(/\r\n?/g,'\n').split('\n').map(l=>l.trim()).filter(Boolean);
   if(!lines.length){ toast('请先上传文件或粘贴文本','err'); return; }
@@ -3870,6 +4034,11 @@ $('#e_go').onclick=async()=>{
   if(filled.length) h+='<div>填写明细（就是取值区间，可据此核对是否在范围内）：<br>· '+filled.map(d=>esc(d.room)+' '+d.cells+' 格 · 温 '+d.temp_band+'℃ / 湿 '+d.hum_band+'%RH').join('<br>· ')+'</div>';
   const none=(r.detail||[]).filter(d=>!d.cells);
   if(none.length) h+='<div class="muted">· 已无空格、无需填充：'+none.map(d=>esc(d.room)).join('、')+'</div>';
+  // v1.44.3：今天只填到「当前时段」，未发生的下午/晚上留空（符合真实抄表时序）
+  if(r.today_period_cap){
+    const capCN={AM:'上午',PM:'下午',Night:'晚上'}[r.today_period_cap]||r.today_period_cap;
+    h+='<div class="muted">· 今天仅填到「'+capCN+'」时段（'+r.today_period_cap+'），未发生的时段已留空</div>';
+  }
   if(r.skipped&&r.skipped.length) h+='<div style="color:var(--warn)">⚠ 已跳过 '+r.skipped.length+' 个房间：<br>· '+r.skipped.map(s=>esc(s.room)+'：'+esc(s.reason)).join('<br>· ')+'</div><div><a href="/admin?tab=room" target="_blank" rel="noopener">→ 去「房间管理」补填温湿度要求</a></div>';
   h+='<div class="muted" style="margin-top:4px">填完可到「温湿度」页面直接核对 / 手工微调。</div>';
   $('#e_result').innerHTML=h;
@@ -3892,7 +4061,7 @@ let gLimsRooms=[], gInspectRooms=[], gAlias={}, gAllowShare=[], gNoFetch=[], gRo
 // v1.26.0：温度数据源（点检房间 → auto|off|LIMS房间）与「显式未映射」房间清单
 let gTempSrc={}, gUnmapped=[];
 function currentLimSource(rn){
-  // v1.26.0：显式「未映射」优先于同名直配 —— 否则点检「测试室07」永远被顶回「测试室07」，怎么改都改不掉
+  // v1.26.0：显式「未映射」优先于同名直配 —— 否则点检「冲击室」永远被顶回「冲击室」，怎么改都改不掉
   if(gUnmapped.includes(rn)) return '';
   for(const [lr,tr] of Object.entries(gAlias||{})){
     if(Array.isArray(tr)?tr.indexOf(rn)>=0:tr===rn) return lr;   // 别名值支持数组（一个源给多个房间）
@@ -3920,7 +4089,7 @@ function refreshCatalog(){
   $('#l_catalog').innerHTML=s;
 }
 // 「共用同一数据源」判定：某行选中的源，恰好是**另一个点检房间的名字** —— 那个房间已用同名直配占了它，
-// 所以这一行等于要和它拿同一份读数（曾出现：点检「测试室21」的温湿度与「测试室07」逐格完全相同）。
+// 所以这一行等于要和它拿同一份读数（曾出现：点检「疲劳，弯曲室」的温湿度与「冲击室」逐格完全相同）。
 // 现在由用户显式勾选「允许共用」放行；未勾选则该行暂停（不自动抓取，需手填）。
 function shareState(rn){
   const cur=currentLimSource(rn);
@@ -3939,7 +4108,7 @@ function renderRoomMap(){
   if(!gInspectRooms.length){ box.innerHTML='<div class="muted">（未取到点检房间，请刷新页面重试）</div>'; return; }
   // ★ 候选**只取 LIMS 侧房间名**：LIMS 源房间清单 + 各行当前已选中的值（保证历史选择不丢）。
   //   早前把「点检房间名」也并进候选，下拉里就混进了一堆 LIMS 根本没有的房间
-  //   （测试室20 / 测试室18 / 测试室19 / 测试室21 / 测试室04 / 测试室09 …），把"选哪个"彻底搞乱。
+  //   （危化品库 / 晶间腐蚀室 / 落锤室 / 疲劳，弯曲室 / 测试室04 / 金相试样间 …），把"选哪个"彻底搞乱。
   const opts=[...new Set([...(gLimsRooms||[]),...gInspectRooms.map(currentLimSource).filter(Boolean)])]
     .sort((a,b)=>String(a).localeCompare(String(b),'zh'));
   const rows=gInspectRooms.map(rn=>{
